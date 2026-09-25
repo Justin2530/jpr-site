@@ -75,7 +75,7 @@ header.site{position:sticky;top:0;z-index:50;background:color-mix(in oklab,var(-
 .hero-badge{position:absolute;left:calc(-1*var(--s6));bottom:var(--s8);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s4) var(--s5);box-shadow:var(--shadow);max-width:260px}
 .hero-badge b{display:block;font-size:var(--text-sm)}
 .hero-badge span{font-size:var(--text-xs);color:var(--muted);line-height:1.4;display:block;margin-top:2px}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:6px;vertical-align:middle}
+.dot,.hero-badge .dot{display:inline-block;margin-top:0;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:6px;vertical-align:middle}
 .proof{display:flex;flex-wrap:wrap;gap:var(--s3) var(--s8);margin-top:var(--s16);padding-top:var(--s6);border-top:1px solid var(--line);font-size:var(--text-sm);font-weight:500;color:var(--muted)}
 .proof span::before{content:"";display:inline-block;width:14px;height:8px;border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(-45deg) translateY(-3px);margin-right:10px}
 @media(max-width:900px){.hero-grid{grid-template-columns:1fr}.hero-badge{left:var(--s4)}.hero-media img{aspect-ratio:4/3}}
