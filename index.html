@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light" data-palette="signal">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>J Peace Recruiting | Local Recruiter in Punxsutawney, PA</title>
 <meta name="description" content="J Peace Recruiting is a direct-hire recruiter for every kind of employer within 50 miles of Punxsutawney, PA. Not a staffing agency. Pay per hire or one flat monthly rate.">
 <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23A8431A'/%3E%3Cpath d='M10 8v11a4 4 0 0 1-4 4' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Cpath d='M16 23V8h5a4.5 4.5 0 0 1 0 9h-5' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23F04E12'/%3E%3Cpath d='M10 8v11a4 4 0 0 1-4 4' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Cpath d='M16 23V8h5a4.5 4.5 0 0 1 0 9h-5' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 :root,[data-theme="light"]{
   --bg:#F5F3EE;--surface:#FFFFFF;--surface-2:#EDEAE3;--ink:#1A1E22;--muted:#5B605E;--faint:#8D918D;
@@ -241,9 +241,6 @@ footer{background:var(--dark);color:var(--on-dark-muted);border-top:1px solid rg
 [data-theme="dark"][data-palette="lime"]{--bg:#0B120E;--surface:#111A15;--surface-2:#17221B;--ink:#ECF0EA;--muted:#9EA79F;--accent-soft:#1D2A16;--accent-text:#C6F24E;--dark:#070C09;--dark-2:#0F1812}
 [data-palette="signal"]{--bg:#F3F4F6;--surface:#fff;--surface-2:#E8EAEE;--ink:#0A0A0B;--muted:#55585E;--accent:#F04E12;--accent-hover:#D8420A;--accent-soft:#FDE8DE;--accent-text:#C73E0A;--accent-on-dark:#FF7A45;--on-accent:#fff;--dark:#0A0A0B;--dark-2:#151517}
 [data-theme="dark"][data-palette="signal"]{--bg:#0A0A0B;--surface:#131315;--surface-2:#1A1A1D;--ink:#EDEDEF;--muted:#9D9FA5;--accent:#FF6A2E;--accent-hover:#FF8552;--accent-soft:#2A1810;--accent-text:#FF7A45;--dark:#050506;--dark-2:#111113}
-.palette{position:fixed;right:16px;bottom:16px;z-index:90;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow);font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px}
-.palette button{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
-.palette button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -523,17 +520,6 @@ footer{background:var(--dark);color:var(--on-dark-muted);border-top:1px solid rg
     if(!f.name.value||!f.company.value||!f.phone.value){f.querySelector(':invalid')&&f.querySelector(':invalid').focus();return}
     document.getElementById('done').style.display='block';f.querySelector('button').textContent='Sent';});
 })();
-</script>
-<div class="palette" role="group" aria-label="Preview color options"><span>Colors</span>
-<button data-p="rust" title="Rust (original)" style="background:#A8431A" aria-pressed="false"></button>
-<button data-p="electric" title="Electric Blue" style="background:#2B59FF" aria-pressed="false"></button>
-<button data-p="lime" title="Forest + Lime" style="background:linear-gradient(135deg,#0F1A14 50%,#C6F24E 50%)" aria-pressed="false"></button>
-<button data-p="signal" title="Black + Signal Orange" style="background:linear-gradient(135deg,#0A0A0B 50%,#F04E12 50%)" aria-pressed="false"></button>
-</div>
-<script>
-(function(){var r=document.documentElement,bs=document.querySelectorAll('.palette button');
-function set(p){if(p==='rust')r.removeAttribute('data-palette');else r.setAttribute('data-palette',p);bs.forEach(function(b){b.setAttribute('aria-pressed',b.dataset.p===p)})}
-bs.forEach(function(b){b.addEventListener('click',function(){set(b.dataset.p)})});set('electric');})();
 </script>
 </body>
 </html>
