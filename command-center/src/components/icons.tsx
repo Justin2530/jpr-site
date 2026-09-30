@@ -59,3 +59,9 @@ export const ShieldIcon = (p: P) => (
     <path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" />
   </S>
 );
+export const ToolsIcon = (p: P) => (
+  <S {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 9h18M8 14h3M8 17h6M16 14h1" />
+  </S>
+);

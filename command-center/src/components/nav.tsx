@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CandidatesIcon, ClientsIcon, HomeIcon, JobsIcon } from "./icons";
+import { CandidatesIcon, ClientsIcon, HomeIcon, JobsIcon, ToolsIcon } from "./icons";
 
 const ITEMS = [
   { href: "/", label: "What needs me", Icon: HomeIcon },
@@ -10,22 +10,24 @@ const ITEMS = [
   { href: "/jobs", label: "Jobs", Icon: JobsIcon },
   { href: "/candidates", label: "Candidates", Icon: CandidatesIcon },
 ];
+const OWNER_ITEMS = [{ href: "/tools", label: "Tools & costs", Icon: ToolsIcon }];
 
-export function Nav({ mobile = false }: { mobile?: boolean }) {
+export function Nav({ mobile = false, owner = false }: { mobile?: boolean; owner?: boolean }) {
   const path = usePathname();
+  const items = owner ? [...ITEMS, ...OWNER_ITEMS] : ITEMS;
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
   if (mobile) {
     return (
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line bg-deep/95 backdrop-blur-md lg:hidden">
-        {ITEMS.map(({ href, label, Icon }) => (
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t border-line bg-deep/95 backdrop-blur-md lg:hidden">
+        {items.map(({ href, label, Icon }) => (
           <Link
             key={href}
             href={href}
             className={`flex flex-col items-center gap-1 py-2.5 text-[10.5px] ${active(href) ? "text-cyan" : "text-muted"}`}
           >
             <Icon />
-            {label === "What needs me" ? "Home" : label}
+            {label === "What needs me" ? "Home" : label === "Tools & costs" ? "Tools" : label}
           </Link>
         ))}
       </nav>
@@ -34,7 +36,7 @@ export function Nav({ mobile = false }: { mobile?: boolean }) {
 
   return (
     <nav className="space-y-1">
-      {ITEMS.map(({ href, label, Icon }) => {
+      {items.map(({ href, label, Icon }) => {
         const on = active(href);
         return (
           <Link

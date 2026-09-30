@@ -386,6 +386,46 @@ export type Database = {
           { foreignKeyName: "screening_goals_job_id_fkey"; columns: ["job_id"]; isOneToOne: false; referencedRelation: "jobs"; referencedColumns: ["id"] },
         ]
       }
+      services: {
+        Row: {
+          account_email: string | null
+          billing: Database["public"]["Enums"]["billing_cycle"]
+          category: string
+          cost: number | null
+          created_at: string
+          id: string
+          login_url: string | null
+          name: string
+          notes: string | null
+          plan: string | null
+          purpose: string | null
+          renews_on: string | null
+          sort: number
+          status: Database["public"]["Enums"]["service_status"]
+          updated_at: string
+          watch: string | null
+        }
+        Insert: {
+          account_email?: string | null
+          billing?: Database["public"]["Enums"]["billing_cycle"]
+          category?: string
+          cost?: number | null
+          created_at?: string
+          id?: string
+          login_url?: string | null
+          name: string
+          notes?: string | null
+          plan?: string | null
+          purpose?: string | null
+          renews_on?: string | null
+          sort?: number
+          status?: Database["public"]["Enums"]["service_status"]
+          updated_at?: string
+          watch?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["services"]["Row"]>
+        Relationships: []
+      }
       staff: {
         Row: {
           active: boolean
@@ -468,6 +508,7 @@ export type Database = {
       action_status: "open" | "done" | "dismissed"
       agreement_status: "draft" | "active" | "ended"
       agreement_type: "subscription" | "contingency"
+      billing_cycle: "free" | "monthly" | "yearly" | "usage"
       candidate_source:
         | "indeed"
         | "linkedin"
@@ -492,6 +533,7 @@ export type Database = {
         | "on_hold"
         | "passed"
         | "withdrawn"
+      service_status: "active" | "planned" | "cancelled"
       staff_role: "owner" | "regional_director" | "market_director" | "recruiter"
     }
     CompositeTypes: {
@@ -514,6 +556,7 @@ export const Constants = {
       action_status: ["open", "done", "dismissed"],
       agreement_status: ["draft", "active", "ended"],
       agreement_type: ["subscription", "contingency"],
+      billing_cycle: ["free", "monthly", "yearly", "usage"],
       candidate_source: ["indeed", "linkedin", "website", "referral", "database", "direct_outreach", "inbound", "other"],
       company_status: ["prospect", "client", "former_client"],
       job_status: ["open", "on_hold", "filled", "closed"],
@@ -531,6 +574,7 @@ export const Constants = {
         "passed",
         "withdrawn",
       ],
+      service_status: ["active", "planned", "cancelled"],
       staff_role: ["owner", "regional_director", "market_director", "recruiter"],
     },
   },

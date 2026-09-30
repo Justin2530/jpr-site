@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </span>
         </Link>
 
-        <Nav />
+        <Nav owner={staff.role === "owner"} />
 
         <div className="mt-6 space-y-1 border-t border-line pt-4">
           <p className="panel-title mb-2 px-3">Quick add</p>
@@ -71,7 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
 
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:pb-12">{children}</main>
-      <Nav mobile />
+      <Nav mobile owner={staff.role === "owner"} />
     </div>
   );
 }

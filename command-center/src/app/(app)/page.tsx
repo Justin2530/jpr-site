@@ -13,6 +13,7 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
   submission_ready: { label: "Submission", tone: "amber" },
   stale_job: { label: "Stalled job", tone: "amber" },
   agreement_ending: { label: "Renewal", tone: "amber" },
+  service_renewal: { label: "Subscription", tone: "amber" },
   task: { label: "Task", tone: "muted" },
 };
 
@@ -20,6 +21,7 @@ function hrefFor(item: Tables<"needs_me">) {
   if (item.candidate_id) return `/candidates/${item.candidate_id}`;
   if (item.job_id) return `/jobs/${item.job_id}`;
   if (item.company_id) return `/clients/${item.company_id}`;
+  if (item.kind === "service_renewal") return "/tools";
   return null;
 }
 
