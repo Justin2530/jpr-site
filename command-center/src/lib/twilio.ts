@@ -38,6 +38,18 @@ export async function twilioApi(path: string, params: Record<string, string>, me
   return json;
 }
 
+// GET from any Twilio API host (messaging.twilio.com, trusthub.twilio.com, ...), for read-only checks.
+export async function twilioGet(url: string) {
+  if (!sid || !token) throw new Error("Twilio isn't connected yet.");
+  const res = await fetch(url.replace("{AccountSid}", sid), {
+    headers: { Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}` },
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Twilio: ${json.message ?? res.statusText}`);
+  return json;
+}
+
 // Address Twilio posts back to. The private preview sits behind Vercel sign-in, so the automation
 // bypass code rides along; the route still checks Twilio's signature on every request.
 export function webhookUrl(origin: string, path: string) {

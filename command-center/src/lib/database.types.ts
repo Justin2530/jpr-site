@@ -343,6 +343,12 @@ export type Database = {
           { foreignKeyName: "deals_owner_id_fkey"; columns: ["owner_id"]; isOneToOne: false; referencedRelation: "staff"; referencedColumns: ["id"] },
         ]
       }
+      integration_snapshots: {
+        Row: { data: Json; name: string; taken_at: string };
+        Insert: { data: Json; name: string; taken_at?: string };
+        Update: { data?: Json; name?: string; taken_at?: string };
+        Relationships: [];
+      };
       jobs: {
         Row: {
           candidate_description: string | null
