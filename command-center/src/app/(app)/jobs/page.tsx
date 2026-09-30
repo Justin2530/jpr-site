@@ -54,7 +54,6 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
               params={{ status }}
               options={[
                 { key: "cards", label: "By company" },
-                { key: "list", label: "List by company" },
                 { key: "board", label: "Board by status" },
               ]}
             />
@@ -90,117 +89,103 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
           }))}
           move={moveJob}
         />
-      ) : view === "list" ? (
-        <div className="panel overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left">
-                {["Job", "Company", "Status", "Active", "To submit", "Placed", "Opened"].map((h) => (
-                  <th key={h} className="panel-title px-4 py-2.5 font-normal">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            {byCompany.map((g) => (
-              <tbody key={g.id} className="divide-y divide-line border-t-2 border-line-strong">
-                <tr className="bg-white/[0.03]">
-                  <td colSpan={7} className="px-4 py-2">
-                    <Link href={`/companies/${g.id}`} className="link font-semibold">
-                      {g.name}
-                    </Link>
-                    <span className="ml-2 font-mono text-[11px] text-faint">
-                      {g.jobs.length} {g.jobs.length === 1 ? "job" : "jobs"}
-                    </span>
-                  </td>
-                </tr>
-                {g.jobs.map((j) => (
-                  <tr key={j.id} className="hover:bg-white/[0.02]">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/jobs/${j.id}`} className="link font-medium">
-                        {j.title}
-                      </Link>
-                      {j.priority === 1 && <span className="ml-2 text-xs text-amber">High</span>}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted">{j.companies?.name}</td>
-                    <td className="px-4 py-2.5">
-                      <Chip tone={j.status === "open" ? "cyan" : "muted"}>{label(j.status)}</Chip>
-                    </td>
-                    <td className="readout px-4 py-2.5">{j.candidate_jobs.filter((cj) => ACTIVE.includes(cj.stage)).length}</td>
-                    <td className="readout px-4 py-2.5 text-amber">
-                      {j.candidate_jobs.filter((cj) => cj.stage === "ready_to_submit").length}
-                    </td>
-                    <td className="readout px-4 py-2.5 text-mint">{j.candidate_jobs.filter((cj) => cj.stage === "placed").length}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-faint">{timeAgo(j.opened_on)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            ))}
-          </table>
-        </div>
       ) : (
-        <div className="space-y-8">
-          {byCompany.map((g) => {
-            const active = g.jobs.reduce((n, j) => n + j.candidate_jobs.filter((cj) => ACTIVE.includes(cj.stage)).length, 0);
-            const ready = g.jobs.reduce((n, j) => n + j.candidate_jobs.filter((cj) => cj.stage === "ready_to_submit").length, 0);
-            return (
-              <section key={g.id}>
-                <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-2">
-                  <Link href={`/companies/${g.id}`} className="text-lg font-semibold hover:text-cyan">
-                    {g.name}
-                  </Link>
-                  {g.status && <Chip tone={g.status === "client" ? "mint" : "muted"}>{label(g.status)}</Chip>}
-                  <span className="font-mono text-xs text-muted">
-                    <span className="readout text-ink">{g.jobs.length}</span> {g.jobs.length === 1 ? "job" : "jobs"} ·{" "}
-                    <span className="readout text-ink">{active}</span> active
-                    {ready > 0 && (
-                      <>
-                        {" · "}
-                        <span className="readout text-amber">{ready}</span> to submit
-                      </>
-                    )}
-                  </span>
-                  <Link href={`/jobs/new?company=${g.id}`} className="ml-auto text-xs text-cyan">
-                    <PlusIcon className="inline h-3.5 w-3.5" /> Job
-                  </Link>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {g.jobs.map((j) => {
-                    const active = j.candidate_jobs.filter((cj) => ACTIVE.includes(cj.stage)).length;
-                    const ready = j.candidate_jobs.filter((cj) => cj.stage === "ready_to_submit").length;
-                    const placed = j.candidate_jobs.filter((cj) => cj.stage === "placed").length;
-                    return (
-                      <Link key={j.id} href={`/jobs/${j.id}`} className="panel block p-4 transition hover:border-line-strong">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{j.title}</p>
-                            <p className="truncate text-sm text-muted">{j.location}</p>
-                          </div>
-                          <div className="flex shrink-0 gap-1.5">
-                            {j.priority === 1 && <Chip tone="amber">High</Chip>}
-                            <Chip tone={j.status === "open" ? "cyan" : "muted"}>{label(j.status)}</Chip>
-                          </div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3 font-mono text-[11px] uppercase tracking-wider text-faint">
-                          <span>
-                            <span className="readout block text-lg text-ink">{active}</span>active
-                          </span>
-                          <span>
-                            <span className="readout block text-lg text-amber">{ready}</span>to submit
-                          </span>
-                          <span>
-                            <span className="readout block text-lg text-mint">{placed}</span>placed
-                          </span>
-                        </div>
-                        <p className="mt-2 font-mono text-[10.5px] text-faint">Opened {timeAgo(j.opened_on)}</p>
+        <>
+          <nav className="mb-6 flex flex-wrap gap-2" aria-label="Jump to company">
+            {byCompany.map((g) => (
+              <a
+                key={g.id}
+                href={`#co-${g.id}`}
+                className="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 text-sm transition hover:border-cyan/50"
+              >
+                <span className="max-w-[14rem] truncate">{g.name.replace(/^Sample: /, "")}</span>
+                <span className="readout rounded bg-cyan-soft px-1.5 text-xs text-cyan">{g.jobs.length}</span>
+              </a>
+            ))}
+          </nav>
+          <div className="space-y-6">
+            {byCompany.map((g) => {
+              const count = (fn: (stage: string) => boolean) =>
+                g.jobs.reduce((n, j) => n + j.candidate_jobs.filter((cj) => fn(cj.stage)).length, 0);
+              const active = count((st) => ACTIVE.includes(st));
+              const ready = count((st) => st === "ready_to_submit");
+              const initials = g.name
+                .replace(/^Sample: /, "")
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase();
+              return (
+                <section key={g.id} id={`co-${g.id}`} className="panel scroll-mt-24 overflow-hidden border-l-4 border-l-cyan/60">
+                  <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-gradient-to-r from-cyan/[0.08] to-transparent px-4 py-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-cyan/40 bg-cyan-soft font-mono text-sm font-semibold text-cyan">
+                      {initials}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/companies/${g.id}`} className="block truncate text-lg font-semibold hover:text-cyan">
+                        {g.name}
                       </Link>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+                      {g.status && <p className="font-mono text-[11px] uppercase tracking-wider text-muted">{label(g.status)}</p>}
+                    </div>
+                    <div className="flex gap-5 text-center font-mono text-[10.5px] uppercase tracking-wider text-faint">
+                      <span>
+                        <span className="readout block text-xl text-ink">{g.jobs.length}</span>
+                        {g.jobs.length === 1 ? "job" : "jobs"}
+                      </span>
+                      <span>
+                        <span className="readout block text-xl text-ink">{active}</span>active
+                      </span>
+                      <span>
+                        <span className={`readout block text-xl ${ready ? "text-amber" : "text-ink"}`}>{ready}</span>to submit
+                      </span>
+                    </div>
+                    <Link href={`/jobs/new?company=${g.id}`} className="btn-quiet text-xs">
+                      <PlusIcon className="h-3.5 w-3.5" /> Job
+                    </Link>
+                  </header>
+                  <ul className="divide-y divide-line">
+                    {g.jobs.map((j) => {
+                      const jActive = j.candidate_jobs.filter((cj) => ACTIVE.includes(cj.stage)).length;
+                      const jReady = j.candidate_jobs.filter((cj) => cj.stage === "ready_to_submit").length;
+                      const jPlaced = j.candidate_jobs.filter((cj) => cj.stage === "placed").length;
+                      return (
+                        <li key={j.id}>
+                          <Link
+                            href={`/jobs/${j.id}`}
+                            className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 pl-8 transition hover:bg-white/[0.03]"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-medium">{j.title}</p>
+                              <p className="truncate text-sm text-muted">
+                                {[j.location, `opened ${timeAgo(j.opened_on)}`].filter(Boolean).join(" · ")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4 font-mono text-[11px] text-faint">
+                              <span>
+                                <span className="readout text-sm text-ink">{jActive}</span> active
+                              </span>
+                              <span>
+                                <span className={`readout text-sm ${jReady ? "text-amber" : "text-ink"}`}>{jReady}</span> to submit
+                              </span>
+                              <span>
+                                <span className="readout text-sm text-mint">{jPlaced}</span> placed
+                              </span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {j.priority === 1 && <Chip tone="amber">High</Chip>}
+                              <Chip tone={j.status === "open" ? "cyan" : "muted"}>{label(j.status)}</Chip>
+                            </div>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
+        </>
       )}
     </>
   );
