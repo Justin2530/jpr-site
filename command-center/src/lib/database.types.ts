@@ -732,7 +732,7 @@ export type Database = {
       twilio_caller_name: { Args: { p_secret: string; p_from: string }; Returns: string | null }
       twilio_inbound_call: { Args: { p_secret: string; p_sid: string; p_from: string }; Returns: undefined }
       twilio_forward_number: { Args: { p_secret: string }; Returns: string | null }
-      twilio_relay_target: { Args: { p_secret: string }; Returns: { phone: string; name: string }[] }
+      twilio_relay_target: { Args: { p_secret: string; p_name?: string }; Returns: { phone: string; name: string }[] }
       twilio_log_relay: { Args: { p_secret: string; p_sid: string; p_to: string; p_body: string }; Returns: undefined }
       twilio_status: { Args: { p_secret: string; p_sid: string; p_status: string; p_duration: number | null }; Returns: undefined }
     }

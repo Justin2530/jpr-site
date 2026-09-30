@@ -22,16 +22,39 @@ export async function POST(request: Request) {
   const cell = toE164(ownerCell);
 
   if (cell && toE164(p.From) === cell) {
-    const { data: targets } = await db.rpc("twilio_relay_target", { p_secret: secret });
-    const target = targets?.[0];
-    if (!target?.phone) return reply("Nobody has texted the business number yet, so there's no one to reply to.");
+    // "Eric: see you at 3" goes to Eric. With no name it only sends when exactly one person texted in the
+    // last day; otherwise it asks, so a message never lands with the wrong candidate.
+    const named = body.match(/^\s*([A-Za-z][A-Za-z.' -]{0,40}?)\s*:\s*([\s\S]+)$/);
+    let target: { phone: string; name: string } | undefined;
+    let text = body;
+    if (named) {
+      const { data: matches } = await db.rpc("twilio_relay_target", { p_secret: secret, p_name: named[1] });
+      if (matches && matches.length > 1)
+        return reply(`More than one ${named[1]} texted recently: ${matches.map((m) => m.name).join(", ")}. Start with the full name.`);
+      if (matches?.length === 1) {
+        target = matches[0];
+        text = named[2].trim();
+      }
+    }
+    if (!target) {
+      const { data: recent } = await db.rpc("twilio_relay_target", { p_secret: secret });
+      if (!recent?.length)
+        return reply(
+          'Nobody has texted the business number in the last day. Start with their name, like "Eric: ...", or text them from the Command Center.',
+        );
+      if (recent.length > 1)
+        return reply(
+          `Not sent. Who is this for? Start with their name, like "${recent[0].name.split(" ")[0]}: ...". Recent: ${recent.map((r) => r.name).join(", ")}.`,
+        );
+      target = recent[0];
+    }
     const msg = await twilioApi("Messages", {
       To: target.phone,
       From: twilioNumber ?? p.To,
-      Body: body,
+      Body: text,
       StatusCallback: webhookUrl(origin, "/api/twilio/status"),
     });
-    await db.rpc("twilio_log_relay", { p_secret: secret, p_sid: msg.sid, p_to: target.phone, p_body: body });
+    await db.rpc("twilio_log_relay", { p_secret: secret, p_sid: msg.sid, p_to: target.phone, p_body: text });
     return EMPTY_TWIML.clone();
   }
 
@@ -52,7 +75,11 @@ export async function POST(request: Request) {
     const who = name ?? p.From ?? "Someone";
     const first = name ? name.split(" ")[0] : "them";
     try {
-      await twilioApi("Messages", { To: cell, From: twilioNumber ?? p.To, Body: `${who}: ${body}\n\n(Reply here to answer ${first}.)` });
+      await twilioApi("Messages", {
+        To: cell,
+        From: twilioNumber ?? p.To,
+        Body: `${who}: ${body}\n\n(To answer, reply "${first}: your message")`,
+      });
     } catch (e) {
       console.error("twilio forward to cell", e);
     }
