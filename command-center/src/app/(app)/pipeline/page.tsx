@@ -47,7 +47,7 @@ export default async function PipelinePage({
     id: r.id,
     column: r.stage,
     title: r.candidates?.full_name ?? "Unknown",
-    href: `/candidates/${r.candidates?.id}`,
+    href: `/candidates/${r.candidates?.id}?job=${r.id}`,
     sub: job ? r.candidates?.current_title ?? undefined : `${r.jobs?.title} · ${r.jobs?.companies?.name}`,
     meta: `${timeAgo(r.stage_changed_at)} in stage`,
     flag: r.stage !== "placed" && daysSince(r.stage_changed_at) >= STALE_DAYS,
@@ -115,7 +115,7 @@ export default async function PipelinePage({
                   .map((r) => (
                     <tr key={r.id} className="hover:bg-white/[0.02]">
                       <td className="px-4 py-2.5">
-                        <Link href={`/candidates/${r.candidates?.id}`} className="link font-medium">
+                        <Link href={`/candidates/${r.candidates?.id}?job=${r.id}`} className="link font-medium">
                           {r.candidates?.full_name}
                         </Link>
                       </td>

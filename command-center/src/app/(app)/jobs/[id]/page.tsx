@@ -48,7 +48,9 @@ export default async function JobDetail({
     ),
   );
   const order = Constants.public.Enums.pipeline_stage;
-  const sorted = rows.map((r, i) => ({ ...r, isProtected: protectedChecks[i] })).sort((a, b) => order.indexOf(a.stage) - order.indexOf(b.stage));
+  const sorted = rows
+    .map((r, i) => ({ ...r, isProtected: protectedChecks[i] }))
+    .sort((a, b) => order.indexOf(a.stage) - order.indexOf(b.stage));
 
   return (
     <>
@@ -128,7 +130,7 @@ export default async function JobDetail({
                   id: r.id,
                   column: r.stage,
                   title: r.candidates?.full_name ?? "",
-                  href: `/candidates/${r.candidates?.id}`,
+                  href: `/candidates/${r.candidates?.id}?job=${r.id}`,
                   sub: [r.candidates?.current_title, r.candidates?.current_employer].filter(Boolean).join(" at ") || undefined,
                   meta: `${timeAgo(r.stage_changed_at)} in stage`,
                   flag: r.isProtected || (r.stage !== "placed" && daysSince(r.stage_changed_at) >= 7),
@@ -149,7 +151,7 @@ export default async function JobDetail({
                   <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <Link href={`/candidates/${r.candidates?.id}`} className="link font-medium">
+                        <Link href={`/candidates/${r.candidates?.id}?job=${r.id}`} className="link font-medium">
                           {r.candidates?.full_name}
                         </Link>
                         {r.isProtected && (
@@ -165,8 +167,11 @@ export default async function JobDetail({
                     </div>
                     <span className="font-mono text-[11px] text-faint">{timeAgo(r.stage_changed_at)}</span>
                     {!["submitted", "interviewing", "offer", "placed", "passed", "withdrawn"].includes(r.stage) && (
-                      <Link href={`/jobs/${job.id}/submit/${r.id}`} className={r.stage === "ready_to_submit" ? "btn py-1 text-xs" : "btn-quiet py-1 text-xs"}>
-                        Submit to client
+                      <Link
+                        href={`/candidates/${r.candidates?.id}?job=${r.id}#submission`}
+                        className={r.stage === "ready_to_submit" ? "btn py-1 text-xs" : "btn-quiet py-1 text-xs"}
+                      >
+                        {r.stage === "ready_to_submit" ? "Review submission" : "Submit to client"}
                       </Link>
                     )}
                     <StageSelect id={r.id} stage={r.stage} />
@@ -184,7 +189,8 @@ export default async function JobDetail({
 
           <Panel title="Screening goals">
             <p className="-mt-1 mb-3 text-sm text-muted">
-              What the pre-submission call has to learn. <span className="text-amber">Required</span> goals must be answered before a submission is drafted.
+              What the pre-submission call has to learn. <span className="text-amber">Required</span> goals must be answered before a
+              submission is drafted.
             </p>
             {(goals ?? []).length === 0 && <Empty>No goals yet.</Empty>}
             <ul className="space-y-2">
@@ -211,7 +217,12 @@ export default async function JobDetail({
             </ul>
             <form action={addGoal} className="mt-3 flex flex-wrap items-center gap-2">
               <input type="hidden" name="job_id" value={job.id} />
-              <input name="prompt" placeholder="Add something the call needs to find out…" className="field flex-1" aria-label="New screening goal" />
+              <input
+                name="prompt"
+                placeholder="Add something the call needs to find out…"
+                className="field flex-1"
+                aria-label="New screening goal"
+              />
               <label className="flex items-center gap-1.5 text-sm text-muted">
                 <input type="checkbox" name="required" defaultChecked className="accent-cyan" /> Required
               </label>
@@ -237,8 +248,12 @@ export default async function JobDetail({
               </Row>
               <Row label="Opened">{timeAgo(job.opened_on)}</Row>
               <Row label="Description">{job.description && <span className="whitespace-pre-wrap">{job.description}</span>}</Row>
-              <Row label="Can share">{job.candidate_description && <span className="whitespace-pre-wrap">{job.candidate_description}</span>}</Row>
-              <Row label="Internal">{job.internal_notes && <span className="whitespace-pre-wrap text-amber">{job.internal_notes}</span>}</Row>
+              <Row label="Can share">
+                {job.candidate_description && <span className="whitespace-pre-wrap">{job.candidate_description}</span>}
+              </Row>
+              <Row label="Internal">
+                {job.internal_notes && <span className="whitespace-pre-wrap text-amber">{job.internal_notes}</span>}
+              </Row>
             </dl>
             <details className="mt-3">
               <summary className="cursor-pointer text-sm text-cyan">Edit job</summary>

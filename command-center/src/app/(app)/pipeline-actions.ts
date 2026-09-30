@@ -55,27 +55,3 @@ export async function moveCandidateJob(id: string, stage: string) {
   await setStage(form);
 }
 
-// Submit to client: moves the candidate to Submitted and logs who it went to.
-// The email itself is sent from Justin's own mail app for now.
-export async function markSubmitted(id: string, recipients: string[]) {
-  const { supabase, userId } = await requireStaff();
-  const { data, error } = await supabase
-    .from("candidate_jobs")
-    .update({ stage: "submitted" })
-    .eq("id", id)
-    .select("candidate_id, job_id, jobs(company_id)")
-    .single();
-  if (error) throw new Error(error.message);
-  await supabase.from("activities").insert({
-    kind: "email",
-    summary: `Submitted to client${recipients.length ? `: ${recipients.join(", ")}` : ""}`,
-    candidate_id: data.candidate_id,
-    job_id: data.job_id,
-    candidate_job_id: id,
-    company_id: data.jobs?.company_id ?? null,
-    actor_id: userId,
-  });
-  revalidatePath(`/candidates/${data.candidate_id}`);
-  revalidatePath(`/jobs/${data.job_id}`);
-  revalidatePath("/");
-}

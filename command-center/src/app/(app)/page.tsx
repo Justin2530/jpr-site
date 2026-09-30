@@ -22,6 +22,7 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
 function hrefFor(item: Tables<"needs_me">) {
   if (item.key?.startsWith("deal:")) return `/deals/${item.key.slice(5)}`;
   if (item.key?.startsWith("invoice:")) return `/placements/${item.key.slice(8)}`;
+  if (item.candidate_id && item.candidate_job_id) return `/candidates/${item.candidate_id}?job=${item.candidate_job_id}`;
   if (item.candidate_id) return `/candidates/${item.candidate_id}`;
   if (item.job_id) return `/jobs/${item.job_id}`;
   if (item.company_id) return `/companies/${item.company_id}`;

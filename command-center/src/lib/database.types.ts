@@ -437,7 +437,8 @@ export type Database = {
           id: string
           mime_type: string | null
           size_bytes: number | null
-          storage_path: string
+          storage_path: string | null
+          text_content: string | null
           uploaded_by: string | null
         }
         Insert: {
@@ -447,7 +448,8 @@ export type Database = {
           id?: string
           mime_type?: string | null
           size_bytes?: number | null
-          storage_path: string
+          storage_path?: string | null
+          text_content?: string | null
           uploaded_by?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["resumes"]["Row"]>
@@ -476,6 +478,113 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["screening_goals"]["Row"]>
         Relationships: [
           { foreignKeyName: "screening_goals_job_id_fkey"; columns: ["job_id"]; isOneToOne: false; referencedRelation: "jobs"; referencedColumns: ["id"] },
+        ]
+      }
+      screening_facts: {
+        Row: {
+          candidate_job_id: string
+          created_at: string
+          goal_id: string | null
+          id: string
+          label: string
+          run_id: string | null
+          sort: number
+          source: string
+          value: string | null
+        }
+        Insert: {
+          candidate_job_id: string
+          created_at?: string
+          goal_id?: string | null
+          id?: string
+          label: string
+          run_id?: string | null
+          sort?: number
+          source?: string
+          value?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["screening_facts"]["Row"]>
+        Relationships: [
+          { foreignKeyName: "screening_facts_candidate_job_id_fkey"; columns: ["candidate_job_id"]; isOneToOne: false; referencedRelation: "candidate_jobs"; referencedColumns: ["id"] },
+          { foreignKeyName: "screening_facts_goal_id_fkey"; columns: ["goal_id"]; isOneToOne: false; referencedRelation: "screening_goals"; referencedColumns: ["id"] },
+          { foreignKeyName: "screening_facts_run_id_fkey"; columns: ["run_id"]; isOneToOne: false; referencedRelation: "screening_runs"; referencedColumns: ["id"] },
+        ]
+      }
+      screening_runs: {
+        Row: {
+          candidate_job_id: string
+          candidate_questions: string[]
+          channel: string
+          concerns: string[]
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          recording_url: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["screening_status"]
+          summary: string | null
+          transcript: Json
+          unresolved: string[]
+        }
+        Insert: {
+          candidate_job_id: string
+          candidate_questions?: string[]
+          channel?: string
+          concerns?: string[]
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          recording_url?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["screening_status"]
+          summary?: string | null
+          transcript?: Json
+          unresolved?: string[]
+        }
+        Update: Partial<Database["public"]["Tables"]["screening_runs"]["Row"]>
+        Relationships: [
+          { foreignKeyName: "screening_runs_candidate_job_id_fkey"; columns: ["candidate_job_id"]; isOneToOne: false; referencedRelation: "candidate_jobs"; referencedColumns: ["id"] },
+        ]
+      }
+      submissions: {
+        Row: {
+          body: string
+          candidate_job_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          drafted_by: string
+          email_thread_id: string | null
+          id: string
+          run_id: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["submission_status"]
+          subject: string
+          to_contact_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          body?: string
+          candidate_job_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          drafted_by?: string
+          email_thread_id?: string | null
+          id?: string
+          run_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["submission_status"]
+          subject?: string
+          to_contact_ids?: string[]
+          updated_at?: string
+        }
+        Update: Partial<Database["public"]["Tables"]["submissions"]["Row"]>
+        Relationships: [
+          { foreignKeyName: "submissions_candidate_job_id_fkey"; columns: ["candidate_job_id"]; isOneToOne: false; referencedRelation: "candidate_jobs"; referencedColumns: ["id"] },
+          { foreignKeyName: "submissions_run_id_fkey"; columns: ["run_id"]; isOneToOne: false; referencedRelation: "screening_runs"; referencedColumns: ["id"] },
         ]
       }
       services: {
@@ -627,7 +736,9 @@ export type Database = {
         | "on_hold"
         | "passed"
         | "withdrawn"
+      screening_status: "scheduled" | "in_progress" | "completed" | "no_answer" | "failed" | "cancelled"
       service_status: "active" | "planned" | "cancelled"
+      submission_status: "draft" | "sent" | "held" | "passed"
       staff_role: "owner" | "regional_director" | "market_director" | "recruiter"
     }
     CompositeTypes: {
@@ -670,7 +781,9 @@ export const Constants = {
         "passed",
         "withdrawn",
       ],
+      screening_status: ["scheduled", "in_progress", "completed", "no_answer", "failed", "cancelled"],
       service_status: ["active", "planned", "cancelled"],
+      submission_status: ["draft", "sent", "held", "passed"],
       staff_role: ["owner", "regional_director", "market_director", "recruiter"],
     },
   },
