@@ -164,6 +164,11 @@ export default async function JobDetail({
                       </p>
                     </div>
                     <span className="font-mono text-[11px] text-faint">{timeAgo(r.stage_changed_at)}</span>
+                    {!["submitted", "interviewing", "offer", "placed", "passed", "withdrawn"].includes(r.stage) && (
+                      <Link href={`/jobs/${job.id}/submit/${r.id}`} className={r.stage === "ready_to_submit" ? "btn py-1 text-xs" : "btn-quiet py-1 text-xs"}>
+                        Submit to client
+                      </Link>
+                    )}
                     <StageSelect id={r.id} stage={r.stage} />
                     <form action={unassign}>
                       <input type="hidden" name="id" value={r.id} />

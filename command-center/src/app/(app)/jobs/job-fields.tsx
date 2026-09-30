@@ -1,4 +1,5 @@
 import { Field } from "@/components/ui";
+import { CompanyInput } from "@/components/company-input";
 import type { Tables } from "@/lib/database.types";
 
 type Company = { id: string; name: string };
@@ -21,30 +22,14 @@ export function JobFields({
       <Field label="Job title" name="title" className="sm:col-span-2">
         <input id="title" name="title" required defaultValue={job?.title} className="field" />
       </Field>
-      <Field label="Client" name="company_id">
-        <select id="company_id" name="company_id" required defaultValue={selected ?? ""} className="field">
-          <option value="" disabled>
-            Pick a client
-          </option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Hiring contact" name="hiring_contact_id">
-        <select id="hiring_contact_id" name="hiring_contact_id" defaultValue={job?.hiring_contact_id ?? ""} className="field">
-          <option value="">None</option>
-          {contacts
-            .filter((p) => !selected || p.company_id === selected)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}
-              </option>
-            ))}
-        </select>
-      </Field>
+      <CompanyInput
+        companies={companies}
+        defaultName={companies.find((c) => c.id === selected)?.name ?? ""}
+        contacts={contacts}
+        contactField="hiring_contact_id"
+        contactLabel="Hiring contact"
+        defaultContactId={job?.hiring_contact_id}
+      />
       <Field label="Location" name="location">
         <input id="location" name="location" defaultValue={job?.location ?? ""} className="field" />
       </Field>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { num, text } from "@/lib/format";
+import { resolveCompany } from "@/lib/company";
 import type { Enums } from "@/lib/database.types";
 
 // Starting information goals for every new job; edit per job afterwards.
@@ -18,7 +19,6 @@ const DEFAULT_GOALS: { prompt: string; required: boolean }[] = [
 function jobFields(form: FormData) {
   return {
     title: text(form, "title")!,
-    company_id: text(form, "company_id")!,
     status: (text(form, "status") ?? "open") as Enums<"job_status">,
     visibility: (text(form, "visibility") ?? "private") as Enums<"job_visibility">,
     location: text(form, "location"),
@@ -33,13 +33,11 @@ function jobFields(form: FormData) {
 }
 
 export async function createJob(form: FormData) {
-  const { supabase, userId } = await requireStaff();
-  const fields = jobFields(form);
-  const { data: company } = await supabase.from("companies").select("market_id").eq("id", fields.company_id).single();
-  if (!company) throw new Error("Pick a client for this job.");
+  const { supabase, userId, markets } = await requireStaff();
+  const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
   const { data, error } = await supabase
     .from("jobs")
-    .insert({ ...fields, market_id: company.market_id, created_by: userId })
+    .insert({ ...jobFields(form), company_id: company.id, market_id: company.market_id, created_by: userId })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -48,9 +46,10 @@ export async function createJob(form: FormData) {
 }
 
 export async function updateJob(form: FormData) {
-  const { supabase } = await requireStaff();
+  const { supabase, userId, markets } = await requireStaff();
   const id = String(form.get("id"));
-  const { error } = await supabase.from("jobs").update(jobFields(form)).eq("id", id);
+  const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
+  const { error } = await supabase.from("jobs").update({ ...jobFields(form), company_id: company.id }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/jobs/${id}`);
 }

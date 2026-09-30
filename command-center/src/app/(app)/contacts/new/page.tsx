@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
-import { Empty, PageHeader, Panel } from "@/components/ui";
+import { PageHeader, Panel } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ContactFields } from "../contact-fields";
 import { createContactRecord } from "../actions";
@@ -14,17 +14,10 @@ export default async function NewContact({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader kicker="Sales" title="New contact" />
-      {(companies ?? []).length === 0 ? (
-        <Empty>
-          Add their company first.{" "}
-          <Link href="/companies/new" className="link text-cyan">
-            New company
-          </Link>
-        </Empty>
-      ) : (
+      {
         <Panel className="max-w-2xl">
           <form action={createContactRecord} className="space-y-4">
-            <ContactFields companies={companies!} companyId={company} />
+            <ContactFields companies={companies ?? []} companyId={company} />
             <div className="flex gap-2 pt-2">
               <SubmitButton>Save contact</SubmitButton>
               <Link href="/contacts" className="btn-quiet">
@@ -33,7 +26,7 @@ export default async function NewContact({ searchParams }: { searchParams: Promi
             </div>
           </form>
         </Panel>
-      )}
+      }
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { Field } from "@/components/ui";
+import { CompanyInput } from "@/components/company-input";
 import { DEAL_STAGE_LABEL } from "@/lib/format";
 import { Constants, type Tables } from "@/lib/database.types";
 
@@ -19,30 +20,13 @@ export function DealFields({
       <Field label="Deal name" name="title" className="sm:col-span-2">
         <input id="title" name="title" required defaultValue={deal?.title} placeholder="e.g. Acme: 3-search subscription" className="field" />
       </Field>
-      <Field label="Company" name="company_id">
-        <select id="company_id" name="company_id" required defaultValue={selected ?? ""} className="field">
-          <option value="" disabled>
-            Pick a company
-          </option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Contact" name="contact_id">
-        <select id="contact_id" name="contact_id" defaultValue={deal?.contact_id ?? ""} className="field">
-          <option value="">None</option>
-          {contacts
-            .filter((p) => !selected || p.company_id === selected)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}
-              </option>
-            ))}
-        </select>
-      </Field>
+      <CompanyInput
+        companies={companies}
+        defaultName={companies.find((c) => c.id === selected)?.name ?? ""}
+        contacts={contacts}
+        contactField="contact_id"
+        defaultContactId={deal?.contact_id}
+      />
       <Field label="Stage" name="stage">
         <select id="stage" name="stage" defaultValue={deal?.stage ?? "lead"} className="field">
           {Constants.public.Enums.deal_stage.map((s) => (

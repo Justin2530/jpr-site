@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { num, text } from "@/lib/format";
+import { resolveCompany } from "@/lib/company";
 import { Constants, type Enums } from "@/lib/database.types";
 
 function fields(form: FormData) {
   return {
     title: text(form, "title")!,
-    company_id: text(form, "company_id")!,
     contact_id: text(form, "contact_id"),
     stage: (text(form, "stage") ?? "lead") as Enums<"deal_stage">,
     deal_type: text(form, "deal_type") as Enums<"agreement_type"> | null,
@@ -22,13 +22,11 @@ function fields(form: FormData) {
 }
 
 export async function createDeal(form: FormData) {
-  const { supabase, userId } = await requireStaff();
-  const f = fields(form);
-  const { data: company } = await supabase.from("companies").select("market_id").eq("id", f.company_id).single();
-  if (!company) throw new Error("Pick a company for this deal.");
+  const { supabase, userId, markets } = await requireStaff();
+  const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
   const { data, error } = await supabase
     .from("deals")
-    .insert({ ...f, market_id: company.market_id, owner_id: userId })
+    .insert({ ...fields(form), company_id: company.id, market_id: company.market_id, owner_id: userId })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -36,9 +34,10 @@ export async function createDeal(form: FormData) {
 }
 
 export async function updateDeal(form: FormData) {
-  const { supabase } = await requireStaff();
+  const { supabase, userId, markets } = await requireStaff();
   const id = String(form.get("id"));
-  const { error } = await supabase.from("deals").update(fields(form)).eq("id", id);
+  const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
+  const { error } = await supabase.from("deals").update({ ...fields(form), company_id: company.id }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/deals/${id}`);
   revalidatePath("/deals");

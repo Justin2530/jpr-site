@@ -1,4 +1,5 @@
 import { Field } from "@/components/ui";
+import { CompanyInput } from "@/components/company-input";
 import type { Tables } from "@/lib/database.types";
 
 export function ContactFields({
@@ -18,18 +19,9 @@ export function ContactFields({
       <Field label="Title" name="title">
         <input id="title" name="title" defaultValue={c?.title ?? ""} className="field" />
       </Field>
-      <Field label="Company" name="company_id" className="sm:col-span-2">
-        <select id="company_id" name="company_id" required defaultValue={c?.company_id ?? companyId ?? ""} className="field">
-          <option value="" disabled>
-            Pick a company
-          </option>
-          {companies.map((co) => (
-            <option key={co.id} value={co.id}>
-              {co.name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <div className="sm:col-span-2">
+        <CompanyInput companies={companies} defaultName={companies.find((co) => co.id === (c?.company_id ?? companyId))?.name ?? ""} />
+      </div>
       <Field label="Phone" name="phone">
         <input id="phone" name="phone" type="tel" defaultValue={c?.phone ?? ""} className="field" />
       </Field>

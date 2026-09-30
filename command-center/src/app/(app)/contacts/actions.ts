@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { text } from "@/lib/format";
+import { resolveCompany } from "@/lib/company";
 
 function fields(form: FormData) {
   return {
-    company_id: text(form, "company_id")!,
     full_name: text(form, "full_name")!,
     title: text(form, "title"),
     email: text(form, "email")?.toLowerCase() ?? null,
@@ -17,16 +17,18 @@ function fields(form: FormData) {
 }
 
 export async function createContactRecord(form: FormData) {
-  const { supabase } = await requireStaff();
-  const { data, error } = await supabase.from("contacts").insert(fields(form)).select("id").single();
+  const { supabase, userId, markets } = await requireStaff();
+  const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
+  const { data, error } = await supabase.from("contacts").insert({ ...fields(form), company_id: company.id }).select("id").single();
   if (error) throw new Error(error.message);
   redirect(`/contacts/${data.id}`);
 }
 
 export async function updateContact(form: FormData) {
-  const { supabase } = await requireStaff();
+  const { supabase, userId, markets } = await requireStaff();
   const id = String(form.get("id"));
-  const { error } = await supabase.from("contacts").update(fields(form)).eq("id", id);
+  const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
+  const { error } = await supabase.from("contacts").update({ ...fields(form), company_id: company.id }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/contacts/${id}`);
 }
