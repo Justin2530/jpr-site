@@ -5,7 +5,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { ShieldIcon } from "@/components/icons";
 import { timeAgo, type Tone } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
-import { addTask, resolveTask } from "./actions";
+import { addTask, clearSampleData, resolveTask } from "./actions";
 
 const KIND: Record<string, { label: string; tone: Tone }> = {
   protected_client: { label: "Client protection", tone: "rose" },
@@ -42,7 +42,7 @@ export default async function Home() {
   const { supabase, staff } = await requireStaff();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent] = await Promise.all([
+  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent, samples] = await Promise.all([
     supabase.from("needs_me").select("*").order("priority").order("since", { ascending: true }).limit(50),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "open"),
     supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).not("stage", "in", CLOSED_STAGES),
@@ -54,6 +54,7 @@ export default async function Home() {
       .select("id, summary, occurred_at, kind, candidate_id, job_id, company_id, candidates(full_name)")
       .order("occurred_at", { ascending: false })
       .limit(12),
+    supabase.from("companies").select("id", { count: "exact", head: true }).eq("is_sample", true),
   ]);
 
   const items = needs.data ?? [];
@@ -62,6 +63,19 @@ export default async function Home() {
 
   return (
     <div className="space-y-6">
+      {(samples.count ?? 0) > 0 && staff.role === "owner" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 text-sm">
+          <span>
+            <span className="font-medium text-amber">Sample data loaded.</span>{" "}
+            <span className="text-ink/90">Companies starting with &quot;Sample:&quot; and their people, jobs and deals are placeholders.</span>
+          </span>
+          <form action={clearSampleData}>
+            <SubmitButton className="btn-quiet border-amber/40 text-amber" pendingText="Clearing…">
+              Clear sample data
+            </SubmitButton>
+          </form>
+        </div>
+      )}
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="panel-title mb-1.5 text-cyan/80">Systems online</p>

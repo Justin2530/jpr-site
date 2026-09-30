@@ -175,6 +175,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          is_sample: boolean
           linkedin_url: string | null
           notes: string | null
           phone: string | null
@@ -195,6 +196,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          is_sample?: boolean
           linkedin_url?: string | null
           notes?: string | null
           phone?: string | null
@@ -216,6 +218,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_sample: boolean
           industry: string | null
           market_id: string
           name: string
@@ -230,6 +233,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_sample?: boolean
           industry?: string | null
           market_id: string
           name: string
