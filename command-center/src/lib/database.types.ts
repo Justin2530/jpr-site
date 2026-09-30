@@ -67,6 +67,7 @@ export type Database = {
           candidate_id: string | null
           candidate_job_id: string | null
           company_id: string | null
+          deal_id: string | null
           id: string
           job_id: string | null
           kind: string
@@ -79,6 +80,7 @@ export type Database = {
           candidate_id?: string | null
           candidate_job_id?: string | null
           company_id?: string | null
+          deal_id?: string | null
           id?: string
           job_id?: string | null
           kind: string
@@ -92,6 +94,7 @@ export type Database = {
           { foreignKeyName: "activities_candidate_id_fkey"; columns: ["candidate_id"]; isOneToOne: false; referencedRelation: "candidates"; referencedColumns: ["id"] },
           { foreignKeyName: "activities_candidate_job_id_fkey"; columns: ["candidate_job_id"]; isOneToOne: false; referencedRelation: "candidate_jobs"; referencedColumns: ["id"] },
           { foreignKeyName: "activities_company_id_fkey"; columns: ["company_id"]; isOneToOne: false; referencedRelation: "companies"; referencedColumns: ["id"] },
+          { foreignKeyName: "activities_deal_id_fkey"; columns: ["deal_id"]; isOneToOne: false; referencedRelation: "deals"; referencedColumns: ["id"] },
           { foreignKeyName: "activities_job_id_fkey"; columns: ["job_id"]; isOneToOne: false; referencedRelation: "jobs"; referencedColumns: ["id"] },
           { foreignKeyName: "activities_market_id_fkey"; columns: ["market_id"]; isOneToOne: false; referencedRelation: "markets"; referencedColumns: ["id"] },
         ]
@@ -268,6 +271,53 @@ export type Database = {
           { foreignKeyName: "contacts_company_id_fkey"; columns: ["company_id"]; isOneToOne: false; referencedRelation: "companies"; referencedColumns: ["id"] },
         ]
       }
+      deals: {
+        Row: {
+          closed_at: string | null
+          company_id: string
+          contact_id: string | null
+          created_at: string
+          deal_type: Database["public"]["Enums"]["agreement_type"] | null
+          expected_close: string | null
+          id: string
+          market_id: string
+          next_step: string | null
+          next_step_on: string | null
+          notes: string | null
+          owner_id: string | null
+          stage: Database["public"]["Enums"]["deal_stage"]
+          stage_changed_at: string
+          title: string
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          closed_at?: string | null
+          company_id: string
+          contact_id?: string | null
+          created_at?: string
+          deal_type?: Database["public"]["Enums"]["agreement_type"] | null
+          expected_close?: string | null
+          id?: string
+          market_id: string
+          next_step?: string | null
+          next_step_on?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          stage?: Database["public"]["Enums"]["deal_stage"]
+          stage_changed_at?: string
+          title: string
+          updated_at?: string
+          value?: number | null
+        }
+        Update: Partial<Database["public"]["Tables"]["deals"]["Row"]>
+        Relationships: [
+          { foreignKeyName: "deals_company_id_fkey"; columns: ["company_id"]; isOneToOne: false; referencedRelation: "companies"; referencedColumns: ["id"] },
+          { foreignKeyName: "deals_contact_id_fkey"; columns: ["contact_id"]; isOneToOne: false; referencedRelation: "contacts"; referencedColumns: ["id"] },
+          { foreignKeyName: "deals_market_id_fkey"; columns: ["market_id"]; isOneToOne: false; referencedRelation: "markets"; referencedColumns: ["id"] },
+          { foreignKeyName: "deals_owner_id_fkey"; columns: ["owner_id"]; isOneToOne: false; referencedRelation: "staff"; referencedColumns: ["id"] },
+        ]
+      }
       jobs: {
         Row: {
           candidate_description: string | null
@@ -336,6 +386,44 @@ export type Database = {
         }
         Update: Partial<Database["public"]["Tables"]["markets"]["Row"]>
         Relationships: []
+      }
+      placements: {
+        Row: {
+          candidate_job_id: string
+          compensation: number | null
+          covered_by_subscription: boolean
+          created_at: string
+          fee_amount: number | null
+          fee_percent: number | null
+          guarantee_until: string | null
+          id: string
+          invoice_status: Database["public"]["Enums"]["invoice_status"]
+          invoiced_on: string | null
+          notes: string | null
+          paid_on: string | null
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          candidate_job_id: string
+          compensation?: number | null
+          covered_by_subscription?: boolean
+          created_at?: string
+          fee_amount?: number | null
+          fee_percent?: number | null
+          guarantee_until?: string | null
+          id?: string
+          invoice_status?: Database["public"]["Enums"]["invoice_status"]
+          invoiced_on?: string | null
+          notes?: string | null
+          paid_on?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: Partial<Database["public"]["Tables"]["placements"]["Row"]>
+        Relationships: [
+          { foreignKeyName: "placements_candidate_job_id_fkey"; columns: ["candidate_job_id"]; isOneToOne: true; referencedRelation: "candidate_jobs"; referencedColumns: ["id"] },
+        ]
       }
       resumes: {
         Row: {
@@ -519,6 +607,8 @@ export type Database = {
         | "inbound"
         | "other"
       company_status: "prospect" | "client" | "former_client"
+      deal_stage: "lead" | "contacted" | "meeting" | "proposal" | "won" | "lost"
+      invoice_status: "not_invoiced" | "invoiced" | "paid" | "not_applicable"
       job_status: "open" | "on_hold" | "filled" | "closed"
       job_visibility: "private" | "public" | "confidential"
       pipeline_stage:
@@ -559,6 +649,8 @@ export const Constants = {
       billing_cycle: ["free", "monthly", "yearly", "usage"],
       candidate_source: ["indeed", "linkedin", "website", "referral", "database", "direct_outreach", "inbound", "other"],
       company_status: ["prospect", "client", "former_client"],
+      deal_stage: ["lead", "contacted", "meeting", "proposal", "won", "lost"],
+      invoice_status: ["not_invoiced", "invoiced", "paid", "not_applicable"],
       job_status: ["open", "on_hold", "filled", "closed"],
       job_visibility: ["private", "public", "confidential"],
       pipeline_stage: [

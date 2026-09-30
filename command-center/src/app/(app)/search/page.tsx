@@ -19,7 +19,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   }
 
   const like = `%${term}%`;
-  const [candidates, jobs, companies, contacts] = await Promise.all([
+  const [candidates, jobs, companies, contacts, deals] = await Promise.all([
     supabase
       .from("candidates")
       .select("id, full_name, current_title, current_employer")
@@ -32,6 +32,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       .select("id, full_name, title, company_id, companies(name)")
       .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
       .limit(20),
+    supabase.from("deals").select("id, title, companies(name)").ilike("title", like).limit(20),
   ]);
 
   const groups = [
@@ -45,16 +46,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       })),
     },
     { title: "Jobs", rows: (jobs.data ?? []).map((j) => ({ id: j.id, href: `/jobs/${j.id}`, main: j.title, sub: j.companies?.name ?? "" })) },
-    { title: "Clients", rows: (companies.data ?? []).map((c) => ({ id: c.id, href: `/clients/${c.id}`, main: c.name, sub: c.city ?? "" })) },
+    { title: "Companies", rows: (companies.data ?? []).map((c) => ({ id: c.id, href: `/companies/${c.id}`, main: c.name, sub: c.city ?? "" })) },
     {
-      title: "Client contacts",
+      title: "Contacts",
       rows: (contacts.data ?? []).map((p) => ({
         id: p.id,
-        href: `/clients/${p.company_id}`,
+        href: `/contacts/${p.id}`,
         main: p.full_name,
         sub: [p.title, p.companies?.name].filter(Boolean).join(" · "),
       })),
     },
+    { title: "Deals", rows: (deals.data ?? []).map((d) => ({ id: d.id, href: `/deals/${d.id}`, main: d.title, sub: d.companies?.name ?? "" })) },
   ].filter((g) => g.rows.length > 0);
 
   return (

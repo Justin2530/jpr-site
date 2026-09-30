@@ -4,34 +4,36 @@ import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, Field, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { MailIcon, PhoneIcon, PlusIcon } from "@/components/icons";
-import { label, shortDate, timeAgo, type Tone } from "@/lib/format";
+import { DEAL_STAGE_LABEL, DEAL_STAGE_TONE, label, shortDate, timeAgo, type Tone } from "@/lib/format";
 import { CompanyFields } from "../company-fields";
 import { addAgreement, addContact, deleteContact, setAgreementStatus, updateCompany } from "../actions";
 
 const STATUS_TONE: Record<string, Tone> = { client: "mint", prospect: "cyan", former_client: "muted", active: "mint", draft: "cyan", ended: "muted" };
 
 function money(n: number | null) {
-  return n === null ? null : `$${n.toLocaleString("en-US")}`;
+  return n === null ? null : `$${Number(n).toLocaleString("en-US")}`;
 }
 
 export default async function ClientDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase } = await requireStaff();
-  const [{ data: c }, { data: contacts }, { data: agreements }, { data: jobs }, { data: activity }] = await Promise.all([
+  const [{ data: c }, { data: contacts }, { data: agreements }, { data: jobs }, { data: activity }, { data: deals }] = await Promise.all([
     supabase.from("companies").select("*").eq("id", id).maybeSingle(),
     supabase.from("contacts").select("*").eq("company_id", id).order("full_name"),
     supabase.from("agreements").select("*").eq("company_id", id).order("created_at", { ascending: false }),
     supabase.from("jobs").select("id, title, status, candidate_jobs(id)").eq("company_id", id).order("created_at", { ascending: false }),
     supabase.from("activities").select("id, summary, occurred_at, candidate_id, candidates(full_name)").eq("company_id", id).order("occurred_at", { ascending: false }).limit(15),
+    supabase.from("deals").select("id, title, stage, value").eq("company_id", id).order("updated_at", { ascending: false }),
   ]);
   if (!c) notFound();
 
-  const activeAgreement = agreements?.find((a) => a.status === "active");
+  const today = new Date().toISOString().slice(0, 10);
+  const activeAgreement = agreements?.find((a) => a.status === "active" && (!a.end_date || a.end_date >= today));
 
   return (
     <>
       <PageHeader
-        kicker={<Link href="/clients" className="hover:text-cyan">Clients</Link>}
+        kicker={<Link href="/companies" className="hover:text-cyan">Companies</Link>}
         title={c.name}
         sub={
           <span className="flex flex-wrap items-center gap-2">
@@ -50,7 +52,7 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
         <div className="space-y-6">
           <Panel title="Jobs">
             {(jobs ?? []).length === 0 ? (
-              <Empty>No jobs for this client yet.</Empty>
+              <Empty>No jobs for this company yet.</Empty>
             ) : (
               <ul className="-my-1 divide-y divide-line">
                 {jobs!.map((j) => (
@@ -60,6 +62,31 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
                     </Link>
                     <span className="font-mono text-xs text-muted">{j.candidate_jobs.length} candidates</span>
                     <Chip tone={j.status === "open" ? "cyan" : "muted"}>{label(j.status)}</Chip>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel
+            title="Deals"
+            action={
+              <Link href={`/deals/new?company=${c.id}`} className="text-xs text-cyan">
+                + New deal
+              </Link>
+            }
+          >
+            {(deals ?? []).length === 0 ? (
+              <Empty>No deals yet.</Empty>
+            ) : (
+              <ul className="-my-1 divide-y divide-line">
+                {deals!.map((d) => (
+                  <li key={d.id} className="flex items-center gap-3 py-2.5">
+                    <Link href={`/deals/${d.id}`} className="link flex-1 font-medium">
+                      {d.title}
+                    </Link>
+                    <span className="readout text-sm">{money(d.value)}</span>
+                    <Chip tone={DEAL_STAGE_TONE[d.stage]}>{DEAL_STAGE_LABEL[d.stage]}</Chip>
                   </li>
                 ))}
               </ul>
@@ -178,7 +205,9 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
                 <li key={p.id} className="py-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-medium">{p.full_name}</p>
+                      <Link href={`/contacts/${p.id}`} className="link font-medium">
+                        {p.full_name}
+                      </Link>
                       {p.title && <p className="text-sm text-muted">{p.title}</p>}
                     </div>
                     <form action={deleteContact}>

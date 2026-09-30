@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
 import { Nav } from "@/components/nav";
 import { Clock } from "@/components/clock";
+import { SearchHotkey } from "@/components/search-hotkey";
 import { PlusIcon, SearchIcon } from "@/components/icons";
 import { label } from "@/lib/format";
 
@@ -11,8 +12,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen lg:pl-60">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line bg-deep/70 px-4 py-5 backdrop-blur-md lg:flex">
-        <Link href="/" className="mb-8 flex items-center gap-3 px-1">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col overflow-y-auto border-r border-line bg-deep/70 px-4 py-5 backdrop-blur-md lg:flex">
+        <Link href="/" className="mb-6 flex items-center gap-3 px-1">
           <span className="flex h-9 w-9 items-center justify-center rounded-full border border-cyan/50 shadow-[0_0_24px_-6px_rgb(56_217_245/0.8)]">
             <span className="readout text-[11px] text-cyan">JPR</span>
           </span>
@@ -31,7 +32,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {[
             ["/candidates/new", "Candidate"],
             ["/jobs/new", "Job"],
-            ["/clients/new", "Client"],
+            ["/deals/new", "Deal"],
+            ["/companies/new", "Company"],
           ].map(([href, text]) => (
             <Link key={href} href={href} className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm text-muted hover:text-cyan">
               <PlusIcon className="h-4 w-4" />
@@ -59,7 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <input
               name="q"
               type="search"
-              placeholder="Search candidates, jobs, clients…"
+              placeholder="Search everything…  ( / )"
               className="field max-w-md py-1.5 pl-9"
               aria-label="Search"
             />
@@ -72,6 +74,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:pb-12">{children}</main>
       <Nav mobile owner={staff.role === "owner"} />
+      <SearchHotkey />
     </div>
   );
 }

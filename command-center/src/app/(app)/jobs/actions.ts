@@ -92,3 +92,11 @@ export async function deleteGoal(form: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath(`/jobs/${form.get("job_id")}`);
 }
+
+export async function moveJob(id: string, status: string) {
+  const { supabase } = await requireStaff();
+  if (!["open", "on_hold", "filled", "closed"].includes(status)) throw new Error("Unknown status");
+  const { error } = await supabase.from("jobs").update({ status: status as Enums<"job_status"> }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/jobs");
+}

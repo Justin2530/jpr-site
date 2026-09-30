@@ -2,36 +2,35 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
 import { Empty, PageHeader, Panel } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { JobFields } from "../job-fields";
-import { createJob } from "../actions";
+import { DealFields } from "../deal-fields";
+import { createDeal } from "../actions";
 
-export const metadata = { title: "New job · JPR" };
+export const metadata = { title: "New deal · JPR" };
 
-export default async function NewJob({ searchParams }: { searchParams: Promise<{ company?: string }> }) {
+export default async function NewDeal({ searchParams }: { searchParams: Promise<{ company?: string }> }) {
   const { company } = await searchParams;
   const { supabase } = await requireStaff();
   const [{ data: companies }, { data: contacts }] = await Promise.all([
-    supabase.from("companies").select("id, name").neq("status", "former_client").order("name"),
+    supabase.from("companies").select("id, name").order("name"),
     supabase.from("contacts").select("id, full_name, company_id").order("full_name"),
   ]);
-
   return (
     <>
-      <PageHeader kicker="Recruiting" title="New job" sub="Standard screening goals are added automatically; adjust them on the job page." />
+      <PageHeader kicker="Sales" title="New deal" />
       {(companies ?? []).length === 0 ? (
         <Empty>
-          Add a company first.{" "}
+          Add the company first.{" "}
           <Link href="/companies/new" className="link text-cyan">
             New company
           </Link>
         </Empty>
       ) : (
         <Panel className="max-w-3xl">
-          <form action={createJob} className="space-y-4">
-            <JobFields companies={companies!} contacts={contacts ?? []} companyId={company} />
+          <form action={createDeal} className="space-y-4">
+            <DealFields companies={companies!} contacts={contacts ?? []} companyId={company} />
             <div className="flex gap-2 pt-2">
-              <SubmitButton>Save job</SubmitButton>
-              <Link href="/jobs" className="btn-quiet">
+              <SubmitButton>Save deal</SubmitButton>
+              <Link href="/deals" className="btn-quiet">
                 Cancel
               </Link>
             </div>

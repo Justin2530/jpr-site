@@ -46,3 +46,11 @@ export async function unassign(form: FormData) {
   revalidatePath(`/jobs/${data.job_id}`);
   revalidatePath("/");
 }
+
+// Board drag-and-drop: move one candidate-in-job to another stage.
+export async function moveCandidateJob(id: string, stage: string) {
+  const form = new FormData();
+  form.set("id", id);
+  form.set("stage", stage);
+  await setStage(form);
+}

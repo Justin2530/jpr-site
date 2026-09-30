@@ -65,3 +65,44 @@ export const ToolsIcon = (p: P) => (
     <path d="M3 9h18M8 14h3M8 17h6M16 14h1" />
   </S>
 );
+export const PipelineIcon = (p: P) => (
+  <S {...p}>
+    <rect x="3" y="4" width="5" height="16" rx="1.5" />
+    <rect x="10" y="4" width="5" height="11" rx="1.5" />
+    <rect x="17" y="4" width="4" height="7" rx="1.5" />
+  </S>
+);
+export const PlacementIcon = (p: P) => (
+  <S {...p}>
+    <circle cx="12" cy="9" r="5.5" />
+    <path d="m9.5 9 1.8 1.8L14.8 7.3M8.5 14l-1.5 7 5-2.5 5 2.5-1.5-7" />
+  </S>
+);
+export const DealsIcon = (p: P) => (
+  <S {...p}>
+    <path d="M3 17l5-5 4 4 8-8" />
+    <path d="M15 8h5v5" />
+  </S>
+);
+export const ContactsIcon = (p: P) => (
+  <S {...p}>
+    <rect x="4" y="3" width="16" height="18" rx="2" />
+    <circle cx="12" cy="10" r="3" />
+    <path d="M7.5 17.5a4.5 4.5 0 0 1 9 0" />
+  </S>
+);
+export const ReportsIcon = (p: P) => (
+  <S {...p}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </S>
+);
+export const MenuIcon = (p: P) => (
+  <S {...p}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </S>
+);
+export const ChevronIcon = (p: P) => (
+  <S {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </S>
+);

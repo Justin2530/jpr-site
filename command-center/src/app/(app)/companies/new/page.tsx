@@ -6,20 +6,20 @@ import { MarketField } from "@/components/market-field";
 import { CompanyFields } from "../company-fields";
 import { createCompany } from "../actions";
 
-export const metadata = { title: "New client · JPR" };
+export const metadata = { title: "New company · JPR" };
 
 export default async function NewClient() {
   const { markets } = await requireStaff();
   return (
     <>
-      <PageHeader kicker="CRM" title="New client" />
+      <PageHeader kicker="Sales" title="New company" />
       <Panel className="max-w-2xl">
         <form action={createCompany} className="space-y-4">
           <CompanyFields />
           <MarketField markets={markets} />
           <div className="flex gap-2 pt-2">
-            <SubmitButton>Save client</SubmitButton>
-            <Link href="/clients" className="btn-quiet">
+            <SubmitButton>Save company</SubmitButton>
+            <Link href="/companies" className="btn-quiet">
               Cancel
             </Link>
           </div>

@@ -24,7 +24,7 @@ export async function createCompany(form: FormData) {
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  redirect(`/clients/${data.id}`);
+  redirect(`/companies/${data.id}`);
 }
 
 export async function updateCompany(form: FormData) {
@@ -43,7 +43,7 @@ export async function updateCompany(form: FormData) {
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath(`/clients/${id}`);
+  revalidatePath(`/companies/${id}`);
 }
 
 export async function addContact(form: FormData) {
@@ -57,14 +57,14 @@ export async function addContact(form: FormData) {
     phone: text(form, "phone"),
   });
   if (error) throw new Error(error.message);
-  revalidatePath(`/clients/${companyId}`);
+  revalidatePath(`/companies/${companyId}`);
 }
 
 export async function deleteContact(form: FormData) {
   const { supabase } = await requireStaff();
   const { error } = await supabase.from("contacts").delete().eq("id", String(form.get("id")));
   if (error) throw new Error(error.message);
-  revalidatePath(`/clients/${form.get("company_id")}`);
+  revalidatePath(`/companies/${form.get("company_id")}`);
 }
 
 export async function addAgreement(form: FormData) {
@@ -83,7 +83,7 @@ export async function addAgreement(form: FormData) {
     notes: text(form, "notes"),
   });
   if (error) throw new Error(error.message);
-  revalidatePath(`/clients/${companyId}`);
+  revalidatePath(`/companies/${companyId}`);
 }
 
 export async function setAgreementStatus(form: FormData) {
@@ -93,5 +93,5 @@ export async function setAgreementStatus(form: FormData) {
     .update({ status: text(form, "status") as Enums<"agreement_status"> })
     .eq("id", String(form.get("id")));
   if (error) throw new Error(error.message);
-  revalidatePath(`/clients/${form.get("company_id")}`);
+  revalidatePath(`/companies/${form.get("company_id")}`);
 }

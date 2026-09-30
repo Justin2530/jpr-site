@@ -14,13 +14,17 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
   stale_job: { label: "Stalled job", tone: "amber" },
   agreement_ending: { label: "Renewal", tone: "amber" },
   service_renewal: { label: "Subscription", tone: "amber" },
+  deal_follow_up: { label: "Sales", tone: "cyan" },
+  invoice_due: { label: "Invoice", tone: "amber" },
   task: { label: "Task", tone: "muted" },
 };
 
 function hrefFor(item: Tables<"needs_me">) {
+  if (item.key?.startsWith("deal:")) return `/deals/${item.key.slice(5)}`;
+  if (item.key?.startsWith("invoice:")) return `/placements/${item.key.slice(8)}`;
   if (item.candidate_id) return `/candidates/${item.candidate_id}`;
   if (item.job_id) return `/jobs/${item.job_id}`;
-  if (item.company_id) return `/clients/${item.company_id}`;
+  if (item.company_id) return `/companies/${item.company_id}`;
   if (item.kind === "service_renewal") return "/tools";
   return null;
 }
@@ -38,13 +42,13 @@ export default async function Home() {
   const { supabase, staff } = await requireStaff();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, clients, recent] = await Promise.all([
+  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent] = await Promise.all([
     supabase.from("needs_me").select("*").order("priority").order("since", { ascending: true }).limit(50),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "open"),
     supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).not("stage", "in", CLOSED_STAGES),
     supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).eq("stage", "ready_to_submit"),
     supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).eq("stage", "placed").gte("stage_changed_at", monthStart),
-    supabase.from("companies").select("id", { count: "exact", head: true }).eq("status", "client"),
+    supabase.from("deals").select("id", { count: "exact", head: true }).not("stage", "in", "(won,lost)"),
     supabase
       .from("activities")
       .select("id, summary, occurred_at, kind, candidate_id, job_id, company_id, candidates(full_name)")
@@ -74,10 +78,10 @@ export default async function Home() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat label="Open jobs" value={openJobs.count ?? 0} href="/jobs" />
-        <Stat label="In pipeline" value={inPipeline.count ?? 0} href="/candidates" />
-        <Stat label="Ready to submit" value={readyToSubmit.count ?? 0} tone="amber" />
-        <Stat label="Placed this month" value={placedMonth.count ?? 0} tone="mint" />
-        <Stat label="Active clients" value={clients.count ?? 0} href="/clients" />
+        <Stat label="In pipeline" value={inPipeline.count ?? 0} href="/pipeline" />
+        <Stat label="Ready to submit" value={readyToSubmit.count ?? 0} tone="amber" href="/pipeline" />
+        <Stat label="Placed this month" value={placedMonth.count ?? 0} tone="mint" href="/placements?period=month" />
+        <Stat label="Open deals" value={openDeals.count ?? 0} href="/deals" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">

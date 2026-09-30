@@ -15,7 +15,7 @@ export default async function NewCandidate({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader kicker="ATS" title="New candidate" />
+      <PageHeader kicker="Recruiting" title="New candidate" />
       <Panel className="max-w-3xl">
         <form action={createCandidate} className="space-y-4">
           <CandidateFields />

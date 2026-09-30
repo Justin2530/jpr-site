@@ -5,14 +5,23 @@ import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { StageSelect } from "@/components/stage-select";
 import { ShieldIcon } from "@/components/icons";
-import { label, STAGE_LABEL, STAGE_TONE, timeAgo } from "@/lib/format";
+import { daysSince, label, STAGE_LABEL, STAGE_TONE, timeAgo } from "@/lib/format";
+import { Board } from "@/components/board";
+import { ViewSwitcher } from "@/components/view-switcher";
 import { Constants } from "@/lib/database.types";
 import { JobFields } from "../job-fields";
 import { addGoal, deleteGoal, setJobStatus, toggleGoal, updateJob } from "../actions";
-import { assignToJob, unassign } from "../../pipeline-actions";
+import { assignToJob, moveCandidateJob, unassign } from "../../pipeline-actions";
 
-export default async function JobDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function JobDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
+}) {
   const { id } = await params;
+  const { view = "list" } = await searchParams;
   const { supabase } = await requireStaff();
   const [{ data: job }, { data: pipeline }, { data: goals }, { data: companies }, { data: contacts }, { data: pool }] = await Promise.all([
     supabase.from("jobs").select("*, companies(id, name), contacts(full_name, email, phone)").eq("id", id).maybeSingle(),
@@ -45,7 +54,7 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader
         kicker={
-          <Link href={`/clients/${job.companies?.id}`} className="hover:text-cyan">
+          <Link href={`/companies/${job.companies?.id}`} className="hover:text-cyan">
             {job.companies?.name}
           </Link>
         }
@@ -82,7 +91,19 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
-          <Panel title="Pipeline" action={<span className="readout text-xs text-cyan">{rows.length}</span>}>
+          <Panel
+            title={`Pipeline · ${rows.length}`}
+            action={
+              <ViewSwitcher
+                basePath={`/jobs/${job.id}`}
+                current={view}
+                options={[
+                  { key: "list", label: "List" },
+                  { key: "board", label: "Board" },
+                ]}
+              />
+            }
+          >
             <form action={assignToJob} className="mb-4 flex gap-2">
               <input type="hidden" name="job_id" value={job.id} />
               <select name="candidate_id" required defaultValue="" className="field" aria-label="Candidate to assign">
@@ -100,7 +121,21 @@ export default async function JobDetail({ params }: { params: Promise<{ id: stri
                 Assign to job
               </SubmitButton>
             </form>
-            {sorted.length === 0 ? (
+            {sorted.length > 0 && view === "board" ? (
+              <Board
+                columns={Constants.public.Enums.pipeline_stage.map((st) => ({ key: st, label: STAGE_LABEL[st], tone: STAGE_TONE[st] }))}
+                cards={sorted.map((r) => ({
+                  id: r.id,
+                  column: r.stage,
+                  title: r.candidates?.full_name ?? "",
+                  href: `/candidates/${r.candidates?.id}`,
+                  sub: [r.candidates?.current_title, r.candidates?.current_employer].filter(Boolean).join(" at ") || undefined,
+                  meta: `${timeAgo(r.stage_changed_at)} in stage`,
+                  flag: r.isProtected || (r.stage !== "placed" && daysSince(r.stage_changed_at) >= 7),
+                }))}
+                move={moveCandidateJob}
+              />
+            ) : sorted.length === 0 ? (
               <Empty>
                 No candidates yet.{" "}
                 <Link href={`/candidates/new?job=${job.id}`} className="link text-cyan">

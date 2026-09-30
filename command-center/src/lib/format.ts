@@ -78,3 +78,31 @@ export function num(form: FormData, key: string) {
   const n = Number(t.replace(/[$,%\s]/g, ""));
   return Number.isFinite(n) ? n : null;
 }
+
+export const OPEN_STAGES = ["assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer"] as const;
+export const DEAL_STAGE_LABEL: Record<Enums<"deal_stage">, string> = {
+  lead: "Lead",
+  contacted: "Contacted",
+  meeting: "Meeting",
+  proposal: "Proposal",
+  won: "Won",
+  lost: "Lost",
+};
+export const DEAL_STAGE_TONE: Record<Enums<"deal_stage">, Tone> = {
+  lead: "muted",
+  contacted: "cyan",
+  meeting: "cyan",
+  proposal: "amber",
+  won: "mint",
+  lost: "muted",
+};
+
+export function daysSince(iso: string | null | undefined) {
+  if (!iso) return 0;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
+
+export function money(n: number | null | undefined, digits = 0) {
+  if (n === null || n === undefined) return "—";
+  return `$${Number(n).toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: digits })}`;
+}
