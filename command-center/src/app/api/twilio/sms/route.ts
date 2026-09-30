@@ -1,0 +1,61 @@
+import { escapeXml, toE164, twilioApi, twilioNumber, webhookUrl } from "@/lib/twilio";
+import { EMPTY_TWIML, readTwilio, webhookDb } from "../webhook";
+
+function reply(text: string) {
+  return new Response(`<Response><Message>${escapeXml(text)}</Message></Response>`, { headers: { "Content-Type": "text/xml" } });
+}
+
+// A text arrived on JPR's number.
+// From anyone else: file it on the matching candidate or contact, then forward it to Justin's cell.
+// From Justin's own cell: it's his reply to a forwarded text, so send it on from the business number.
+export async function POST(request: Request) {
+  const p = await readTwilio(request);
+  if (!p) return new Response("Forbidden", { status: 403 });
+  const secret = process.env.TWILIO_WEBHOOK_SECRET ?? "";
+  const db = webhookDb();
+  const url = new URL(request.url);
+  const origin = `https://${request.headers.get("x-forwarded-host") ?? url.host}`;
+  const media = Number(p.NumMedia ?? 0) > 0 ? " [picture attached, open Twilio to view]" : "";
+  const body = `${p.Body ?? ""}${media}`.trim();
+
+  const { data: ownerCell } = await db.rpc("twilio_forward_number", { p_secret: secret });
+  const cell = toE164(ownerCell);
+
+  if (cell && toE164(p.From) === cell) {
+    const { data: targets } = await db.rpc("twilio_relay_target", { p_secret: secret });
+    const target = targets?.[0];
+    if (!target?.phone) return reply("Nobody has texted the business number yet, so there's no one to reply to.");
+    const msg = await twilioApi("Messages", {
+      To: target.phone,
+      From: twilioNumber ?? p.To,
+      Body: body,
+      StatusCallback: webhookUrl(origin, "/api/twilio/status"),
+    });
+    await db.rpc("twilio_log_relay", { p_secret: secret, p_sid: msg.sid, p_to: target.phone, p_body: body });
+    return EMPTY_TWIML.clone();
+  }
+
+  const { error } = await db.rpc("twilio_inbound_text", {
+    p_secret: secret,
+    p_sid: p.MessageSid ?? p.SmsSid ?? "",
+    p_from: p.From ?? "",
+    p_to: p.To ?? "",
+    p_body: body,
+  });
+  if (error) {
+    console.error("twilio sms webhook", error.message);
+    return new Response("Error", { status: 500 }); // Twilio retries
+  }
+
+  if (cell) {
+    const { data: name } = await db.rpc("twilio_caller_name", { p_secret: secret, p_from: p.From ?? "" });
+    const who = name ?? p.From ?? "Someone";
+    const first = name ? name.split(" ")[0] : "them";
+    try {
+      await twilioApi("Messages", { To: cell, From: twilioNumber ?? p.To, Body: `${who}: ${body}\n\n(Reply here to answer ${first}.)` });
+    } catch (e) {
+      console.error("twilio forward to cell", e);
+    }
+  }
+  return EMPTY_TWIML.clone();
+}

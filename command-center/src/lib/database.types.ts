@@ -74,6 +74,9 @@ export type Database = {
           deal_id: string | null
           direction: string | null
           duration_seconds: number | null
+          external_id: string | null
+          external_status: string | null
+          phone_number: string | null
           id: string
           job_id: string | null
           kind: string
@@ -91,6 +94,9 @@ export type Database = {
           deal_id?: string | null
           direction?: string | null
           duration_seconds?: number | null
+          external_id?: string | null
+          external_status?: string | null
+          phone_number?: string | null
           id?: string
           job_id?: string | null
           kind: string
@@ -190,6 +196,7 @@ export type Database = {
           linkedin_url: string | null
           notes: string | null
           phone: string | null
+          sms_opted_out_at: string | null
           source: Database["public"]["Enums"]["candidate_source"]
           source_market_id: string | null
           sourced_by: string | null
@@ -211,6 +218,7 @@ export type Database = {
           linkedin_url?: string | null
           notes?: string | null
           phone?: string | null
+          sms_opted_out_at?: string | null
           source?: Database["public"]["Enums"]["candidate_source"]
           source_market_id?: string | null
           sourced_by?: string | null
@@ -269,6 +277,7 @@ export type Database = {
           id: string
           notes: string | null
           phone: string | null
+          sms_opted_out_at: string | null
           title: string | null
         }
         Insert: {
@@ -279,6 +288,7 @@ export type Database = {
           id?: string
           notes?: string | null
           phone?: string | null
+          sms_opted_out_at?: string | null
           title?: string | null
         }
         Update: Partial<Database["public"]["Tables"]["contacts"]["Row"]>
@@ -645,6 +655,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          phone: string | null
           role: Database["public"]["Enums"]["staff_role"]
         }
         Insert: {
@@ -653,6 +664,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          phone?: string | null
           role?: Database["public"]["Enums"]["staff_role"]
         }
         Update: Partial<Database["public"]["Tables"]["staff"]["Row"]>
@@ -715,6 +727,14 @@ export type Database = {
       is_owner: { Args: never; Returns: boolean }
       is_protected_employer: { Args: { employer: string }; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
+      phone_key: { Args: { p: string }; Returns: string }
+      twilio_inbound_text: { Args: { p_secret: string; p_sid: string; p_from: string; p_to: string; p_body: string }; Returns: undefined }
+      twilio_caller_name: { Args: { p_secret: string; p_from: string }; Returns: string | null }
+      twilio_inbound_call: { Args: { p_secret: string; p_sid: string; p_from: string }; Returns: undefined }
+      twilio_forward_number: { Args: { p_secret: string }; Returns: string | null }
+      twilio_relay_target: { Args: { p_secret: string }; Returns: { phone: string; name: string }[] }
+      twilio_log_relay: { Args: { p_secret: string; p_sid: string; p_to: string; p_body: string }; Returns: undefined }
+      twilio_status: { Args: { p_secret: string; p_sid: string; p_status: string; p_duration: number | null }; Returns: undefined }
     }
     Enums: {
       action_status: "open" | "done" | "dismissed"

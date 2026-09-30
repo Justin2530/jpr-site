@@ -18,6 +18,7 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
   invoice_due: { label: "Invoice", tone: "amber" },
   task: { label: "Task", tone: "muted" },
   reminder: { label: "Reminder", tone: "cyan" },
+  reply: { label: "Text reply", tone: "amber" },
 };
 
 function hrefFor(item: Tables<"needs_me">) {
@@ -32,7 +33,9 @@ function hrefFor(item: Tables<"needs_me">) {
 }
 
 function greeting() {
-  const hour = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }).format(new Date()));
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }).format(new Date()),
+  );
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
@@ -69,7 +72,9 @@ export default async function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 text-sm">
           <span>
             <span className="font-medium text-amber">Sample data loaded.</span>{" "}
-            <span className="text-ink/90">Companies starting with &quot;Sample:&quot; and their people, jobs and deals are placeholders.</span>
+            <span className="text-ink/90">
+              Companies starting with &quot;Sample:&quot; and their people, jobs and deals are placeholders.
+            </span>
           </span>
           <form action={clearSampleData}>
             <SubmitButton className="btn-quiet border-amber/40 text-amber" pendingText="Clearing…">
@@ -113,7 +118,11 @@ export default async function Home() {
                 return (
                   <li key={item.key} className="flex items-start gap-3 py-3">
                     <div className="pt-1.5">
-                      {item.kind === "protected_client" ? <ShieldIcon className="h-4 w-4 text-rose" /> : <Dot tone={item.priority === 1 ? "amber" : k.tone} />}
+                      {item.kind === "protected_client" ? (
+                        <ShieldIcon className="h-4 w-4 text-rose" />
+                      ) : (
+                        <Dot tone={item.priority === 1 ? "amber" : k.tone} />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">

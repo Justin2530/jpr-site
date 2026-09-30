@@ -5,6 +5,7 @@ import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { PlusIcon } from "@/components/icons";
 import { ReachOut } from "@/components/reach-out";
+import { twilioReady } from "@/lib/twilio";
 import { Correspondence } from "@/components/correspondence";
 import { Reminders } from "@/components/reminders";
 import { contactCorrespondence } from "@/lib/correspondence";
@@ -50,7 +51,17 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
             </Link>
           </span>
         }
-        action={<ReachOut phone={c.phone} email={c.email} links={{ contact_id: c.id, company_id: c.company_id }} path={path} />}
+        action={
+          <ReachOut
+            phone={c.phone}
+            email={c.email}
+            name={c.full_name}
+            links={{ contact_id: c.id, company_id: c.company_id }}
+            path={path}
+            twilio={twilioReady()}
+            optedOut={Boolean(c.sms_opted_out_at)}
+          />
+        }
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">

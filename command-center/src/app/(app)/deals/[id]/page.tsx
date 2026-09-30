@@ -5,6 +5,7 @@ import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { MailIcon, PhoneIcon } from "@/components/icons";
 import { ReachOut } from "@/components/reach-out";
+import { twilioReady } from "@/lib/twilio";
 import { Correspondence } from "@/components/correspondence";
 import { dealCorrespondence } from "@/lib/correspondence";
 import { DEAL_STAGE_LABEL, DEAL_STAGE_TONE, label, money, shortDate, timeAgo } from "@/lib/format";
@@ -16,7 +17,11 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const { supabase } = await requireStaff();
   const [{ data: deal }, { data: activity }, { data: companies }, { data: contacts }] = await Promise.all([
-    supabase.from("deals").select("*, companies(id, name, status), contacts(full_name, title, phone, email)").eq("id", id).maybeSingle(),
+    supabase
+      .from("deals")
+      .select("*, companies(id, name, status), contacts(full_name, title, phone, email, sms_opted_out_at)")
+      .eq("id", id)
+      .maybeSingle(),
     supabase
       .from("activities")
       .select("id, kind, summary, occurred_at")
@@ -54,6 +59,9 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
             <ReachOut
               phone={deal.contacts.phone}
               email={deal.contacts.email}
+              name={deal.contacts.full_name}
+              twilio={twilioReady()}
+              optedOut={Boolean(deal.contacts.sms_opted_out_at)}
               links={{ deal_id: deal.id, contact_id: deal.contact_id ?? undefined, company_id: deal.company_id }}
               path={`/deals/${deal.id}`}
             />

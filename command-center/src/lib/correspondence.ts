@@ -12,13 +12,14 @@ export type CorrItem = {
   duration: number | null;
   context: string | null;
   by: string | null;
+  status?: string | null;
   transcript?: Line[];
 };
 
 type DB = SupabaseClient<Database>;
 const CONVERSATION = ["call", "text", "email"];
 const SELECT =
-  "id, kind, summary, body, direction, duration_seconds, occurred_at, contacts(full_name), candidates(full_name), jobs(title), staff(full_name, email)";
+  "id, kind, summary, body, direction, duration_seconds, external_status, occurred_at, contacts(full_name), candidates(full_name), jobs(title), staff(full_name, email)";
 
 type Row = {
   id: string;
@@ -27,6 +28,7 @@ type Row = {
   body: string | null;
   direction: string | null;
   duration_seconds: number | null;
+  external_status: string | null;
   occurred_at: string;
   contacts: { full_name: string } | null;
   candidates: { full_name: string } | null;
@@ -46,6 +48,7 @@ function fromActivity(a: Row, show: "contact" | "candidate" | "job"): CorrItem {
     duration: a.duration_seconds,
     context: context ?? null,
     by: a.staff ? (a.staff.full_name ?? a.staff.email.split("@")[0]) : null,
+    status: a.external_status,
   };
 }
 

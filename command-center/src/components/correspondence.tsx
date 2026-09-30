@@ -11,6 +11,9 @@ const FILTERS = [
   { key: "email", label: "Emails" },
 ] as const;
 
+// Twilio outcomes worth flagging on a text or call.
+const PROBLEM = ["failed", "undelivered", "no-answer", "busy", "canceled"];
+
 function when(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
     month: "short",
@@ -72,6 +75,7 @@ export function Correspondence({ items, person }: { items: CorrItem[]; person?: 
                         {i.direction && ` · ${i.direction === "in" ? "incoming" : "outgoing"}`}
                         {i.duration != null && ` · ${clock(i.duration)}`}
                         {i.by && ` · ${i.by}`}
+                        {i.status && PROBLEM.includes(i.status) && <span className="text-amber"> · {i.status.replace("-", " ")}</span>}
                       </p>
                     </div>
                     {hasMore && <span className="shrink-0 text-xs text-cyan group-open:hidden">Read</span>}

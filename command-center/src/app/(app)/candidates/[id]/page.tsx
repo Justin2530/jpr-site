@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { StageSelect } from "@/components/stage-select";
 import { ShieldIcon } from "@/components/icons";
 import { ReachOut } from "@/components/reach-out";
+import { twilioReady } from "@/lib/twilio";
 import { Correspondence } from "@/components/correspondence";
 import { Reminders } from "@/components/reminders";
 import { candidateCorrespondence } from "@/lib/correspondence";
@@ -98,7 +99,17 @@ export default async function CandidateDetail({
             {c.contact_consent ? <Chip tone="mint">OK to contact</Chip> : <Chip tone="amber">No contact consent on file</Chip>}
           </span>
         }
-        action={<ReachOut phone={c.phone} email={c.email} links={{ candidate_id: c.id }} path={path} />}
+        action={
+          <ReachOut
+            phone={c.phone}
+            email={c.email}
+            name={c.full_name}
+            links={{ candidate_id: c.id }}
+            path={path}
+            twilio={twilioReady()}
+            optedOut={Boolean(c.sms_opted_out_at)}
+          />
+        }
       />
 
       {isProtected && (
