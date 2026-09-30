@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // Twilio over its REST API (no SDK). Keys live in Vercel environment variables, never in the database.
-const sid = process.env.TWILIO_ACCOUNT_SID;
-const token = process.env.TWILIO_AUTH_TOKEN;
+const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
+const token = process.env.TWILIO_AUTH_TOKEN?.trim();
 export const twilioNumber = process.env.TWILIO_PHONE_NUMBER ? toE164(process.env.TWILIO_PHONE_NUMBER) : null;
 
 export function twilioReady() {

@@ -30,7 +30,7 @@ function Step({ done, title, children }: { done: boolean; title: string; childre
 
 export default async function SettingsPage() {
   const { staff } = await requireStaff();
-  const keys = Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+  const keys = Boolean(process.env.TWILIO_ACCOUNT_SID?.trim() && process.env.TWILIO_AUTH_TOKEN?.trim());
   const ready = twilioReady();
 
   return (
