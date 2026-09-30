@@ -2,7 +2,15 @@
 type P = { className?: string };
 const base = "h-[18px] w-[18px]";
 const S = ({ className = base, children }: P & { children: React.ReactNode }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className={className}>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     {children}
   </svg>
 );
@@ -104,5 +112,17 @@ export const MenuIcon = (p: P) => (
 export const ChevronIcon = (p: P) => (
   <S {...p}>
     <path d="m6 9 6 6 6-6" />
+  </S>
+);
+export const ChatIcon = (p: P) => (
+  <S {...p}>
+    <path d="M4 5h16v11H9l-5 4z" />
+    <path d="M8 9.5h8M8 12.5h5" />
+  </S>
+);
+export const BellIcon = (p: P) => (
+  <S {...p}>
+    <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
+    <path d="M10 20.5a2 2 0 0 0 4 0" />
   </S>
 );

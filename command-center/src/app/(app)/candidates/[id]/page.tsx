@@ -4,7 +4,11 @@ import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { StageSelect } from "@/components/stage-select";
-import { MailIcon, PhoneIcon, ShieldIcon } from "@/components/icons";
+import { ShieldIcon } from "@/components/icons";
+import { ReachOut } from "@/components/reach-out";
+import { Correspondence } from "@/components/correspondence";
+import { Reminders } from "@/components/reminders";
+import { candidateCorrespondence } from "@/lib/correspondence";
 import { SOURCE_LABEL, STAGE_LABEL, STAGE_TONE, shortDate, timeAgo } from "@/lib/format";
 import { CandidateFields } from "../candidate-fields";
 import { addNote, updateCandidate } from "../actions";
@@ -67,6 +71,16 @@ export default async function CandidateDetail({
   const assignedIds = new Set((links ?? []).map((l) => l.jobs?.id));
   const assignable = (openJobs ?? []).filter((j) => !assignedIds.has(j.id));
   const activeTab = (links ?? []).find((l) => l.id === jobTab)?.id;
+  const path = `/candidates/${c.id}`;
+  const [history, { data: reminders }] = await Promise.all([
+    candidateCorrespondence(supabase, c.id),
+    supabase
+      .from("action_items")
+      .select("id, title, due_on")
+      .eq("candidate_id", c.id)
+      .eq("status", "open")
+      .order("due_on", { nullsFirst: false }),
+  ]);
 
   return (
     <>
@@ -84,20 +98,7 @@ export default async function CandidateDetail({
             {c.contact_consent ? <Chip tone="mint">OK to contact</Chip> : <Chip tone="amber">No contact consent on file</Chip>}
           </span>
         }
-        action={
-          <div className="flex gap-2">
-            {c.phone && (
-              <a href={`tel:${c.phone}`} className="btn-quiet">
-                <PhoneIcon className="h-4 w-4" /> Call
-              </a>
-            )}
-            {c.email && (
-              <a href={`mailto:${c.email}`} className="btn-quiet">
-                <MailIcon className="h-4 w-4" /> Email
-              </a>
-            )}
-          </div>
-        }
+        action={<ReachOut phone={c.phone} email={c.email} links={{ candidate_id: c.id }} path={path} />}
       />
 
       {isProtected && (
@@ -185,6 +186,10 @@ export default async function CandidateDetail({
               )}
             </Panel>
 
+            <Panel title={`Correspondence · ${history.length}`}>
+              <Correspondence items={history} person={c.full_name.split(" ")[0]} />
+            </Panel>
+
             <Panel title="Timeline">
               <form action={addNote} className="mb-5 flex flex-wrap gap-2">
                 <input type="hidden" name="candidate_id" value={c.id} />
@@ -222,6 +227,8 @@ export default async function CandidateDetail({
 
         <div className="space-y-6">
           <ResumePanel candidateId={c.id} resumes={signed} />
+
+          <Reminders items={reminders ?? []} links={{ candidate_id: c.id }} path={path} />
 
           <Panel title="Contact">
             <dl>

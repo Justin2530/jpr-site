@@ -4,6 +4,9 @@ import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { MailIcon, PhoneIcon } from "@/components/icons";
+import { ReachOut } from "@/components/reach-out";
+import { Correspondence } from "@/components/correspondence";
+import { dealCorrespondence } from "@/lib/correspondence";
 import { DEAL_STAGE_LABEL, DEAL_STAGE_TONE, label, money, shortDate, timeAgo } from "@/lib/format";
 import { Constants } from "@/lib/database.types";
 import { DealFields } from "../deal-fields";
@@ -14,11 +17,17 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
   const { supabase } = await requireStaff();
   const [{ data: deal }, { data: activity }, { data: companies }, { data: contacts }] = await Promise.all([
     supabase.from("deals").select("*, companies(id, name, status), contacts(full_name, title, phone, email)").eq("id", id).maybeSingle(),
-    supabase.from("activities").select("id, kind, summary, occurred_at").eq("deal_id", id).order("occurred_at", { ascending: false }).limit(50),
+    supabase
+      .from("activities")
+      .select("id, kind, summary, occurred_at")
+      .eq("deal_id", id)
+      .order("occurred_at", { ascending: false })
+      .limit(50),
     supabase.from("companies").select("id, name").order("name"),
     supabase.from("contacts").select("id, full_name, company_id").order("full_name"),
   ]);
   if (!deal) notFound();
+  const history = await dealCorrespondence(supabase, deal.id, deal.contact_id);
   const today = new Date().toISOString().slice(0, 10);
   const overdue = deal.next_step_on && deal.next_step_on <= today && !["won", "lost"].includes(deal.stage);
 
@@ -40,6 +49,16 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
             {deal.value !== null && <span className="readout text-cyan">{money(deal.value)}</span>}
           </span>
         }
+        action={
+          deal.contacts && (
+            <ReachOut
+              phone={deal.contacts.phone}
+              email={deal.contacts.email}
+              links={{ deal_id: deal.id, contact_id: deal.contact_id ?? undefined, company_id: deal.company_id }}
+              path={`/deals/${deal.id}`}
+            />
+          )
+        }
       />
 
       <div className={`mb-6 rounded-xl border px-4 py-3 text-sm ${overdue ? "border-rose/40 bg-rose/10" : "border-line bg-panel"}`}>
@@ -47,7 +66,9 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
         {deal.next_step ? (
           <span>
             {deal.next_step}
-            {deal.next_step_on && <span className={`ml-2 font-mono text-xs ${overdue ? "text-rose" : "text-muted"}`}>due {shortDate(deal.next_step_on)}</span>}
+            {deal.next_step_on && (
+              <span className={`ml-2 font-mono text-xs ${overdue ? "text-rose" : "text-muted"}`}>due {shortDate(deal.next_step_on)}</span>
+            )}
           </span>
         ) : (
           <span className="text-amber">None set. Add one below so this deal doesn&apos;t go quiet.</span>
@@ -70,35 +91,40 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <Panel title="Activity">
-          <form action={logDealNote} className="mb-5 flex flex-wrap gap-2">
-            <input type="hidden" name="deal_id" value={deal.id} />
-            <select name="kind" defaultValue="call" className="field w-28" aria-label="Type">
-              <option value="call">Call</option>
-              <option value="email">Email</option>
-              <option value="meeting">Meeting</option>
-              <option value="note">Note</option>
-            </select>
-            <input name="summary" required placeholder="What happened?" className="field min-w-0 flex-1" aria-label="Activity" />
-            <SubmitButton className="btn-quiet">Log</SubmitButton>
-          </form>
-          {(activity ?? []).length === 0 ? (
-            <Empty>Nothing logged yet.</Empty>
-          ) : (
-            <ol className="relative space-y-4 border-l border-line pl-4">
-              {activity!.map((a) => (
-                <li key={a.id} className="relative">
-                  <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border border-cyan/60 bg-void" />
-                  <div className="flex items-center gap-2">
-                    <Chip tone={a.kind === "deal" ? "cyan" : "muted"}>{a.kind === "deal" ? "Stage" : label(a.kind)}</Chip>
-                    <span className="font-mono text-[10.5px] text-faint">{timeAgo(a.occurred_at)}</span>
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">{a.summary}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Panel>
+        <div className="space-y-6">
+          <Panel title={`Correspondence${deal.contacts ? ` with ${deal.contacts.full_name}` : ""} · ${history.length}`}>
+            <Correspondence items={history} />
+          </Panel>
+          <Panel title="Activity">
+            <form action={logDealNote} className="mb-5 flex flex-wrap gap-2">
+              <input type="hidden" name="deal_id" value={deal.id} />
+              <select name="kind" defaultValue="call" className="field w-28" aria-label="Type">
+                <option value="call">Call</option>
+                <option value="email">Email</option>
+                <option value="meeting">Meeting</option>
+                <option value="note">Note</option>
+              </select>
+              <input name="summary" required placeholder="What happened?" className="field min-w-0 flex-1" aria-label="Activity" />
+              <SubmitButton className="btn-quiet">Log</SubmitButton>
+            </form>
+            {(activity ?? []).length === 0 ? (
+              <Empty>Nothing logged yet.</Empty>
+            ) : (
+              <ol className="relative space-y-4 border-l border-line pl-4">
+                {activity!.map((a) => (
+                  <li key={a.id} className="relative">
+                    <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border border-cyan/60 bg-void" />
+                    <div className="flex items-center gap-2">
+                      <Chip tone={a.kind === "deal" ? "cyan" : "muted"}>{a.kind === "deal" ? "Stage" : label(a.kind)}</Chip>
+                      <span className="font-mono text-[10.5px] text-faint">{timeAgo(a.occurred_at)}</span>
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">{a.summary}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Panel>
+        </div>
 
         <div className="space-y-6">
           <Panel title="Contact">

@@ -3,12 +3,22 @@ import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, Field, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { MailIcon, PhoneIcon, PlusIcon } from "@/components/icons";
+import { ChatIcon, MailIcon, PhoneIcon, PlusIcon } from "@/components/icons";
+import { Correspondence } from "@/components/correspondence";
+import { Reminders } from "@/components/reminders";
+import { companyCorrespondence } from "@/lib/correspondence";
 import { DEAL_STAGE_LABEL, DEAL_STAGE_TONE, label, shortDate, timeAgo, type Tone } from "@/lib/format";
 import { CompanyFields } from "../company-fields";
 import { addAgreement, addContact, deleteContact, setAgreementStatus, updateCompany } from "../actions";
 
-const STATUS_TONE: Record<string, Tone> = { client: "mint", prospect: "cyan", former_client: "muted", active: "mint", draft: "cyan", ended: "muted" };
+const STATUS_TONE: Record<string, Tone> = {
+  client: "mint",
+  prospect: "cyan",
+  former_client: "muted",
+  active: "mint",
+  draft: "cyan",
+  ended: "muted",
+};
 
 function money(n: number | null) {
   return n === null ? null : `$${Number(n).toLocaleString("en-US")}`;
@@ -22,10 +32,25 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
     supabase.from("contacts").select("*").eq("company_id", id).order("full_name"),
     supabase.from("agreements").select("*").eq("company_id", id).order("created_at", { ascending: false }),
     supabase.from("jobs").select("id, title, status, candidate_jobs(id)").eq("company_id", id).order("created_at", { ascending: false }),
-    supabase.from("activities").select("id, summary, occurred_at, candidate_id, candidates(full_name)").eq("company_id", id).order("occurred_at", { ascending: false }).limit(15),
+    supabase
+      .from("activities")
+      .select("id, summary, occurred_at, candidate_id, candidates(full_name)")
+      .eq("company_id", id)
+      .order("occurred_at", { ascending: false })
+      .limit(15),
     supabase.from("deals").select("id, title, stage, value").eq("company_id", id).order("updated_at", { ascending: false }),
   ]);
   if (!c) notFound();
+  const path = `/companies/${c.id}`;
+  const [history, { data: reminders }] = await Promise.all([
+    companyCorrespondence(supabase, c.id),
+    supabase
+      .from("action_items")
+      .select("id, title, due_on")
+      .eq("company_id", c.id)
+      .eq("status", "open")
+      .order("due_on", { nullsFirst: false }),
+  ]);
 
   const today = new Date().toISOString().slice(0, 10);
   const activeAgreement = agreements?.find((a) => a.status === "active" && (!a.end_date || a.end_date >= today));
@@ -33,7 +58,11 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
   return (
     <>
       <PageHeader
-        kicker={<Link href="/companies" className="hover:text-cyan">Companies</Link>}
+        kicker={
+          <Link href="/companies" className="hover:text-cyan">
+            Companies
+          </Link>
+        }
         title={c.name}
         sub={
           <span className="flex flex-wrap items-center gap-2">
@@ -103,7 +132,12 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
                         {a.plan_name ?? label(a.type)}{" "}
                         <span className="text-sm font-normal text-muted">
                           {a.type === "subscription"
-                            ? [money(a.monthly_price) && `${money(a.monthly_price)}/mo`, a.search_capacity && `${a.search_capacity} searches`].filter(Boolean).join(" · ")
+                            ? [
+                                money(a.monthly_price) && `${money(a.monthly_price)}/mo`,
+                                a.search_capacity && `${a.search_capacity} searches`,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")
                             : a.fee_percent !== null && `${a.fee_percent}% of first-year compensation`}
                         </span>
                       </p>
@@ -174,6 +208,10 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
             </details>
           </Panel>
 
+          <Panel title={`Correspondence · ${history.length}`}>
+            <Correspondence items={history} />
+          </Panel>
+
           <Panel title="Activity">
             {(activity ?? []).length === 0 ? (
               <Empty>No activity yet.</Empty>
@@ -198,6 +236,8 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
         </div>
 
         <div className="space-y-6">
+          <Reminders items={reminders ?? []} links={{ company_id: c.id }} path={path} />
+
           <Panel title="Contacts">
             {(contacts ?? []).length === 0 && <p className="mb-3 text-sm text-faint">No contacts yet.</p>}
             <ul className="-mt-1 mb-3 divide-y divide-line">
@@ -222,6 +262,11 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
                     {p.phone && (
                       <a href={`tel:${p.phone}`} className="link inline-flex items-center gap-1.5 text-muted">
                         <PhoneIcon className="h-3.5 w-3.5" /> {p.phone}
+                      </a>
+                    )}
+                    {p.phone && (
+                      <a href={`sms:${p.phone.replace(/[^\d+]/g, "")}`} className="link inline-flex items-center gap-1.5 text-muted">
+                        <ChatIcon className="h-3.5 w-3.5" /> Text
                       </a>
                     )}
                     {p.email && (
@@ -250,7 +295,13 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
             <dl>
               <Row label="Industry">{c.industry}</Row>
               <Row label="City">{c.city}</Row>
-              <Row label="Phone">{c.phone && <a href={`tel:${c.phone}`} className="link">{c.phone}</a>}</Row>
+              <Row label="Phone">
+                {c.phone && (
+                  <a href={`tel:${c.phone}`} className="link">
+                    {c.phone}
+                  </a>
+                )}
+              </Row>
               <Row label="Website">{c.website}</Row>
               <Row label="Notes">{c.notes && <span className="whitespace-pre-wrap">{c.notes}</span>}</Row>
             </dl>

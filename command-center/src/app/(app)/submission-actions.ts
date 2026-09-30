@@ -58,6 +58,9 @@ export async function decideSubmission(input: {
     await supabase.from("activities").insert({
       kind: input.decision === "send" ? "email" : "note",
       summary,
+      body: input.decision === "send" ? `Subject: ${input.subject}\n\n${input.body}` : null,
+      direction: input.decision === "send" ? "out" : null,
+      contact_id: input.decision === "send" ? (input.contactIds[0] ?? null) : null,
       candidate_id: cj.candidate_id,
       job_id: cj.job_id,
       candidate_job_id: input.candidateJobId,

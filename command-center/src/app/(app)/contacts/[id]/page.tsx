@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { MailIcon, PhoneIcon, PlusIcon } from "@/components/icons";
+import { PlusIcon } from "@/components/icons";
+import { ReachOut } from "@/components/reach-out";
+import { Correspondence } from "@/components/correspondence";
+import { Reminders } from "@/components/reminders";
+import { contactCorrespondence } from "@/lib/correspondence";
 import { DEAL_STAGE_LABEL, DEAL_STAGE_TONE, label, money } from "@/lib/format";
 import { ContactFields } from "../contact-fields";
 import { removeContact, updateContact } from "../actions";
@@ -18,6 +22,16 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
     supabase.from("companies").select("id, name").order("name"),
   ]);
   if (!c) notFound();
+  const path = `/contacts/${c.id}`;
+  const [history, { data: reminders }] = await Promise.all([
+    contactCorrespondence(supabase, c.id),
+    supabase
+      .from("action_items")
+      .select("id, title, due_on")
+      .eq("contact_id", c.id)
+      .eq("status", "open")
+      .order("due_on", { nullsFirst: false }),
+  ]);
 
   return (
     <>
@@ -36,23 +50,13 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
             </Link>
           </span>
         }
-        action={
-          <div className="flex gap-2">
-            {c.phone && (
-              <a href={`tel:${c.phone}`} className="btn-quiet">
-                <PhoneIcon className="h-4 w-4" /> Call
-              </a>
-            )}
-            {c.email && (
-              <a href={`mailto:${c.email}`} className="btn-quiet">
-                <MailIcon className="h-4 w-4" /> Email
-              </a>
-            )}
-          </div>
-        }
+        action={<ReachOut phone={c.phone} email={c.email} links={{ contact_id: c.id, company_id: c.company_id }} path={path} />}
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          <Panel title={`Correspondence · ${history.length}`}>
+            <Correspondence items={history} />
+          </Panel>
           <Panel
             title="Deals"
             action={
@@ -94,25 +98,28 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
             )}
           </Panel>
         </div>
-        <Panel title="Details">
-          <dl>
-            <Row label="Phone">{c.phone}</Row>
-            <Row label="Email">{c.email}</Row>
-            <Row label="Notes">{c.notes && <span className="whitespace-pre-wrap">{c.notes}</span>}</Row>
-          </dl>
-          <details className="mt-3">
-            <summary className="cursor-pointer text-sm text-cyan">Edit contact</summary>
-            <form action={updateContact} className="mt-3 space-y-4">
-              <input type="hidden" name="id" value={c.id} />
-              <ContactFields c={c} companies={companies ?? []} />
-              <SubmitButton>Save changes</SubmitButton>
-            </form>
-            <form action={removeContact} className="mt-3">
-              <input type="hidden" name="id" value={c.id} />
-              <button className="text-xs text-faint hover:text-rose">Delete contact</button>
-            </form>
-          </details>
-        </Panel>
+        <div className="space-y-6">
+          <Panel title="Details">
+            <dl>
+              <Row label="Phone">{c.phone}</Row>
+              <Row label="Email">{c.email}</Row>
+              <Row label="Notes">{c.notes && <span className="whitespace-pre-wrap">{c.notes}</span>}</Row>
+            </dl>
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm text-cyan">Edit contact</summary>
+              <form action={updateContact} className="mt-3 space-y-4">
+                <input type="hidden" name="id" value={c.id} />
+                <ContactFields c={c} companies={companies ?? []} />
+                <SubmitButton>Save changes</SubmitButton>
+              </form>
+              <form action={removeContact} className="mt-3">
+                <input type="hidden" name="id" value={c.id} />
+                <button className="text-xs text-faint hover:text-rose">Delete contact</button>
+              </form>
+            </details>
+          </Panel>
+          <Reminders items={reminders ?? []} links={{ contact_id: c.id, company_id: c.company_id }} path={path} />
+        </div>
       </div>
     </>
   );

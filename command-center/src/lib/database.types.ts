@@ -18,6 +18,7 @@ export type Database = {
           candidate_id: string | null
           candidate_job_id: string | null
           company_id: string | null
+          contact_id: string | null
           created_at: string
           created_by: string | null
           detail: string | null
@@ -36,6 +37,7 @@ export type Database = {
           candidate_id?: string | null
           candidate_job_id?: string | null
           company_id?: string | null
+          contact_id?: string | null
           created_at?: string
           created_by?: string | null
           detail?: string | null
@@ -66,8 +68,12 @@ export type Database = {
           actor_id: string | null
           candidate_id: string | null
           candidate_job_id: string | null
+          body: string | null
           company_id: string | null
+          contact_id: string | null
           deal_id: string | null
+          direction: string | null
+          duration_seconds: number | null
           id: string
           job_id: string | null
           kind: string
@@ -79,8 +85,12 @@ export type Database = {
           actor_id?: string | null
           candidate_id?: string | null
           candidate_job_id?: string | null
+          body?: string | null
           company_id?: string | null
+          contact_id?: string | null
           deal_id?: string | null
+          direction?: string | null
+          duration_seconds?: number | null
           id?: string
           job_id?: string | null
           kind: string
@@ -90,6 +100,7 @@ export type Database = {
         }
         Update: Partial<Database["public"]["Tables"]["activities"]["Row"]>
         Relationships: [
+          { foreignKeyName: "activities_contact_id_fkey"; columns: ["contact_id"]; isOneToOne: false; referencedRelation: "contacts"; referencedColumns: ["id"] },
           { foreignKeyName: "activities_actor_id_fkey"; columns: ["actor_id"]; isOneToOne: false; referencedRelation: "staff"; referencedColumns: ["id"] },
           { foreignKeyName: "activities_candidate_id_fkey"; columns: ["candidate_id"]; isOneToOne: false; referencedRelation: "candidates"; referencedColumns: ["id"] },
           { foreignKeyName: "activities_candidate_job_id_fkey"; columns: ["candidate_job_id"]; isOneToOne: false; referencedRelation: "candidate_jobs"; referencedColumns: ["id"] },
