@@ -86,7 +86,7 @@ export async function JobWorkspace({
     ],
     notes: [],
   });
-  const early = ["assigned", "contacting", "conversation"].includes(cj.stage);
+  const early = ["applied", "assigned", "contacting", "conversation"].includes(cj.stage);
   const state = submission ? SUBMISSION_STATE[submission.status] : null;
 
   return (

@@ -736,6 +736,7 @@ export type Database = {
       job_status: "open" | "on_hold" | "filled" | "closed"
       job_visibility: "private" | "public" | "confidential"
       pipeline_stage:
+        | "applied"
         | "assigned"
         | "contacting"
         | "conversation"
@@ -780,6 +781,7 @@ export const Constants = {
       job_status: ["open", "on_hold", "filled", "closed"],
       job_visibility: ["private", "public", "confidential"],
       pipeline_stage: [
+        "applied",
         "assigned",
         "contacting",
         "conversation",

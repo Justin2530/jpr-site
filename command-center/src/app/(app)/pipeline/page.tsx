@@ -10,7 +10,7 @@ import { moveCandidateJob } from "../pipeline-actions";
 
 export const metadata = { title: "Pipeline · JPR" };
 
-const MAIN: Enums<"pipeline_stage">[] = ["assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer", "placed"];
+const MAIN: Enums<"pipeline_stage">[] = ["applied", "assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer", "placed"];
 const CLOSED: Enums<"pipeline_stage">[] = ["on_hold", "passed", "withdrawn"];
 const STALE_DAYS = 7;
 
