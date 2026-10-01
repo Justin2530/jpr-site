@@ -37,6 +37,7 @@ type Due = {
   phone: string | null;
   email: string | null;
   sms_opted_out: boolean;
+  text_consent: boolean;
   job_title: string;
   location: string | null;
   gmail_email: string | null;
@@ -81,6 +82,7 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         const to = toE164(d.phone);
         if (!to) await done("skipped", "no mobile number on file");
         else if (d.sms_opted_out) await done("skipped", "they replied STOP");
+        else if (!d.text_consent) await done("skipped", "no texting consent on file");
         else if (!twilioReady()) await done("skipped", "texting isn't connected");
         else {
           const msg = await twilioApi("Messages", {
