@@ -1,7 +1,7 @@
 import { requireStaff } from "@/lib/staff";
 import { PageHeader } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { twilioNumber, twilioReady } from "@/lib/twilio";
+import { twilioApi, twilioNumber, twilioReady } from "@/lib/twilio";
 import { readRegistration, type Registration } from "@/lib/twilio-registration";
 import { googleReady } from "@/lib/google";
 import { gmailAccount } from "@/lib/gmail-account";
@@ -42,6 +42,20 @@ const GMAIL_STATUS: Record<string, { ok: boolean; text: string }> = {
   failed: { ok: false, text: "Google didn't accept the sign-in. Press Connect Gmail again." },
 };
 
+// True when the business number's texts and calls already point at this app, and no Messaging Service
+// holding the number is taking incoming texts away from it.
+async function numberWired(reg: Registration | null) {
+  if (!twilioNumber) return false;
+  try {
+    const list = await twilioApi("IncomingPhoneNumbers", { PhoneNumber: twilioNumber }, "GET");
+    const num = list.incoming_phone_numbers?.[0];
+    if (!num?.sms_url?.includes("/api/twilio/sms") || !num?.voice_url?.includes("/api/twilio/voice")) return false;
+  } catch {
+    return false;
+  }
+  return !(reg?.services ?? []).some((s) => s.numbers.includes(twilioNumber!) && !s.usesNumberWebhook);
+}
+
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ gmail?: string }> }) {
   const gmailStatus = GMAIL_STATUS[(await searchParams).gmail ?? ""];
   const gmail = await gmailAccount();
@@ -56,6 +70,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       .from("integration_snapshots")
       .upsert({ name: "twilio_registration", data: registration, taken_at: new Date().toISOString() });
   }
+
+  const wired = ready && staff.role === "owner" ? await numberWired(registration) : false;
 
   return (
     <>
@@ -88,11 +104,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <SubmitButton className="btn-quiet">Save</SubmitButton>
           </form>
         </Step>
-        <Step done={false} title="Send incoming texts and calls here">
+        <Step done={wired} title="Send incoming texts and calls here">
           <p className="text-sm text-muted">
-            One click points your business number at the Command Center, so replies land on the right profile and on What needs me.
+            {wired
+              ? "Connected. Texts to your business number land on the right profile and on What needs me, and calls ring your cell."
+              : "One click points your business number at the Command Center, so replies land on the right profile and on What needs me."}
           </p>
-          <ConnectButton disabled={!ready || staff.role !== "owner"} />
+          <ConnectButton disabled={!ready || staff.role !== "owner"} connected={wired} />
         </Step>
         <Step done={Boolean(gmail)} title="Gmail">
           <p className="text-sm text-muted">
