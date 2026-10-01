@@ -7,7 +7,7 @@ import { googleReady } from "@/lib/google";
 import { gmailAccount } from "@/lib/gmail-account";
 import { headers } from "next/headers";
 import { automationSecret, registerAutomation } from "@/lib/automation";
-import { saveMyCell } from "./actions";
+import { saveMyCell, setAutomatedRecruiting } from "./actions";
 import { ConnectButton } from "./connect-button";
 
 export const metadata = { title: "Phone & email · JPR" };
@@ -75,6 +75,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const wired = ready && staff.role === "owner" ? await numberWired(registration) : false;
   const automation = Boolean(automationSecret());
+  const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after").maybeSingle();
+  const autoOn = Boolean(auto?.automated_recruiting);
   if (automation && staff.role === "owner") {
     const h = await headers();
     await registerAutomation(supabase, `https://${h.get("x-forwarded-host") ?? h.get("host")}`);
@@ -134,12 +136,26 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           )}
           {gmailStatus && <p className={`text-sm ${gmailStatus.ok ? "text-mint" : "text-amber"}`}>{gmailStatus.text}</p>}
         </Step>
-        <Step done={automation && wired && Boolean(gmail)} title="Automatic follow-up">
+        <Step done={autoOn} title="Automated recruiting">
           <p className="text-sm text-muted">
-            When you assign someone to a job, the Command Center texts and emails them to set up a call: a text and an email right away, a
-            text the next day, an email on day 3 and a last text on day 5. Any reply, text, email or call stops it and lands on What needs
-            me. Sends only Monday to Saturday, 9am to 7pm.
+            {autoOn ? "On." : "Off."} When it&apos;s on and you assign someone to a job, the Command Center texts and emails them to set up
+            a call: a text and an email right away, a text the next day, an email on day 3 and a last text on day 5. Any reply, text, email
+            or call stops it and lands on What needs me. Sends only Monday to Saturday, 9am to 7pm. Texts only go to people with texting
+            consent checked.
           </p>
+          <p className="text-sm text-muted">
+            Only candidates added after it&apos;s first turned on are ever included
+            {auto?.eligible_after ? ` (added after ${new Date(auto.eligible_after).toLocaleDateString("en-US")})` : ""}. Everyone already in
+            the system stays manual.
+          </p>
+          {staff.role === "owner" && (
+            <form action={setAutomatedRecruiting}>
+              <input type="hidden" name="on" value={autoOn ? "false" : "true"} />
+              <SubmitButton className={autoOn ? "btn-quiet hover:text-rose" : "btn"}>
+                {autoOn ? "Turn off automated recruiting" : "Turn on automated recruiting"}
+              </SubmitButton>
+            </form>
+          )}
         </Step>
       </ol>
       {registration && <RegistrationPanel reg={registration} />}

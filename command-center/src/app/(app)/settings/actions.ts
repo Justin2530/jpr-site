@@ -50,3 +50,12 @@ export async function connectTwilioNumber(): Promise<{ ok: boolean; message: str
   }
   return { ok: true, message: "Connected. Texts to your business number now land here, and calls ring your cell." };
 }
+
+// The "Automated recruiting" master switch. Only candidates added after it first goes on are ever automated.
+export async function setAutomatedRecruiting(form: FormData) {
+  const { supabase, staff } = await requireStaff();
+  if (staff.role !== "owner") throw new Error("Only the owner can change this.");
+  const { error } = await supabase.rpc("set_automated_recruiting", { p_on: form.get("on") === "true" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+}
