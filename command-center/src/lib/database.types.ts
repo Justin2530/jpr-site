@@ -76,6 +76,7 @@ export type Database = {
           duration_seconds: number | null
           external_id: string | null
           external_status: string | null
+          external_thread_id: string | null
           phone_number: string | null
           id: string
           job_id: string | null
@@ -96,6 +97,7 @@ export type Database = {
           duration_seconds?: number | null
           external_id?: string | null
           external_status?: string | null
+          external_thread_id?: string | null
           phone_number?: string | null
           id?: string
           job_id?: string | null
@@ -343,6 +345,12 @@ export type Database = {
           { foreignKeyName: "deals_owner_id_fkey"; columns: ["owner_id"]; isOneToOne: false; referencedRelation: "staff"; referencedColumns: ["id"] },
         ]
       }
+      google_accounts: {
+        Row: { connected_at: string; email: string; scopes: string | null; staff_id: string; token_enc: string };
+        Insert: { connected_at?: string; email: string; scopes?: string | null; staff_id: string; token_enc: string };
+        Update: { connected_at?: string; email?: string; scopes?: string | null; staff_id?: string; token_enc?: string };
+        Relationships: [];
+      };
       integration_snapshots: {
         Row: { data: Json; name: string; taken_at: string };
         Insert: { data: Json; name: string; taken_at?: string };

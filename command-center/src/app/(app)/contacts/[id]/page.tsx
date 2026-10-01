@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { PlusIcon } from "@/components/icons";
 import { ReachOut } from "@/components/reach-out";
 import { twilioReady } from "@/lib/twilio";
+import { gmailAccount } from "@/lib/gmail-account";
 import { Correspondence } from "@/components/correspondence";
 import { Reminders } from "@/components/reminders";
 import { contactCorrespondence } from "@/lib/correspondence";
@@ -59,6 +60,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
             links={{ contact_id: c.id, company_id: c.company_id }}
             path={path}
             twilio={twilioReady()}
+            gmail={Boolean(await gmailAccount())}
             optedOut={Boolean(c.sms_opted_out_at)}
           />
         }

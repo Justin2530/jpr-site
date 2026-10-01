@@ -3,10 +3,12 @@ import { PageHeader } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { twilioNumber, twilioReady } from "@/lib/twilio";
 import { readRegistration, type Registration } from "@/lib/twilio-registration";
+import { googleReady } from "@/lib/google";
+import { gmailAccount } from "@/lib/gmail-account";
 import { saveMyCell } from "./actions";
 import { ConnectButton } from "./connect-button";
 
-export const metadata = { title: "Phone & texting · JPR" };
+export const metadata = { title: "Phone & email · JPR" };
 
 function pretty(e164: string | null) {
   const d = e164?.replace(/\D/g, "").slice(-10);
@@ -29,7 +31,20 @@ function Step({ done, title, children }: { done: boolean; title: string; childre
   );
 }
 
-export default async function SettingsPage() {
+const GMAIL_STATUS: Record<string, { ok: boolean; text: string }> = {
+  connected: { ok: true, text: "Gmail connected. Email buttons on profiles now send from your mailbox and log themselves." },
+  declined: { ok: false, text: "Google sign-in was cancelled. Try again when you're ready." },
+  expired: { ok: false, text: "That sign-in link expired. Press Connect Gmail again." },
+  norefresh: { ok: false, text: "Google didn't grant ongoing access. Press Connect Gmail again and allow everything it asks for." },
+  noemail: { ok: false, text: "Google didn't say which mailbox this is. Press Connect Gmail again." },
+  nokeys: { ok: false, text: "The Google keys aren't in Vercel yet." },
+  savefailed: { ok: false, text: "Connected, but saving failed. Press Connect Gmail again." },
+  failed: { ok: false, text: "Google didn't accept the sign-in. Press Connect Gmail again." },
+};
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ gmail?: string }> }) {
+  const gmailStatus = GMAIL_STATUS[(await searchParams).gmail ?? ""];
+  const gmail = await gmailAccount();
   const { staff, supabase } = await requireStaff();
   const keys = Boolean(process.env.TWILIO_ACCOUNT_SID?.trim() && process.env.TWILIO_AUTH_TOKEN?.trim());
   const ready = twilioReady();
@@ -44,7 +59,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader kicker="Business" title="Phone & texting" />
+      <PageHeader kicker="Business" title="Phone & email" />
       <ol className="max-w-2xl space-y-3">
         <Step done={Boolean(twilioNumber)} title="Business number">
           <p className="text-sm text-muted">
@@ -78,6 +93,21 @@ export default async function SettingsPage() {
             One click points your business number at the Command Center, so replies land on the right profile and on What needs me.
           </p>
           <ConnectButton disabled={!ready || staff.role !== "owner"} />
+        </Step>
+        <Step done={Boolean(gmail)} title="Gmail">
+          <p className="text-sm text-muted">
+            {gmail
+              ? `Connected as ${gmail.email}. Email buttons on candidates, contacts and deals send from this mailbox and log themselves.`
+              : googleReady()
+                ? "Sign in with your JPR Google Workspace account so emails send from your own mailbox and land on each person's history."
+                : "Waiting on the Google keys in Vercel (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)."}
+          </p>
+          {googleReady() && (
+            <a href="/api/google/start" className={gmail ? "btn-quiet" : "btn"}>
+              {gmail ? "Reconnect Gmail" : "Connect Gmail"}
+            </a>
+          )}
+          {gmailStatus && <p className={`text-sm ${gmailStatus.ok ? "text-mint" : "text-amber"}`}>{gmailStatus.text}</p>}
         </Step>
       </ol>
       {registration && <RegistrationPanel reg={registration} />}

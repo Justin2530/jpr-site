@@ -43,7 +43,7 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
     items: [
       { href: "/reports", label: "Reports", Icon: ReportsIcon, ownerOnly: true },
       { href: "/tools", label: "Tools & costs", Icon: ToolsIcon, ownerOnly: true },
-      { href: "/settings", label: "Phone & texting", Icon: PhoneIcon },
+      { href: "/settings", label: "Phone & email", Icon: PhoneIcon },
     ],
   },
 ];

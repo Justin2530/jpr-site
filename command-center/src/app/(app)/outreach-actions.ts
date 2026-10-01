@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { requireStaff } from "@/lib/staff";
 import { num, text } from "@/lib/format";
 import { escapeXml, toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
+import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
 
 const KINDS = ["call", "text", "email", "note"];
 
@@ -153,7 +154,7 @@ export async function startCall(form: FormData): Promise<OutreachResult> {
   const links = reachLinks(form);
   const myCell = toE164(staff.phone);
   if (!twilioReady()) return { ok: false, message: "Twilio isn't connected yet." };
-  if (!myCell) return { ok: false, message: "Add your cell number under Phone & texting first." };
+  if (!myCell) return { ok: false, message: "Add your cell number under Phone & email first." };
   if (!to) return { ok: false, message: "That phone number doesn't look right." };
 
   const twiml =
@@ -200,4 +201,43 @@ export async function addCallNotes(form: FormData) {
   const { error } = await supabase.from("activities").update(update).eq("external_id", sid);
   if (error) throw new Error(error.message);
   revalidatePath(String(form.get("path") ?? "/"));
+}
+
+// Send an email from the staff member's own Gmail and file it on the person's history.
+export async function sendEmail(form: FormData): Promise<OutreachResult> {
+  const { supabase, userId, markets } = await requireStaff();
+  const to = text(form, "email");
+  const subject = text(form, "subject");
+  const body = text(form, "body");
+  const name = text(form, "name") ?? to ?? "them";
+  const links = reachLinks(form);
+  if (!googleReady()) return { ok: false, message: "Gmail isn't set up yet." };
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { ok: false, message: "That email address doesn't look right." };
+  if (!subject || !body) return { ok: false, message: "Add a subject and a message." };
+
+  const { data: account } = await supabase.from("google_accounts").select("email, token_enc").eq("staff_id", userId).maybeSingle();
+  if (!account) return { ok: false, message: "Connect your Gmail on the Phone & email page first." };
+
+  let sent: { id: string; threadId: string };
+  try {
+    sent = await sendGmail(await accessToken(openToken(account.token_enc)), { from: account.email, to, subject, body });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Gmail didn't accept the email.";
+    return { ok: false, message: /invalid_grant|decrypt|auth/i.test(msg) ? "Gmail needs reconnecting on the Phone & email page." : msg };
+  }
+  const { error } = await supabase.from("activities").insert({
+    kind: "email",
+    direction: "out",
+    summary: `Email to ${name}: ${subject}`,
+    body,
+    ...links,
+    market_id: markets[0]?.id ?? null,
+    actor_id: userId,
+    external_id: sent.id,
+    external_thread_id: sent.threadId,
+    external_status: "sent",
+  });
+  revalidatePath(String(form.get("path") ?? "/"));
+  if (error) return { ok: false, message: `Sent, but not saved to history: ${error.message}` };
+  return { ok: true, message: `Email sent to ${name}.` };
 }

@@ -3,13 +3,14 @@
 import { useState, useTransition } from "react";
 import { ChatIcon, MailIcon, PhoneIcon } from "@/components/icons";
 import { SubmitButton } from "@/components/submit-button";
-import { addCallNotes, logCorrespondence, sendText, startCall, type OutreachResult } from "@/app/(app)/outreach-actions";
+import { addCallNotes, logCorrespondence, sendEmail, sendText, startCall, type OutreachResult } from "@/app/(app)/outreach-actions";
 
 type Kind = "call" | "text" | "email";
 const WORD: Record<Kind, string> = { call: "call", text: "text", email: "email" };
 
 // With Twilio connected, Call rings your cell and connects you, and Text sends from JPR's number; both log
-// themselves. Without it they open the phone app and a small form logs what was said. Email opens the mail app.
+// themselves. Without it they open the phone app and a small form logs what was said. With Gmail connected, Email
+// sends from your mailbox and logs itself; otherwise it opens the mail app.
 export function ReachOut({
   phone,
   email,
@@ -17,6 +18,7 @@ export function ReachOut({
   links,
   path,
   twilio = false,
+  gmail = false,
   optedOut = false,
 }: {
   phone: string | null;
@@ -25,10 +27,12 @@ export function ReachOut({
   links: { candidate_id?: string; contact_id?: string; company_id?: string; deal_id?: string };
   path: string;
   twilio?: boolean;
+  gmail?: boolean;
   optedOut?: boolean;
 }) {
   const [logging, setLogging] = useState<Kind | null>(null);
   const [composing, setComposing] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [result, setResult] = useState<OutreachResult | null>(null);
   const [callSid, setCallSid] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -39,6 +43,7 @@ export function ReachOut({
       <input type="hidden" name="path" value={path} />
       <input type="hidden" name="to" value={phone ?? ""} />
       <input type="hidden" name="name" value={name ?? ""} />
+      <input type="hidden" name="email" value={email ?? ""} />
     </>
   );
   const call = () =>
@@ -85,7 +90,13 @@ export function ReachOut({
             {button("text", digits ? `sms:${digits}` : null, <ChatIcon className="h-4 w-4" />, "Text")}
           </>
         )}
-        {button("email", email ? `mailto:${email}` : null, <MailIcon className="h-4 w-4" />, "Email")}
+        {gmail && email ? (
+          <button type="button" onClick={() => setEmailing((c) => !c)} className="btn-quiet">
+            <MailIcon className="h-4 w-4" /> Email
+          </button>
+        ) : (
+          button("email", email ? `mailto:${email}` : null, <MailIcon className="h-4 w-4" />, "Email")
+        )}
         {!logging && (
           <button type="button" onClick={() => setLogging("call")} className="btn-quiet text-muted">
             Log
@@ -112,6 +123,30 @@ export function ReachOut({
               Cancel
             </button>
             <span className="ml-auto text-xs text-faint">From JPR&apos;s business number</span>
+          </div>
+        </form>
+      )}
+      {emailing && (
+        <form
+          action={async (form) => {
+            const r = await sendEmail(form);
+            setResult(r);
+            if (r.ok) setEmailing(false);
+          }}
+          className="panel w-full max-w-md space-y-2 p-3 text-left"
+        >
+          {hidden}
+          <p className="text-xs text-faint">To {email}</p>
+          <input name="subject" required placeholder="Subject" className="field" aria-label="Subject" />
+          <textarea name="body" rows={6} required placeholder={`Email ${name ?? "them"}…`} className="field text-sm" aria-label="Message" />
+          <div className="flex items-center gap-2">
+            <SubmitButton className="btn" pendingText="Sending…">
+              Send email
+            </SubmitButton>
+            <button type="button" onClick={() => setEmailing(false)} className="btn-quiet">
+              Cancel
+            </button>
+            <span className="ml-auto text-xs text-faint">From your Gmail</span>
           </div>
         </form>
       )}

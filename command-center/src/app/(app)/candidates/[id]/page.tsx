@@ -7,6 +7,7 @@ import { StageSelect } from "@/components/stage-select";
 import { ShieldIcon } from "@/components/icons";
 import { ReachOut } from "@/components/reach-out";
 import { twilioReady } from "@/lib/twilio";
+import { gmailAccount } from "@/lib/gmail-account";
 import { Correspondence } from "@/components/correspondence";
 import { Reminders } from "@/components/reminders";
 import { candidateCorrespondence } from "@/lib/correspondence";
@@ -107,6 +108,7 @@ export default async function CandidateDetail({
             links={{ candidate_id: c.id }}
             path={path}
             twilio={twilioReady()}
+            gmail={Boolean(await gmailAccount())}
             optedOut={Boolean(c.sms_opted_out_at)}
           />
         }
