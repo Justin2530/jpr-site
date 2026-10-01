@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireStaff } from "@/lib/staff";
+import { beginOutreach } from "@/lib/outreach";
 import { text } from "@/lib/format";
 import type { Database, Enums } from "@/lib/database.types";
 
@@ -43,7 +44,7 @@ async function saveResume(supabase: SupabaseClient<Database>, candidateId: strin
 }
 
 export async function createCandidate(form: FormData) {
-  const { supabase, userId, markets } = await requireStaff();
+  const { supabase, userId, markets, staff } = await requireStaff();
   const consent = form.get("contact_consent") === "on";
   const { data, error } = await supabase
     .from("candidates")
@@ -63,8 +64,13 @@ export async function createCandidate(form: FormData) {
 
   const jobId = text(form, "job_id");
   if (jobId) {
-    const { error: aErr } = await supabase.from("candidate_jobs").insert({ candidate_id: data.id, job_id: jobId, assigned_by: userId });
+    const { data: cj, error: aErr } = await supabase
+      .from("candidate_jobs")
+      .insert({ candidate_id: data.id, job_id: jobId, assigned_by: userId })
+      .select("id")
+      .single();
     if (aErr) throw new Error(aErr.message);
+    await beginOutreach(supabase, cj.id, staff.role === "owner");
   }
   revalidatePath("/");
   redirect(`/candidates/${data.id}`);

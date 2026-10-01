@@ -6,6 +6,7 @@ import { StageSelect } from "@/components/stage-select";
 import { SubmissionEditor } from "@/components/submission-editor";
 import { draftSubmission, emailName } from "@/lib/submission";
 import { gmailAccount } from "@/lib/gmail-account";
+import { stopOutreach } from "@/app/(app)/pipeline-actions";
 import { label, shortDate, STAGE_LABEL, STAGE_TONE, timeAgo, type Tone } from "@/lib/format";
 
 type Candidate = Database["public"]["Tables"]["candidates"]["Row"];
@@ -64,6 +65,11 @@ export async function JobWorkspace({
   ]);
 
   const gmail = Boolean(await gmailAccount());
+  const { data: pursuits } = await supabase
+    .from("pursuits")
+    .select("id, purpose, status, started_at, ended_at, end_reason, pursuit_steps(id, step_no, channel, due_at, status, sent_at, note)")
+    .eq("candidate_job_id", cj.id)
+    .order("started_at", { ascending: false });
   const run = runs?.[0];
   const earlier = (runs ?? []).slice(1);
   const submission = subs?.[0];
@@ -109,6 +115,10 @@ export async function JobWorkspace({
         <Chip tone={STAGE_TONE[cj.stage]}>{STAGE_LABEL[cj.stage]}</Chip>
         <StageSelect id={cj.id} stage={cj.stage} />
       </div>
+
+      {(pursuits ?? []).map((p) => (
+        <Outreach key={p.id} pursuit={p} cjId={cj.id} />
+      ))}
 
       <section id="submission">
         <Panel
@@ -280,5 +290,75 @@ export async function JobWorkspace({
         )}
       </Panel>
     </div>
+  );
+}
+
+const OUTREACH_STATE: Record<string, { text: string; tone: Tone }> = {
+  active: { text: "Reaching out", tone: "cyan" },
+  stopped: { text: "Stopped", tone: "muted" },
+  finished: { text: "No response", tone: "amber" },
+};
+const STEP_STATE: Record<string, string> = { pending: "scheduled", sending: "sending", sent: "sent", skipped: "skipped", failed: "failed" };
+
+// The automatic texts and emails for this job: what went out, what's next, and why it stopped.
+function Outreach({
+  pursuit,
+  cjId,
+}: {
+  pursuit: {
+    purpose: string;
+    status: string;
+    started_at: string;
+    end_reason: string | null;
+    pursuit_steps: {
+      id: string;
+      step_no: number;
+      channel: string;
+      due_at: string;
+      status: string;
+      sent_at: string | null;
+      note: string | null;
+    }[];
+  };
+  cjId: string;
+}) {
+  const state = OUTREACH_STATE[pursuit.status] ?? OUTREACH_STATE.stopped;
+  const steps = [...pursuit.pursuit_steps].sort((a, b) => a.step_no - b.step_no);
+  const when = (d: string) =>
+    new Date(d).toLocaleString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/New_York",
+    });
+  return (
+    <Panel
+      title={pursuit.purpose === "screening" ? "Automatic outreach" : `Automatic outreach: ${pursuit.purpose}`}
+      action={<Chip tone={state.tone}>{state.text}</Chip>}
+    >
+      {pursuit.status !== "active" && pursuit.end_reason && (
+        <p className="mb-3 text-sm text-muted">Stopped because {pursuit.end_reason}.</p>
+      )}
+      <ol className="space-y-1.5 text-sm">
+        {steps.map((s) => (
+          <li key={s.id} className="flex flex-wrap items-baseline gap-x-3">
+            <span className="w-12 font-mono text-xs uppercase text-faint">{s.channel === "sms" ? "Text" : "Email"}</span>
+            <span className={s.status === "sent" ? "text-ink" : s.status === "failed" ? "text-rose" : "text-muted"}>
+              {STEP_STATE[s.status] ?? s.status}{" "}
+              {s.status === "sent" && s.sent_at ? when(s.sent_at) : s.status === "pending" ? when(s.due_at) : ""}
+            </span>
+            {s.note && <span className="text-xs text-faint">{s.note}</span>}
+          </li>
+        ))}
+      </ol>
+      {pursuit.status === "active" && (
+        <form action={stopOutreach} className="mt-3">
+          <input type="hidden" name="id" value={cjId} />
+          <button className="btn-quiet hover:text-rose">Stop automatic outreach</button>
+        </form>
+      )}
+    </Panel>
   );
 }

@@ -542,6 +542,94 @@ export type Database = {
         Update: { data?: Json; name?: string; taken_at?: string };
         Relationships: [];
       };
+      followup_steps: {
+        Row: {
+          id: string;
+          purpose: string;
+          step_no: number;
+          day_offset: number;
+          channel: string;
+          subject: string | null;
+          body: string;
+          active: boolean;
+        };
+        Insert: {
+          id?: string;
+          purpose?: string;
+          step_no: number;
+          day_offset?: number;
+          channel: string;
+          subject?: string | null;
+          body: string;
+          active?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["followup_steps"]["Row"]>;
+        Relationships: [];
+      };
+      pursuits: {
+        Row: {
+          id: string;
+          candidate_job_id: string;
+          purpose: string;
+          status: string;
+          started_by: string | null;
+          started_at: string;
+          ended_at: string | null;
+          end_reason: string | null;
+        };
+        Insert: {
+          id?: string;
+          candidate_job_id: string;
+          purpose?: string;
+          status?: string;
+          started_by?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
+          end_reason?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["pursuits"]["Row"]>;
+        Relationships: [];
+      };
+      pursuit_steps: {
+        Row: {
+          id: string;
+          pursuit_id: string;
+          step_no: number;
+          channel: string;
+          subject: string | null;
+          body: string;
+          due_at: string;
+          status: string;
+          claimed_at: string | null;
+          sent_at: string | null;
+          note: string | null;
+          activity_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          pursuit_id: string;
+          step_no: number;
+          channel: string;
+          subject?: string | null;
+          body: string;
+          due_at: string;
+          status?: string;
+          claimed_at?: string | null;
+          sent_at?: string | null;
+          note?: string | null;
+          activity_id?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["pursuit_steps"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "pursuit_steps_pursuit_id_fkey";
+            columns: ["pursuit_id"];
+            isOneToOne: false;
+            referencedRelation: "pursuits";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       jobs: {
         Row: {
           candidate_description: string | null;
@@ -1023,6 +1111,26 @@ export type Database = {
       is_protected_employer: { Args: { employer: string }; Returns: boolean };
       is_staff: { Args: never; Returns: boolean };
       phone_key: { Args: { p: string }; Returns: string };
+      start_pursuit: { Args: { p_candidate_job_id: string; p_purpose?: string }; Returns: string | null };
+      automation_register: { Args: { p_secret: string; p_url: string }; Returns: undefined };
+      automation_due: { Args: { p_secret: string }; Returns: Json };
+      automation_step_done: {
+        Args: {
+          p_secret: string;
+          p_step: string;
+          p_status: string;
+          p_note: string;
+          p_summary: string;
+          p_body: string;
+          p_external_id: string;
+          p_thread_id: string;
+          p_phone: string;
+        };
+        Returns: undefined;
+      };
+      gmail_mailboxes: { Args: { p_secret: string }; Returns: Json };
+      gmail_known: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
+      gmail_log: { Args: { p_secret: string; p_staff: string; p_me: string; p_msgs: Json; p_synced_at: string }; Returns: number };
       twilio_inbound_text: { Args: { p_secret: string; p_sid: string; p_from: string; p_to: string; p_body: string }; Returns: undefined };
       twilio_caller_name: { Args: { p_secret: string; p_from: string }; Returns: string | null };
       twilio_inbound_call: { Args: { p_secret: string; p_sid: string; p_from: string }; Returns: undefined };

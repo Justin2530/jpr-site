@@ -5,6 +5,8 @@ import { twilioApi, twilioNumber, twilioReady } from "@/lib/twilio";
 import { readRegistration, type Registration } from "@/lib/twilio-registration";
 import { googleReady } from "@/lib/google";
 import { gmailAccount } from "@/lib/gmail-account";
+import { headers } from "next/headers";
+import { automationSecret, registerAutomation } from "@/lib/automation";
 import { saveMyCell } from "./actions";
 import { ConnectButton } from "./connect-button";
 
@@ -72,6 +74,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   }
 
   const wired = ready && staff.role === "owner" ? await numberWired(registration) : false;
+  const automation = Boolean(automationSecret());
+  if (automation && staff.role === "owner") {
+    const h = await headers();
+    await registerAutomation(supabase, `https://${h.get("x-forwarded-host") ?? h.get("host")}`);
+  }
 
   return (
     <>
@@ -126,6 +133,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             </a>
           )}
           {gmailStatus && <p className={`text-sm ${gmailStatus.ok ? "text-mint" : "text-amber"}`}>{gmailStatus.text}</p>}
+        </Step>
+        <Step done={automation && wired && Boolean(gmail)} title="Automatic follow-up">
+          <p className="text-sm text-muted">
+            When you assign someone to a job, the Command Center texts and emails them to set up a call: a text and an email right away, a
+            text the next day, an email on day 3 and a last text on day 5. Any reply, text, email or call stops it and lands on What needs
+            me. Sends only Monday to Saturday, 9am to 7pm.
+          </p>
         </Step>
       </ol>
       {registration && <RegistrationPanel reg={registration} />}
