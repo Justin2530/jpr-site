@@ -243,6 +243,7 @@ export type Database = {
           industry: string | null
           market_id: string
           name: string
+          short_name: string | null
           notes: string | null
           phone: string | null
           status: Database["public"]["Enums"]["company_status"]
@@ -258,6 +259,7 @@ export type Database = {
           industry?: string | null
           market_id: string
           name: string
+          short_name?: string | null
           notes?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["company_status"]

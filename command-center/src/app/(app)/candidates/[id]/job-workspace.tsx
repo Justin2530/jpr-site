@@ -4,7 +4,7 @@ import type { Database, Json } from "@/lib/database.types";
 import { Chip, Empty, Panel } from "@/components/ui";
 import { StageSelect } from "@/components/stage-select";
 import { SubmissionEditor } from "@/components/submission-editor";
-import { draftSubmission } from "@/lib/submission";
+import { draftSubmission, emailName } from "@/lib/submission";
 import { gmailAccount } from "@/lib/gmail-account";
 import { label, shortDate, STAGE_LABEL, STAGE_TONE, timeAgo, type Tone } from "@/lib/format";
 
@@ -40,7 +40,7 @@ export async function JobWorkspace({
   const { data: cj } = await supabase
     .from("candidate_jobs")
     .select(
-      "id, stage, stage_changed_at, assigned_at, jobs(id, title, company_id, hiring_contact_id, location, compensation, schedule, companies(id, name))",
+      "id, stage, stage_changed_at, assigned_at, jobs(id, title, company_id, hiring_contact_id, location, compensation, schedule, companies(id, name, short_name))",
     )
     .eq("id", cjId)
     .eq("candidate_id", candidate.id)
@@ -81,7 +81,7 @@ export async function JobWorkspace({
   const template = draftSubmission({
     candidate,
     job,
-    company: job.companies?.name,
+    company: emailName(job.companies),
     greetingName: people.find((p) => p.id === preselected[0])?.full_name,
     facts: [
       ...(goals ?? []).map((g) => ({ label: byGoal.get(g.id)?.label ?? g.prompt, value: byGoal.get(g.id)?.value ?? null })),

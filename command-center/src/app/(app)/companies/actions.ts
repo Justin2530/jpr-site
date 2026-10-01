@@ -12,6 +12,7 @@ export async function createCompany(form: FormData) {
     .from("companies")
     .insert({
       name: text(form, "name")!,
+      short_name: text(form, "short_name"),
       status: (text(form, "status") ?? "prospect") as Enums<"company_status">,
       industry: text(form, "industry"),
       city: text(form, "city"),
@@ -34,6 +35,7 @@ export async function updateCompany(form: FormData) {
     .from("companies")
     .update({
       name: text(form, "name")!,
+      short_name: text(form, "short_name"),
       status: text(form, "status") as Enums<"company_status">,
       industry: text(form, "industry"),
       city: text(form, "city"),
@@ -62,7 +64,10 @@ export async function addContact(form: FormData) {
 
 export async function deleteContact(form: FormData) {
   const { supabase } = await requireStaff();
-  const { error } = await supabase.from("contacts").delete().eq("id", String(form.get("id")));
+  const { error } = await supabase
+    .from("contacts")
+    .delete()
+    .eq("id", String(form.get("id")));
   if (error) throw new Error(error.message);
   revalidatePath(`/companies/${form.get("company_id")}`);
 }

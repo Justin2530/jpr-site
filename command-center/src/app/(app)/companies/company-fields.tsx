@@ -4,8 +4,11 @@ import type { Tables } from "@/lib/database.types";
 export function CompanyFields({ c }: { c?: Tables<"companies"> }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="Company name" name="name" className="sm:col-span-2">
+      <Field label="Company name" name="name">
         <input id="name" name="name" required defaultValue={c?.name} className="field" />
+      </Field>
+      <Field label="Name in emails" name="short_name">
+        <input id="short_name" name="short_name" defaultValue={c?.short_name ?? ""} placeholder="ALKAB" className="field" />
       </Field>
       <Field label="Status" name="status">
         <select id="status" name="status" defaultValue={c?.status ?? "prospect"} className="field">

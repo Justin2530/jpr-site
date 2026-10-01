@@ -7,6 +7,8 @@ export const SUBMISSION_STYLE = `Write a candidate submission email to the clien
 
 Subject: "Candidate Submission - <Job title> - <Company> - <Candidate full name>"
 
+Call the company by its everyday name, the way people there say it ("ACME", "ALKAB"), never the legal name with LLC, Inc or Co.
+
 Body, plain text, short, warm and direct. No bullet points, no headings, no marketing language.
 1. "Hi <first name>, I have an interested candidate for the <job title> position at <company> (resume attached)."
    Continue the same paragraph with 2 to 5 plain sentences on relevant experience, using he/she/they as the
@@ -24,6 +26,17 @@ Body, plain text, short, warm and direct. No bullet points, no headings, no mark
 Never invent experience, pay or availability. If a needed fact is missing, leave a clear [blank] for Justin to fill in.`;
 
 export const SIGNATURE = ["--", "Justin Peace", "Founder - JPR", "www.jpeacerecruiting.com", "(814) 845-4341"].join("\n");
+
+// What to call a company in an email: its "Name in emails" if set, otherwise the name without
+// legal endings ("ACME Machine & Welding Co, LLC" -> "ACME Machine & Welding").
+export function emailName(company: { name: string; short_name?: string | null } | null | undefined) {
+  if (!company) return null;
+  if (company.short_name?.trim()) return company.short_name.trim();
+  return (
+    company.name.replace(/(,?\s+(llc|l\.l\.c\.|inc\.?|incorporated|corp\.?|corporation|co\.?|company|ltd\.?))+\s*$/i, "").trim() ||
+    company.name
+  );
+}
 
 type Fact = { label: string; value: string | null };
 
