@@ -13,7 +13,7 @@ export type Registration = {
     errors: string[];
     created: string;
   }[];
-  services: { sid: string; name: string }[];
+  services: { sid: string; name: string; numbers: string[]; usesNumberWebhook: boolean }[];
   campaigns: {
     sid: string;
     service: string;
@@ -68,7 +68,20 @@ export async function readRegistration(): Promise<Registration> {
     }),
     attempt("Messaging services", async () => {
       const r = await twilioGet("https://messaging.twilio.com/v1/Services?PageSize=50");
-      reg.services = (r.services ?? []).map((s: Json) => ({ sid: str(s.sid), name: str(s.friendly_name) }));
+      reg.services = (r.services ?? []).map((s: Json) => ({
+        sid: str(s.sid),
+        name: str(s.friendly_name),
+        numbers: [] as string[],
+        usesNumberWebhook: Boolean(s.use_inbound_webhook_on_number),
+      }));
+      await Promise.all(
+        reg.services.map((s) =>
+          attempt(`Numbers on ${s.name}`, async () => {
+            const n = await twilioGet(`https://messaging.twilio.com/v1/Services/${s.sid}/PhoneNumbers?PageSize=50`);
+            s.numbers = (n.phone_numbers ?? []).map((x: Json) => str(x.phone_number));
+          }),
+        ),
+      );
       await Promise.all(
         reg.services.map((s) =>
           attempt(`Campaigns on ${s.name}`, async () => {

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { requireStaff } from "@/lib/staff";
 import { text } from "@/lib/format";
-import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
+import { toE164, twilioApi, twilioGet, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 
 export async function saveMyCell(form: FormData) {
   const { supabase, userId } = await requireStaff();
@@ -35,6 +35,16 @@ export async function connectTwilioNumber(): Promise<{ ok: boolean; message: str
       StatusCallback: webhookUrl(origin, "/api/twilio/status"),
       StatusCallbackMethod: "POST",
     });
+    // Texting registration puts the number in a Messaging Service, which by default takes over incoming
+    // texts. Tell that service to keep using the number's own webhook (this app).
+    const services = await twilioGet("https://messaging.twilio.com/v1/Services?PageSize=50");
+    for (const svc of services.services ?? []) {
+      const nums = await twilioGet(`https://messaging.twilio.com/v1/Services/${svc.sid}/PhoneNumbers?PageSize=50`);
+      const has = (nums.phone_numbers ?? []).some((n: { sid: string }) => n.sid === num.sid);
+      if (has && !svc.use_inbound_webhook_on_number) {
+        await twilioGet(`https://messaging.twilio.com/v1/Services/${svc.sid}`, { UseInboundWebhookOnNumber: "true" });
+      }
+    }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Twilio didn't accept the change." };
   }

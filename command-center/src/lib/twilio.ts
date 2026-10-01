@@ -38,11 +38,16 @@ export async function twilioApi(path: string, params: Record<string, string>, me
   return json;
 }
 
-// GET from any Twilio API host (messaging.twilio.com, trusthub.twilio.com, ...), for read-only checks.
-export async function twilioGet(url: string) {
+// Call any Twilio API host (messaging.twilio.com, trusthub.twilio.com, ...) by full URL.
+export async function twilioGet(url: string, post?: Record<string, string>) {
   if (!sid || !token) throw new Error("Twilio isn't connected yet.");
   const res = await fetch(url.replace("{AccountSid}", sid), {
-    headers: { Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}` },
+    method: post ? "POST" : "GET",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: post ? new URLSearchParams(post) : undefined,
     cache: "no-store",
   });
   const json = await res.json().catch(() => ({}));

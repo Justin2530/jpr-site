@@ -160,6 +160,23 @@ function RegistrationPanel({ reg }: { reg: Registration }) {
           )}
         </div>
         <div>
+          <p className="panel-title mb-1 text-cyan/80">Messaging services with a number</p>
+          {reg.services.filter((s) => s.numbers.length).length ? (
+            reg.services
+              .filter((s) => s.numbers.length)
+              .map((s) => (
+                <p key={s.sid}>
+                  {s.name}: {s.numbers.join(", ")}{" "}
+                  <span className={`text-xs ${s.usesNumberWebhook ? "text-mint" : "text-amber"}`}>
+                    {s.usesNumberWebhook ? "texts come to this app" : "press Connect my business number above"}
+                  </span>
+                </p>
+              ))
+          ) : (
+            <p className="text-faint">None</p>
+          )}
+        </div>
+        <div>
           <p className="panel-title mb-1 text-cyan/80">Accounts</p>
           {reg.subaccounts.map((a) => (
             <p key={a.sid}>
