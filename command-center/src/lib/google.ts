@@ -128,3 +128,93 @@ export async function sendGmail(token: string, message: Message) {
   if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
   return json as { id: string; threadId: string };
 }
+
+type Part = { mimeType?: string; body?: { data?: string }; parts?: Part[]; headers?: { name: string; value: string }[] };
+export type GmailMessage = {
+  id: string;
+  threadId: string;
+  from: string;
+  fromName: string;
+  to: string[];
+  subject: string;
+  date: Date;
+  text: string;
+};
+
+async function gmailGet(token: string, path: string) {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
+  return json;
+}
+
+// Ids of messages matching a Gmail search, newest first.
+export async function listGmail(token: string, q: string, max = 50): Promise<{ id: string; threadId: string }[]> {
+  const json = await gmailGet(token, `messages?maxResults=${max}&q=${encodeURIComponent(q)}`);
+  return json.messages ?? [];
+}
+
+function plainText(part: Part): string {
+  if (part.mimeType === "text/plain" && part.body?.data) return Buffer.from(part.body.data, "base64url").toString("utf8");
+  for (const p of part.parts ?? []) {
+    const t = plainText(p);
+    if (t) return t;
+  }
+  if (part.mimeType === "text/html" && part.body?.data) {
+    return Buffer.from(part.body.data, "base64url")
+      .toString("utf8")
+      .replace(/<(br|\/p|\/div)[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&");
+  }
+  return "";
+}
+
+// Just what they wrote: drops the quoted earlier message under "On ... wrote:" and ">" lines.
+export function replyOnly(text: string) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const cut = lines.findIndex(
+    (l, i) =>
+      /^On .+wrote:\s*$/.test(l) ||
+      (/^On .+/.test(l) && /wrote:\s*$/.test(lines[i + 1] ?? "")) ||
+      /^-{2,}\s*Original Message/i.test(l) ||
+      /^From: .+/.test(l),
+  );
+  return (cut >= 0 ? lines.slice(0, cut) : lines)
+    .filter((l) => !l.startsWith(">"))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export async function readGmail(token: string, id: string): Promise<GmailMessage> {
+  const m = await gmailGet(token, `messages/${id}?format=full`);
+  const headers: { name: string; value: string }[] = m.payload?.headers ?? [];
+  const h = (n: string) => headers.find((x) => x.name.toLowerCase() === n)?.value ?? "";
+  const fromRaw = h("from");
+  const email = (fromRaw.match(/<([^>]+)>/)?.[1] ?? fromRaw).trim().toLowerCase();
+  const fromName =
+    fromRaw
+      .replace(/<[^>]+>/, "")
+      .replace(/"/g, "")
+      .trim() || email;
+  const to =
+    [h("to"), h("cc")]
+      .join(",")
+      .match(/[^\s<>,;"]+@[^\s<>,;"]+/g)
+      ?.map((x) => x.toLowerCase()) ?? [];
+  return {
+    id: m.id,
+    threadId: m.threadId,
+    from: email,
+    fromName,
+    to,
+    subject: h("subject"),
+    date: new Date(Number(m.internalDate) || Date.now()),
+    text: plainText(m.payload ?? {}) || m.snippet || "",
+  };
+}

@@ -3,6 +3,7 @@ import { requireStaff } from "@/lib/staff";
 import { Nav } from "@/components/nav";
 import { Clock } from "@/components/clock";
 import { SearchHotkey } from "@/components/search-hotkey";
+import { EmailSync } from "@/components/email-sync";
 import { PlusIcon, SearchIcon } from "@/components/icons";
 import { label } from "@/lib/format";
 
@@ -75,6 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:pb-12">{children}</main>
       <Nav mobile owner={staff.role === "owner"} />
       <SearchHotkey />
+      <EmailSync />
     </div>
   );
 }
