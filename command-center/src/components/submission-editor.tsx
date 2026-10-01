@@ -5,7 +5,8 @@ import { decideSubmission } from "@/app/(app)/submission-actions";
 
 type Contact = { id: string; full_name: string; title: string | null; email: string | null };
 
-// SEND / EDIT / HOLD / PASS on one submission. Send opens the email app filled in; nothing goes out by itself.
+// SEND / EDIT / HOLD / PASS on one submission. Nothing goes out by itself: Send emails it from the connected
+// Gmail with the resume attached, or opens the email app filled in when Gmail isn't connected.
 export function SubmissionEditor({
   candidateJobId,
   submissionId,
@@ -14,6 +15,8 @@ export function SubmissionEditor({
   subject: initialSubject,
   body: initialBody,
   locked,
+  gmail,
+  sentFromGmail,
 }: {
   candidateJobId: string;
   submissionId?: string;
@@ -22,19 +25,23 @@ export function SubmissionEditor({
   subject: string;
   body: string;
   locked?: boolean;
+  gmail?: boolean;
+  sentFromGmail?: boolean;
 }) {
   const [picked, setPicked] = useState<string[]>(preselected);
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState(initialBody);
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const chosen = contacts.filter((c) => picked.includes(c.id));
   const emails = chosen.map((c) => c.email).filter(Boolean) as string[];
   const mailto = `mailto:${emails.map(encodeURIComponent).join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   function decide(decision: "save" | "send" | "hold" | "pass") {
     start(async () => {
-      await decideSubmission({
+      setResult(null);
+      const res = await decideSubmission({
         candidateJobId,
         submissionId,
         subject,
@@ -43,7 +50,9 @@ export function SubmissionEditor({
         recipients: chosen.map((c) => c.full_name),
         decision,
       });
-      if (decision === "send") window.location.href = mailto;
+      if (!res.ok) return setResult(res);
+      if (decision === "send" && res.viaGmail) setResult(res);
+      else if (decision === "send") window.location.href = mailto;
       if (decision === "save") setSaved(true);
     });
   }
@@ -107,9 +116,11 @@ export function SubmissionEditor({
         />
       </div>
       {locked ? (
-        <a href={mailto} className="btn-quiet">
-          Open in email again
-        </a>
+        sentFromGmail ? null : (
+          <a href={mailto} className="btn-quiet">
+            Open in email again
+          </a>
+        )
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => decide("send")} disabled={pending || emails.length === 0} className="btn">
@@ -124,12 +135,15 @@ export function SubmissionEditor({
           <button type="button" onClick={() => decide("pass")} disabled={pending} className="btn-quiet hover:text-rose">
             Pass
           </button>
-          {pending && <span className="font-mono text-xs text-faint">Saving…</span>}
+          {pending && <span className="font-mono text-xs text-faint">Working…</span>}
         </div>
       )}
+      {result && <p className={`text-sm ${result.ok ? "text-mint" : "text-amber"}`}>{result.message}</p>}
       {!locked && (
         <p className="text-xs text-faint">
-          Send opens your email app with this filled in and moves the candidate to Submitted. Attach the resume before you hit send.
+          {gmail
+            ? "Send emails this from your Gmail with the candidate's latest resume attached, logs it, and moves the candidate to Submitted."
+            : "Send opens your email app with this filled in and moves the candidate to Submitted. Attach the resume before you hit send."}
         </p>
       )}
     </div>

@@ -5,6 +5,7 @@ import { Chip, Empty, Panel } from "@/components/ui";
 import { StageSelect } from "@/components/stage-select";
 import { SubmissionEditor } from "@/components/submission-editor";
 import { draftSubmission } from "@/lib/submission";
+import { gmailAccount } from "@/lib/gmail-account";
 import { label, shortDate, STAGE_LABEL, STAGE_TONE, timeAgo, type Tone } from "@/lib/format";
 
 type Candidate = Database["public"]["Tables"]["candidates"]["Row"];
@@ -62,6 +63,7 @@ export async function JobWorkspace({
       .limit(30),
   ]);
 
+  const gmail = Boolean(await gmailAccount());
   const run = runs?.[0];
   const earlier = (runs ?? []).slice(1);
   const submission = subs?.[0];
@@ -79,6 +81,7 @@ export async function JobWorkspace({
   const template = draftSubmission({
     candidate,
     job,
+    company: job.companies?.name,
     greetingName: people.find((p) => p.id === preselected[0])?.full_name,
     facts: [
       ...(goals ?? []).map((g) => ({ label: byGoal.get(g.id)?.label ?? g.prompt, value: byGoal.get(g.id)?.value ?? null })),
@@ -139,6 +142,7 @@ export async function JobWorkspace({
                   preselected={preselected}
                   subject={template.subject}
                   body={template.body}
+                  gmail={gmail}
                 />
               </div>
             </details>
@@ -152,6 +156,8 @@ export async function JobWorkspace({
               subject={submission?.subject || template.subject}
               body={submission?.body || template.body}
               locked={submission?.status === "sent"}
+              sentFromGmail={Boolean(submission?.email_thread_id)}
+              gmail={gmail}
             />
           )}
         </Panel>

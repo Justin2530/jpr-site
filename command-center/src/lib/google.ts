@@ -84,26 +84,40 @@ export function openToken(sealed: string) {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
 }
 
-// RFC 2822 message, base64url-encoded the way the Gmail send endpoint wants it.
-function mime({ from, to, cc, subject, body }: { from: string; to: string; cc?: string | null; subject: string; body: string }) {
-  const header = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
-  const lines = [
-    `From: ${from}`,
-    `To: ${to}`,
-    ...(cc ? [`Cc: ${cc}`] : []),
-    `Subject: ${header(subject)}`,
-    "MIME-Version: 1.0",
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    Buffer.from(body, "utf8")
-      .toString("base64")
-      .replace(/(.{76})/g, "$1\r\n"),
-  ];
+export type Attachment = { filename: string; mimeType: string; data: Buffer };
+type Message = { from: string; to: string; cc?: string | null; subject: string; body: string; attachments?: Attachment[] };
+
+const b64lines = (b: Buffer) => b.toString("base64").replace(/(.{76})/g, "$1\r\n");
+const header = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
+
+// RFC 2822 message, base64url-encoded the way the Gmail send endpoint wants it. Plain text, plus
+// a multipart/mixed wrapper when there are attachments (a resume on a submission).
+function mime({ from, to, cc, subject, body, attachments = [] }: Message) {
+  const top = [`From: ${from}`, `To: ${to}`, ...(cc ? [`Cc: ${cc}`] : []), `Subject: ${header(subject)}`, "MIME-Version: 1.0"];
+  const text = ['Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", b64lines(Buffer.from(body, "utf8"))];
+  let lines: string[];
+  if (!attachments.length) {
+    lines = [...top, ...text];
+  } else {
+    const boundary = `jpr-${crypto.randomUUID()}`;
+    lines = [...top, `Content-Type: multipart/mixed; boundary="${boundary}"`, "", `--${boundary}`, ...text];
+    for (const a of attachments) {
+      const name = header(a.filename.replace(/["\r\n]/g, ""));
+      lines.push(
+        `--${boundary}`,
+        `Content-Type: ${a.mimeType}; name="${name}"`,
+        `Content-Disposition: attachment; filename="${name}"`,
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64lines(a.data),
+      );
+    }
+    lines.push(`--${boundary}--`, "");
+  }
   return Buffer.from(lines.join("\r\n"), "utf8").toString("base64url");
 }
 
-export async function sendGmail(token: string, message: Parameters<typeof mime>[0]) {
+export async function sendGmail(token: string, message: Message) {
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
