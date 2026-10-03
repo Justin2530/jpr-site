@@ -70,7 +70,7 @@ export async function createCandidate(form: FormData) {
       .select("id")
       .single();
     if (aErr) throw new Error(aErr.message);
-    await beginOutreach(supabase, cj.id, staff.role === "owner");
+    if (form.get("automate") === "on") await beginOutreach(supabase, cj.id, staff.role === "owner");
   }
   revalidatePath("/");
   redirect(`/candidates/${data.id}`);

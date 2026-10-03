@@ -6,7 +6,9 @@ import { StageSelect } from "@/components/stage-select";
 import { SubmissionEditor } from "@/components/submission-editor";
 import { draftSubmission, emailName } from "@/lib/submission";
 import { gmailAccount } from "@/lib/gmail-account";
-import { stopOutreach } from "@/app/(app)/pipeline-actions";
+import { setOutreach } from "@/app/(app)/pipeline-actions";
+import { automationState } from "@/lib/automation-state";
+import { SubmitButton } from "@/components/submit-button";
 import { label, shortDate, STAGE_LABEL, STAGE_TONE, timeAgo, type Tone } from "@/lib/format";
 
 type Candidate = Database["public"]["Tables"]["candidates"]["Row"];
@@ -67,9 +69,10 @@ export async function JobWorkspace({
   const gmail = Boolean(await gmailAccount());
   const { data: pursuits } = await supabase
     .from("pursuits")
-    .select("id, purpose, status, started_at, ended_at, end_reason, pursuit_steps(id, step_no, channel, due_at, status, sent_at, note)")
+    .select("id, purpose, status, paused_at, started_at, ended_at, end_reason, pursuit_steps(id, step_no, channel, due_at, status, sent_at, note)")
     .eq("candidate_job_id", cj.id)
     .order("started_at", { ascending: false });
+  const automation = await automationState(supabase);
   const run = runs?.[0];
   const earlier = (runs ?? []).slice(1);
   const submission = subs?.[0];
@@ -116,8 +119,18 @@ export async function JobWorkspace({
         <StageSelect id={cj.id} stage={cj.stage} />
       </div>
 
+      {early && (
+        <AutomationSwitch
+          cjId={cj.id}
+          live={(pursuits ?? []).find((p) => p.purpose === "screening" && p.status === "active") ?? null}
+          masterOn={automation.on}
+          eligible={automation.eligible(candidate.created_at)}
+          ended={(pursuits ?? []).some((p) => p.purpose === "screening" && p.status !== "active")}
+        />
+      )}
+
       {(pursuits ?? []).map((p) => (
-        <Outreach key={p.id} pursuit={p} cjId={cj.id} />
+        <Outreach key={p.id} pursuit={p} />
       ))}
 
       <section id="submission">
@@ -295,6 +308,7 @@ export async function JobWorkspace({
 
 const OUTREACH_STATE: Record<string, { text: string; tone: Tone }> = {
   active: { text: "Reaching out", tone: "cyan" },
+  paused: { text: "Paused", tone: "muted" },
   stopped: { text: "Stopped", tone: "muted" },
   finished: { text: "No response", tone: "amber" },
 };
@@ -303,11 +317,11 @@ const STEP_STATE: Record<string, string> = { pending: "scheduled", sending: "sen
 // The automatic texts and emails for this job: what went out, what's next, and why it stopped.
 function Outreach({
   pursuit,
-  cjId,
 }: {
   pursuit: {
     purpose: string;
     status: string;
+    paused_at: string | null;
     started_at: string;
     end_reason: string | null;
     pursuit_steps: {
@@ -320,9 +334,8 @@ function Outreach({
       note: string | null;
     }[];
   };
-  cjId: string;
 }) {
-  const state = OUTREACH_STATE[pursuit.status] ?? OUTREACH_STATE.stopped;
+  const state = OUTREACH_STATE[pursuit.status === "active" && pursuit.paused_at ? "paused" : pursuit.status] ?? OUTREACH_STATE.stopped;
   const steps = [...pursuit.pursuit_steps].sort((a, b) => a.step_no - b.step_no);
   const when = (d: string) =>
     new Date(d).toLocaleString("en-US", {
@@ -353,12 +366,67 @@ function Outreach({
           </li>
         ))}
       </ol>
-      {pursuit.status === "active" && (
-        <form action={stopOutreach} className="mt-3">
+    </Panel>
+  );
+}
+
+// The per-job Automated recruiting switch: on texts and emails them on the schedule until they reply,
+// off pauses it where it is. The master switch on Phone & email sits above every one of these.
+function AutomationSwitch({
+  cjId,
+  live,
+  masterOn,
+  eligible,
+  ended,
+}: {
+  cjId: string;
+  live: { paused_at: string | null } | null;
+  masterOn: boolean;
+  eligible: boolean;
+  ended: boolean;
+}) {
+  const on = Boolean(live && !live.paused_at);
+  const canTurnOn = masterOn && eligible;
+  const note = !eligible
+    ? "Stays manual. This candidate was in the system before automated recruiting was first turned on."
+    : !masterOn
+      ? on
+        ? "On here, but nothing sends while automated recruiting is off on Phone & email."
+        : "Automated recruiting is off for the whole Command Center. Turn it on in Phone & email first."
+      : on
+        ? "Texting and emailing them on the schedule until they reply. Turning it off pauses it where it is."
+        : live
+          ? "Paused. Turning it back on picks up where it left off."
+          : ended
+            ? "The last round ended. Turning it on starts the schedule over."
+            : "Turn it on to text and email them on the schedule until they reply.";
+  return (
+    <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-2 font-medium">
+          Automated recruiting <Chip tone={on ? "cyan" : "muted"}>{on ? "On" : "Off"}</Chip>
+        </p>
+        <p className="text-sm text-muted">
+          {note}
+          {eligible && !masterOn && (
+            <>
+              {" "}
+              <Link href="/settings" className="link">
+                Phone &amp; email
+              </Link>
+            </>
+          )}
+        </p>
+      </div>
+      {(on || canTurnOn) && (
+        <form action={setOutreach}>
           <input type="hidden" name="id" value={cjId} />
-          <button className="btn-quiet hover:text-rose">Stop automatic outreach</button>
+          <input type="hidden" name="on" value={on ? "false" : "true"} />
+          <SubmitButton className={on ? "btn-quiet hover:text-rose" : "btn"} pendingText={on ? "Turning off…" : "Turning on…"}>
+            {on ? "Turn off" : "Turn on"}
+          </SubmitButton>
         </form>
       )}
-    </Panel>
+    </div>
   );
 }

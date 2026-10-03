@@ -5,7 +5,8 @@ import { requireStaff } from "@/lib/staff";
 import { Constants, type Enums } from "@/lib/database.types";
 import { beginOutreach } from "@/lib/outreach";
 
-// Assigning a candidate to a job is the one human action that starts the workflow.
+// Assigning a candidate to a job is the one human action that starts the workflow, and only when the
+// person picks "Assign + automate" (or later flips the switch on the job tab).
 export async function assignToJob(form: FormData) {
   const { supabase, userId, staff } = await requireStaff();
   const candidateId = String(form.get("candidate_id") ?? "");
@@ -17,14 +18,14 @@ export async function assignToJob(form: FormData) {
     .select("id")
     .single();
   if (error && error.code !== "23505") throw new Error(error.message);
-  if (data) await beginOutreach(supabase, data.id, staff.role === "owner");
+  if (data && form.get("automate") === "on") await beginOutreach(supabase, data.id, staff.role === "owner");
   revalidatePath(`/candidates/${candidateId}`);
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath("/");
 }
 
 export async function setStage(form: FormData) {
-  const { supabase, staff } = await requireStaff();
+  const { supabase } = await requireStaff();
   const stage = String(form.get("stage")) as Enums<"pipeline_stage">;
   if (!Constants.public.Enums.pipeline_stage.includes(stage)) throw new Error("Unknown stage");
   const { data, error } = await supabase
@@ -34,8 +35,6 @@ export async function setStage(form: FormData) {
     .select("id, candidate_id, job_id")
     .single();
   if (error) throw new Error(error.message);
-  // Moving someone from Applied into Assigned is the same human decision as assigning them.
-  if (stage === "assigned") await beginOutreach(supabase, data.id, staff.role === "owner");
   revalidatePath(`/candidates/${data.candidate_id}`);
   revalidatePath(`/jobs/${data.job_id}`);
   revalidatePath("/");
@@ -63,24 +62,21 @@ export async function moveCandidateJob(id: string, stage: string) {
   await setStage(form);
 }
 
-// A person turning off the automatic texts and emails for one candidate on one job.
-export async function stopOutreach(form: FormData) {
-  const { supabase } = await requireStaff();
+// The per-job Automated recruiting switch on the candidate's job tab. Off pauses the schedule where
+// it is; on picks it back up, or starts a fresh one if the last run already ended.
+export async function setOutreach(form: FormData) {
+  const { supabase, staff } = await requireStaff();
   const cjId = String(form.get("id") ?? "");
-  const { data: stopped } = await supabase
-    .from("pursuits")
-    .update({ status: "stopped", ended_at: new Date().toISOString(), end_reason: "you stopped it" })
-    .eq("candidate_job_id", cjId)
-    .eq("status", "active")
-    .select("id");
-  const ids = (stopped ?? []).map((p) => p.id);
-  if (ids.length) {
-    await supabase
-      .from("pursuit_steps")
-      .update({ status: "skipped", note: "stopped by you" })
-      .in("pursuit_id", ids)
-      .eq("status", "pending");
+  const on = form.get("on") === "true";
+  if (on) await beginOutreach(supabase, cjId, staff.role === "owner", true);
+  else {
+    const { error } = await supabase.rpc("set_outreach", { p_candidate_job_id: cjId, p_on: false });
+    if (error) throw new Error(error.message);
   }
-  const { data } = await supabase.from("candidate_jobs").select("candidate_id").eq("id", cjId).single();
-  if (data) revalidatePath(`/candidates/${data.candidate_id}`);
+  const { data } = await supabase.from("candidate_jobs").select("candidate_id, job_id").eq("id", cjId).single();
+  if (data) {
+    revalidatePath(`/candidates/${data.candidate_id}`);
+    revalidatePath(`/jobs/${data.job_id}`);
+  }
+  revalidatePath("/");
 }

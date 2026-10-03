@@ -5,12 +5,14 @@ import { SubmitButton } from "@/components/submit-button";
 import { MarketField } from "@/components/market-field";
 import { CandidateFields } from "../candidate-fields";
 import { createCandidate } from "../actions";
+import { automationState } from "@/lib/automation-state";
 
 export const metadata = { title: "New candidate · JPR" };
 
 export default async function NewCandidate({ searchParams }: { searchParams: Promise<{ job?: string }> }) {
   const { job } = await searchParams;
   const { supabase, markets } = await requireStaff();
+  const automation = await automationState(supabase);
   const { data: jobs } = await supabase.from("jobs").select("id, title, companies(name)").eq("status", "open").order("title");
 
   return (
@@ -40,6 +42,12 @@ export default async function NewCandidate({ searchParams }: { searchParams: Pro
               </select>
             </Field>
           </div>
+          {automation.on && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="automate" className="accent-cyan" />
+              Turn on automated recruiting for this job (texts and emails them until they reply)
+            </label>
+          )}
           <MarketField markets={markets} />
           <div className="flex gap-2 pt-2">
             <SubmitButton>Save candidate</SubmitButton>

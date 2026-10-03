@@ -591,6 +591,7 @@ export type Database = {
           purpose: string;
           status: string;
           started_by: string | null;
+          paused_at: string | null;
           started_at: string;
           ended_at: string | null;
           end_reason: string | null;
@@ -601,6 +602,7 @@ export type Database = {
           purpose?: string;
           status?: string;
           started_by?: string | null;
+          paused_at?: string | null;
           started_at?: string;
           ended_at?: string | null;
           end_reason?: string | null;
@@ -1131,6 +1133,7 @@ export type Database = {
       phone_key: { Args: { p: string }; Returns: string };
       set_automated_recruiting: { Args: { p_on: boolean }; Returns: undefined };
       start_pursuit: { Args: { p_candidate_job_id: string; p_purpose?: string }; Returns: string | null };
+      set_outreach: { Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string }; Returns: string };
       automation_register: { Args: { p_secret: string; p_url: string }; Returns: undefined };
       automation_due: { Args: { p_secret: string }; Returns: Json };
       automation_step_done: {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
+import { automationState } from "@/lib/automation-state";
 import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { StageSelect } from "@/components/stage-select";
@@ -33,13 +34,14 @@ export default async function JobDetail({
     supabase.from("screening_goals").select("*").eq("job_id", id).order("sort"),
     supabase.from("companies").select("id, name").order("name"),
     supabase.from("contacts").select("id, full_name, company_id").order("full_name"),
-    supabase.from("candidates").select("id, full_name, current_title").order("updated_at", { ascending: false }).limit(500),
+    supabase.from("candidates").select("id, full_name, current_title, created_at").order("updated_at", { ascending: false }).limit(500),
   ]);
   if (!job) notFound();
 
   const rows = pipeline ?? [];
   const assigned = new Set(rows.map((r) => r.candidates?.id));
   const available = (pool ?? []).filter((c) => !assigned.has(c.id));
+  const automation = await automationState(supabase);
   const protectedChecks = await Promise.all(
     rows.map((r) =>
       r.candidates?.current_employer
@@ -106,7 +108,7 @@ export default async function JobDetail({
               />
             }
           >
-            <form action={assignToJob} className="mb-4 flex gap-2">
+            <form action={assignToJob} className="mb-4 flex flex-wrap gap-2 sm:flex-nowrap">
               <input type="hidden" name="job_id" value={job.id} />
               <select name="candidate_id" required defaultValue="" className="field" aria-label="Candidate to assign">
                 <option value="" disabled>
@@ -116,12 +118,18 @@ export default async function JobDetail({
                   <option key={c.id} value={c.id}>
                     {c.full_name}
                     {c.current_title ? ` · ${c.current_title}` : ""}
+                    {automation.on && !automation.eligible(c.created_at) ? " · manual only" : ""}
                   </option>
                 ))}
               </select>
-              <SubmitButton className="btn shrink-0" pendingText="Assigning…">
-                Assign to job
+              <SubmitButton className={automation.on ? "btn-quiet shrink-0" : "btn shrink-0"} pendingText="Assigning…">
+                Assign only
               </SubmitButton>
+              {automation.on && (
+                <SubmitButton className="btn shrink-0" name="automate" value="on" pendingText="Assigning…">
+                  Assign + automate
+                </SubmitButton>
+              )}
             </form>
             {sorted.length > 0 && view === "board" ? (
               <Board

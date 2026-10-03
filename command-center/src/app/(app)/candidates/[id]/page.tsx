@@ -15,6 +15,7 @@ import { SOURCE_LABEL, STAGE_LABEL, STAGE_TONE, shortDate, timeAgo } from "@/lib
 import { CandidateFields } from "../candidate-fields";
 import { addNote, updateCandidate } from "../actions";
 import { JobWorkspace } from "./job-workspace";
+import { automationState } from "@/lib/automation-state";
 import { ResumePanel } from "./resume-panel";
 import { assignToJob, unassign } from "../../pipeline-actions";
 
@@ -72,6 +73,8 @@ export default async function CandidateDetail({
 
   const assignedIds = new Set((links ?? []).map((l) => l.jobs?.id));
   const assignable = (openJobs ?? []).filter((j) => !assignedIds.has(j.id));
+  const automation = await automationState(supabase);
+  const canAutomate = automation.on && automation.eligible(c.created_at);
   const activeTab = (links ?? []).find((l) => l.id === jobTab)?.id;
   const path = `/candidates/${c.id}`;
   const [history, { data: reminders }] = await Promise.all([
@@ -153,7 +156,7 @@ export default async function CandidateDetail({
         ) : (
           <div className="space-y-6">
             <Panel title="Jobs">
-              <form action={assignToJob} className="mb-4 flex gap-2">
+              <form action={assignToJob} className="mb-4 flex flex-wrap gap-2 sm:flex-nowrap">
                 <input type="hidden" name="candidate_id" value={c.id} />
                 <select name="job_id" required defaultValue="" className="field" aria-label="Job to assign">
                   <option value="" disabled>
@@ -165,9 +168,14 @@ export default async function CandidateDetail({
                     </option>
                   ))}
                 </select>
-                <SubmitButton className="btn shrink-0" pendingText="Assigning…">
-                  Assign to job
+                <SubmitButton className={canAutomate ? "btn-quiet shrink-0" : "btn shrink-0"} pendingText="Assigning…">
+                  Assign only
                 </SubmitButton>
+                {canAutomate && (
+                  <SubmitButton className="btn shrink-0" name="automate" value="on" pendingText="Assigning…">
+                    Assign + automate
+                  </SubmitButton>
+                )}
               </form>
               {(links ?? []).length === 0 ? (
                 <Empty>Not assigned to any job yet.</Empty>
