@@ -13,7 +13,8 @@ import { Reminders } from "@/components/reminders";
 import { candidateCorrespondence } from "@/lib/correspondence";
 import { SOURCE_LABEL, STAGE_LABEL, STAGE_TONE, shortDate, timeAgo } from "@/lib/format";
 import { CandidateFields } from "../candidate-fields";
-import { addNote, updateCandidate } from "../actions";
+import { addNote, deleteCandidate, updateCandidate } from "../actions";
+import { ConfirmSubmit } from "@/components/confirm-submit";
 import { JobWorkspace } from "./job-workspace";
 import { automationState } from "@/lib/automation-state";
 import { ResumePanel } from "./resume-panel";
@@ -37,7 +38,7 @@ export default async function CandidateDetail({
 }) {
   const { id } = await params;
   const { job: jobTab } = await searchParams;
-  const { supabase } = await requireStaff();
+  const { supabase, staff } = await requireStaff();
   const [{ data: c }, { data: links }, { data: resumes }, { data: activity }, { data: openJobs }] = await Promise.all([
     supabase.from("candidates").select("*").eq("id", id).maybeSingle(),
     supabase
@@ -100,7 +101,6 @@ export default async function CandidateDetail({
           <span className="flex flex-wrap items-center gap-2">
             <span>{[c.current_title, c.current_employer && `at ${c.current_employer}`].filter(Boolean).join(" ")}</span>
             <Chip>{SOURCE_LABEL[c.source]}</Chip>
-            {c.contact_consent ? <Chip tone="mint">OK to contact</Chip> : <Chip tone="amber">No contact consent on file</Chip>}
           </span>
         }
         action={
@@ -280,9 +280,6 @@ export default async function CandidateDetail({
                   </a>
                 )}
               </Row>
-              <Row label="Consent">
-                {c.contact_consent ? `${c.contact_consent_note ?? "Yes"} (${shortDate(c.contact_consent_at)})` : "None recorded"}
-              </Row>
               <Row label="Notes">{c.notes && <span className="whitespace-pre-wrap">{c.notes}</span>}</Row>
             </dl>
             <details className="mt-3">
@@ -292,6 +289,14 @@ export default async function CandidateDetail({
                 <CandidateFields c={c} />
                 <SubmitButton>Save changes</SubmitButton>
               </form>
+              {staff.role === "owner" && (
+                <form action={deleteCandidate} className="mt-4 border-t border-line pt-4">
+                  <input type="hidden" name="id" value={c.id} />
+                  <ConfirmSubmit question={`Delete ${c.full_name} everywhere? Their jobs, messages and files go too. This can't be undone.`}>
+                    Delete candidate
+                  </ConfirmSubmit>
+                </form>
+              )}
             </details>
           </Panel>
         </div>

@@ -41,19 +41,6 @@ export function CandidateFields({ c }: { c?: Tables<"candidates"> }) {
       <Field label="Notes" name="notes" className="sm:col-span-2">
         <textarea id="notes" name="notes" rows={3} defaultValue={c?.notes ?? ""} className="field" />
       </Field>
-      <div className="rounded-lg border border-line p-3 sm:col-span-2">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="contact_consent" defaultChecked={c?.contact_consent ?? false} className="accent-cyan" />
-          Agreed to be contacted by phone and text
-        </label>
-        <input
-          name="contact_consent_note"
-          defaultValue={c?.contact_consent_note ?? ""}
-          placeholder="How they agreed (e.g. applied on Indeed, said yes on a call)"
-          className="field mt-2"
-          aria-label="How consent was given"
-        />
-      </div>
     </div>
   );
 }

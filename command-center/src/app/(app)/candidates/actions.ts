@@ -96,14 +96,10 @@ export async function readResume(form: FormData): Promise<ResumeRead> {
 
 export async function createCandidate(form: FormData) {
   const { supabase, userId, markets, staff } = await requireStaff();
-  const consent = form.get("contact_consent") === "on";
   const { data, error } = await supabase
     .from("candidates")
     .insert({
       ...candidateFields(form),
-      contact_consent: consent,
-      contact_consent_at: consent ? new Date().toISOString() : null,
-      contact_consent_note: text(form, "contact_consent_note"),
       sourced_by: userId,
       source_market_id: text(form, "market_id") ?? markets[0]?.id ?? null,
     })
@@ -127,19 +123,26 @@ export async function createCandidate(form: FormData) {
   redirect(`/candidates/${data.id}`);
 }
 
+// Owner only: removes the candidate everywhere (jobs, outreach, activity, files).
+export async function deleteCandidate(form: FormData) {
+  const { supabase, staff } = await requireStaff();
+  if (staff.role !== "owner") throw new Error("Only the owner can delete candidates.");
+  const id = String(form.get("id") ?? "");
+  const { data: files } = await supabase.from("resumes").select("storage_path").eq("candidate_id", id);
+  const paths = (files ?? []).map((f) => f.storage_path).filter((p): p is string => Boolean(p));
+  if (paths.length) await supabase.storage.from("resumes").remove(paths);
+  const { error } = await supabase.from("candidates").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/", "layout");
+  redirect("/candidates");
+}
+
 export async function updateCandidate(form: FormData) {
   const { supabase } = await requireStaff();
   const id = String(form.get("id"));
-  const consent = form.get("contact_consent") === "on";
-  const { data: before } = await supabase.from("candidates").select("contact_consent, contact_consent_at").eq("id", id).single();
   const { error } = await supabase
     .from("candidates")
-    .update({
-      ...candidateFields(form),
-      contact_consent: consent,
-      contact_consent_at: consent ? (before?.contact_consent ? before.contact_consent_at : new Date().toISOString()) : null,
-      contact_consent_note: text(form, "contact_consent_note"),
-    })
+    .update(candidateFields(form))
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/candidates/${id}`);

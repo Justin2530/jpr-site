@@ -141,8 +141,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             {autoOn ? "On." : "Off."} This is the master switch. While it&apos;s on, assigning someone to a job asks whether to automate
             them, and each candidate&apos;s job tab has its own on/off switch. When automated, the Command Center texts and emails them to set up
             a call: a text and an email right away, a text the next day, an email on day 3 and a last text on day 5. Any reply, text, email
-            or call stops it and lands on What needs me. Sends only Monday to Saturday, 9am to 7pm. Texts only go to people with texting
-            consent checked.
+            or call stops it and lands on What needs me. Sends only Monday to Saturday, 9am to 7pm. Anyone who replies STOP is never texted
+            again.
           </p>
           <p className="text-sm text-muted">
             Only candidates added after it&apos;s first turned on are ever included
