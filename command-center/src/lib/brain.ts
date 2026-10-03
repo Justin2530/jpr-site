@@ -31,8 +31,9 @@ type Pending = {
 };
 
 type Decision = {
-  intent: "book_call" | "ask_time" | "not_interested" | "needs_justin";
+  intent: "book_call" | "ask_time" | "answer" | "not_interested" | "needs_justin";
   call_at_local: string;
+  open_question: string;
   summary: string;
   reply: string;
 };
@@ -41,12 +42,13 @@ const SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    intent: { type: "string", enum: ["book_call", "ask_time", "not_interested", "needs_justin"] },
+    intent: { type: "string", enum: ["book_call", "ask_time", "answer", "not_interested", "needs_justin"] },
     call_at_local: { type: "string" },
+    open_question: { type: "string" },
     summary: { type: "string" },
     reply: { type: "string" },
   },
-  required: ["intent", "call_at_local", "summary", "reply"],
+  required: ["intent", "call_at_local", "open_question", "summary", "reply"],
 };
 
 function nowEastern() {
@@ -62,20 +64,29 @@ function nowEastern() {
 }
 
 const RULES = `You are the scheduling assistant for JPR, a small recruiting firm in Punxsutawney, PA run by Justin Peace.
-JPR reached out to a candidate about a job. The goal right now is one thing: book a short phone screening call (about 10 minutes) with them.
-Read their latest reply in context and choose ONE intent:
-- book_call: they gave a specific day and time that works for a call (or clearly accepted one we offered). Put it in call_at_local as "YYYY-MM-DD HH:MM" (24-hour, Eastern time). Resolve words like "tomorrow" or "Tuesday" against the current date given. Calls only Monday-Saturday 8am-7pm; if they ask for outside that, use ask_time instead.
-- ask_time: they're interested or want to talk but gave no usable time ("sure", "call me", "afternoons are good", "this week"). Reply proposing two specific times in the next two business days.
+JPR reached out to a candidate about a job. The goal is to book a short phone screening call (about 10 minutes) with them. Think like an experienced recruiter reading a text: understand what the person means, not just the literal words.
+
+Reading times:
+- Calls happen Monday-Saturday, 8am-7pm Eastern. Read times the way a person would within those hours: "11" or "11:00" means 11am; "1", "2", "3"... "7" mean pm; "8", "9", "10" mean am. "Noon" is 12pm, "lunch" is about 12pm, "after work" or "evening" is about 5pm, "morning" is about 9am, "afternoon" about 1pm. An explicit am/pm always wins.
+- Resolve "today", "tomorrow", "Tuesday", "next Monday", "the 14th" against the current date and time given. A bare weekday means the next one coming (today counts only if the time hasn't passed). Never book a time in the past.
+- "Anytime after 3 tomorrow" or "tomorrow afternoon" is a usable window: book the start of it (rounded to the next half hour).
+- If they ask for a Sunday or outside 8am-7pm, don't book it; offer the closest two times that work.
+
+Choose ONE intent:
+- book_call: they gave (or accepted) a day and time that works. Put it in call_at_local as "YYYY-MM-DD HH:MM" (24-hour, Eastern). If they also asked a question, answer it in the same reply.
+- ask_time: they're interested but gave no usable time ("sure", "call me", "this week"). Offer two specific times in the next two business days.
+- answer: they asked about the job before agreeing to a call (pay, hours, shift, location, duties, requirements). Answer from the job facts given, then ask what time works for a quick call, offering two specific times.
 - not_interested: they clearly said no, not looking, already took a job, or asked us to stop.
-- needs_justin: anything else: questions about pay beyond what's listed, benefits details not listed, the client's name if not given, negotiating, complaints, confusion, someone else answering, or anything you're unsure of.
+- needs_justin: they're upset or confused, someone else is answering, they're negotiating, or there's nothing useful you can say. Leave reply empty.
+
+Questions you can't answer: if they ask something the job facts don't cover (benefits that aren't listed, exact address, overtime, the company's name, anything you'd be guessing), never guess. Say Justin will get them that answer (or that he can go over it on the call) and put the question in open_question so Justin sees it. Still answer what you can and keep moving toward booking the call. The hiring company's name is confidential before the call: say it's a local employer and Justin will share the details on the call.
+
 reply: the message to send back, written as Justin. Warm, short, plain, like a real local recruiter texting. No emojis, no exclamation-point spam, no corporate phrases.
-- book_call: confirm the day and time in words (e.g. "Tuesday at 3pm") and say we'll call the number we have on file.
-- ask_time: offer two specific times in words.
+- When booking, confirm the day and time in words (e.g. "Tuesday at 11am") and say you'll call the number they're texting from or the number on file.
 - not_interested: thank them in one sentence and say you'll keep them in mind.
-- needs_justin: leave reply empty; Justin answers himself.
-For a text reply keep it under 300 characters and don't sign it. For an email reply write 2-4 short sentences with no greeting line beyond "Hi {first name}," and no signature (it's added).
-Never invent facts about the job, pay, benefits or company beyond what's given. Never promise an interview or a job.
-summary: one short line for Justin's dashboard saying what they said and what you did (e.g. "Booked screening Tue 3pm" or "Asked about weekend pay").`;
+For a text keep it under 300 characters and don't sign it. For an email write 2-5 short sentences starting with "Hi {first name}," and no signature (it's added).
+Never invent facts about the job, pay, benefits or company. Never promise an interview or a job.
+summary: one short line for Justin's dashboard saying what they said and what you did (e.g. "Booked screening Tue 11am" or "Asked about pay, answered, offered Mon 10am / 2pm").`;
 
 async function decide(p: Pending): Promise<Decision | null> {
   const key = process.env.OPENAI_API_KEY?.trim();
@@ -87,7 +98,6 @@ async function decide(p: Pending): Promise<Decision | null> {
     earlier_messages: p.history,
     job: {
       title: p.job_title,
-      company: p.company,
       location: p.location,
       pay: p.compensation,
       schedule: p.schedule,
@@ -101,6 +111,7 @@ async function decide(p: Pending): Promise<Decision | null> {
       model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
       instructions: RULES,
       input: JSON.stringify(context),
+      reasoning: { effort: "high" },
       text: { format: { type: "json_schema", name: "decision", schema: SCHEMA, strict: true } },
     }),
   });
@@ -157,9 +168,13 @@ export async function runBrain(db: SupabaseClient<Database>, secret: string, ori
           Object.assign(extra, { reply_channel: "email", reply_body: body, reply_external_id: sent.id, reply_thread_id: sent.threadId });
         }
       }
-      // A reply we meant to send but couldn't means Justin should look.
-      const intent = reply && !extra.reply_body ? "needs_justin" : d.intent;
-      await apply({ intent, call_at_local: d.call_at_local, summary: d.summary });
+      // A reply we meant to send but couldn't, or a question only Justin can answer, means Justin should look.
+      // Answering a question counts as handled, like asking for a time.
+      const open = d.open_question.trim();
+      const intent =
+        (reply && !extra.reply_body) || open ? "needs_justin" : d.intent === "answer" ? "ask_time" : d.intent;
+      const summary = open && !d.summary.includes(open) ? `${d.summary} · Asked: ${open}` : d.summary;
+      await apply({ intent, call_at_local: d.call_at_local, summary });
       handled++;
     } catch (e) {
       console.error("Brain failed on", p.activity_id, e);
