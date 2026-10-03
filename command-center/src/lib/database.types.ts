@@ -1141,6 +1141,8 @@ export type Database = {
       phone_key: { Args: { p: string }; Returns: string };
       set_automated_recruiting: { Args: { p_on: boolean }; Returns: undefined };
       start_pursuit: { Args: { p_candidate_job_id: string; p_purpose?: string }; Returns: string | null };
+      triage_pending: { Args: { p_secret: string }; Returns: Json };
+      triage_apply: { Args: { p_secret: string; p_item: string; p_needs_justin: boolean; p_note: string }; Returns: undefined };
       brain_pending: { Args: { p_secret: string }; Returns: Json };
       brain_apply: { Args: { p_secret: string; p_activity: string; p_decision: Json }; Returns: string };
       set_outreach: { Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string }; Returns: string };

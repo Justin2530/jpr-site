@@ -25,13 +25,14 @@ type Pending = {
   compensation: string | null;
   schedule: string | null;
   job_summary: string | null;
+  booked_for: string | null;
   gmail_email: string | null;
   gmail_token: string | null;
   history: { at: string; kind: string; direction: string | null; text: string | null }[];
 };
 
 type Decision = {
-  intent: "book_call" | "ask_time" | "answer" | "not_interested" | "needs_justin";
+  intent: "book_call" | "ask_time" | "answer" | "acknowledged" | "not_interested" | "needs_justin";
   call_at_local: string;
   open_question: string;
   summary: string;
@@ -42,7 +43,7 @@ const SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    intent: { type: "string", enum: ["book_call", "ask_time", "answer", "not_interested", "needs_justin"] },
+    intent: { type: "string", enum: ["book_call", "ask_time", "answer", "acknowledged", "not_interested", "needs_justin"] },
     call_at_local: { type: "string" },
     open_question: { type: "string" },
     summary: { type: "string" },
@@ -73,10 +74,13 @@ Reading times:
 - A window like "anytime after 3 tomorrow" or "tomorrow afternoon" is usable: book the start of it (rounded to the next half hour).
 - Only if they literally ask for the middle of the night (midnight to 6am) confirm it with them first (ask_time) instead of booking.
 
+If a call is already booked (call_already_booked_for), a new day/time from them means moving it: use book_call with the new time and confirm it. If they ask to move it without giving a time, use ask_time. If they cancel and don't want to talk at all, use not_interested.
+
 Choose ONE intent:
 - book_call: they gave (or accepted) a day and time that works. Put it in call_at_local as "YYYY-MM-DD HH:MM" (24-hour, Eastern). If they also asked a question, answer it in the same reply.
 - ask_time: they're interested but gave no usable time ("sure", "call me", "this week"). Offer two specific times in the next day or two (any day, daytime or early evening).
 - answer: they asked about the job before agreeing to a call (pay, hours, shift, location, duties, requirements). Answer from the job facts given, then ask what time works for a quick call, offering two specific times.
+- acknowledged: a call is already booked (call_already_booked_for is set) and they're just confirming or saying thanks ("sounds good", "ok see you then", "thanks"). Nothing needs saying back: leave reply empty.
 - not_interested: they clearly said no, not looking, already took a job, or asked us to stop.
 - needs_justin: they're upset or confused, someone else is answering, they're negotiating, or there's nothing useful you can say. Leave reply empty.
 
@@ -104,6 +108,7 @@ async function decide(p: Pending): Promise<Decision | null> {
     now_eastern: nowEastern(),
     candidate: p.full_name,
     their_latest_reply: { channel: p.channel, text: p.body ?? p.summary },
+    call_already_booked_for: p.booked_for,
     earlier_messages: p.history,
     job: {
       title: p.job_title,
@@ -152,7 +157,7 @@ export async function runBrain(db: SupabaseClient<Database>, secret: string, ori
       const d = await decide(p);
       if (!d) continue;
       const extra: Record<string, string> = {};
-      let reply = d.intent === "needs_justin" ? "" : d.reply.trim();
+      let reply = d.intent === "needs_justin" || d.intent === "acknowledged" ? "" : d.reply.trim();
       // Belt and braces: anything off-shape never goes out on its own.
       if (reply && (/https?:|www\.|<|>/i.test(reply) || reply.length > (p.channel === "text" ? 320 : 1200))) {
         reply = "";
