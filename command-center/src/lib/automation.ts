@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { runBrain } from "@/lib/brain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
@@ -119,7 +120,14 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
       }
     }
   }
-  return { sent, due: steps.length, logged };
+  // Replies the sync just logged get read by the brain right away.
+  let brain = 0;
+  try {
+    brain = await runBrain(db, secret, origin);
+  } catch (e) {
+    console.error("Brain pass failed", e);
+  }
+  return { sent, due: steps.length, logged, brain };
 }
 
 export type Mailbox = { staff_id: string; email: string; token: string; connected_at: string; last_synced_at: string | null };

@@ -102,6 +102,9 @@ export type Database = {
       activities: {
         Row: {
           actor_id: string | null;
+          brain_claimed_at: string | null;
+          brain_note: string | null;
+          brain_status: string | null;
           candidate_id: string | null;
           candidate_job_id: string | null;
           body: string | null;
@@ -123,6 +126,9 @@ export type Database = {
         };
         Insert: {
           actor_id?: string | null;
+          brain_claimed_at?: string | null;
+          brain_note?: string | null;
+          brain_status?: string | null;
           candidate_id?: string | null;
           candidate_job_id?: string | null;
           body?: string | null;
@@ -915,6 +921,7 @@ export type Database = {
           ended_at: string | null;
           id: string;
           recording_url: string | null;
+          scheduled_for: string | null;
           started_at: string | null;
           status: Database["public"]["Enums"]["screening_status"];
           summary: string | null;
@@ -931,6 +938,7 @@ export type Database = {
           ended_at?: string | null;
           id?: string;
           recording_url?: string | null;
+          scheduled_for?: string | null;
           started_at?: string | null;
           status?: Database["public"]["Enums"]["screening_status"];
           summary?: string | null;
@@ -1133,6 +1141,8 @@ export type Database = {
       phone_key: { Args: { p: string }; Returns: string };
       set_automated_recruiting: { Args: { p_on: boolean }; Returns: undefined };
       start_pursuit: { Args: { p_candidate_job_id: string; p_purpose?: string }; Returns: string | null };
+      brain_pending: { Args: { p_secret: string }; Returns: Json };
+      brain_apply: { Args: { p_secret: string; p_activity: string; p_decision: Json }; Returns: string };
       set_outreach: { Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string }; Returns: string };
       automation_register: { Args: { p_secret: string; p_url: string }; Returns: undefined };
       automation_due: { Args: { p_secret: string }; Returns: Json };

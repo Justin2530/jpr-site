@@ -85,7 +85,7 @@ export function openToken(sealed: string) {
 }
 
 export type Attachment = { filename: string; mimeType: string; data: Buffer };
-type Message = { from: string; to: string; cc?: string | null; subject: string; body: string; attachments?: Attachment[] };
+type Message = { from: string; to: string; cc?: string | null; subject: string; body: string; attachments?: Attachment[]; threadId?: string };
 
 const b64lines = (b: Buffer) => b.toString("base64").replace(/(.{76})/g, "$1\r\n");
 const header = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
@@ -121,7 +121,7 @@ export async function sendGmail(token: string, message: Message) {
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ raw: mime(message) }),
+    body: JSON.stringify({ raw: mime(message), ...(message.threadId ? { threadId: message.threadId } : {}) }),
     cache: "no-store",
   });
   const json = await res.json().catch(() => ({}));

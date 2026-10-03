@@ -233,6 +233,20 @@ export async function JobWorkspace({
           <Empty>No call yet. The AI calls after you assign a candidate, once calling goes live in phase 4.</Empty>
         ) : (
           <div className="space-y-4">
+            {run.status === "scheduled" && run.scheduled_for && (
+              <p className="rounded-md border border-cyan/30 bg-cyan/5 px-3 py-2 text-sm">
+                <span className="text-cyan">Booked for </span>
+                {new Date(run.scheduled_for).toLocaleString("en-US", {
+                  timeZone: "America/New_York",
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}{" "}
+                ET
+              </p>
+            )}
             {run.summary && <p className="text-sm leading-relaxed">{run.summary}</p>}
             {[
               { title: "Their questions", items: run.candidate_questions, tone: "text-cyan" },
