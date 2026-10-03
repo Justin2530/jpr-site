@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // pdf.js loads its own worker build at runtime; keep it out of the bundle.
+  serverExternalPackages: ["unpdf"],
   async redirects() {
     return [{ source: "/clients/:path*", destination: "/companies/:path*", permanent: false }];
   },

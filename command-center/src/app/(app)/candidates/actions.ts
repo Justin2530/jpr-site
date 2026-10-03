@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/staff";
 import { beginOutreach } from "@/lib/outreach";
 import { text } from "@/lib/format";
 import type { Database, Enums } from "@/lib/database.types";
+import { aiReady, parseResume, resumeText, type ParsedResume } from "@/lib/resume-parse";
 
 const MAX_RESUME = 10 * 1024 * 1024;
 
@@ -32,8 +33,15 @@ async function saveResume(supabase: SupabaseClient<Database>, candidateId: strin
   const path = `${candidateId}/${crypto.randomUUID()}-${safe}`;
   const { error: upErr } = await supabase.storage.from("resumes").upload(path, file, { contentType: file.type || undefined });
   if (upErr) throw new Error(`Resume upload failed: ${upErr.message}`);
+  let textContent: string | null = null;
+  try {
+    textContent = (await resumeText(file)) || null;
+  } catch (e) {
+    console.error("Couldn't read resume text", e);
+  }
   const { error } = await supabase.from("resumes").insert({
     candidate_id: candidateId,
+    text_content: textContent,
     storage_path: path,
     file_name: file.name,
     mime_type: file.type || null,
@@ -41,6 +49,49 @@ async function saveResume(supabase: SupabaseClient<Database>, candidateId: strin
     uploaded_by: userId,
   });
   if (error) throw new Error(error.message);
+}
+
+export type ResumeRead = {
+  fields: ParsedResume | null;
+  duplicate: { id: string; full_name: string } | null;
+  ai: boolean;
+  error?: string;
+};
+
+// Step one of adding a candidate: read the dropped resume and fill in their details. Nothing is saved yet.
+export async function readResume(form: FormData): Promise<ResumeRead> {
+  const { supabase } = await requireStaff();
+  const file = form.get("resume");
+  if (!(file instanceof File) || file.size === 0) return { fields: null, duplicate: null, ai: aiReady(), error: "No file came through." };
+  if (file.size > MAX_RESUME) return { fields: null, duplicate: null, ai: aiReady(), error: "That file is over 10MB." };
+  let body = "";
+  try {
+    body = await resumeText(file);
+  } catch (e) {
+    console.error("Couldn't read resume", e);
+  }
+  if (!body) {
+    return {
+      fields: null,
+      duplicate: null,
+      ai: aiReady(),
+      error: "Couldn't read text from that file (it may be a scan or an old .doc). It will still be attached; fill in the details below.",
+    };
+  }
+  const fields = await parseResume(body);
+  let duplicate: ResumeRead["duplicate"] = null;
+  const digits = fields.phone.replace(/\D/g, "").slice(-10);
+  const checks = [fields.email && `email.ilike.${fields.email}`, digits.length === 10 && `phone.ilike.%${digits.slice(-4)}`].filter(Boolean);
+  if (checks.length) {
+    const { data } = await supabase.from("candidates").select("id, full_name, email, phone").or(checks.join(",")).limit(20);
+    const hit = (data ?? []).find(
+      (c) =>
+        (fields.email && c.email?.toLowerCase() === fields.email) ||
+        (digits.length === 10 && c.phone?.replace(/\D/g, "").slice(-10) === digits),
+    );
+    if (hit) duplicate = { id: hit.id, full_name: hit.full_name };
+  }
+  return { fields, duplicate, ai: aiReady() };
 }
 
 export async function createCandidate(form: FormData) {

@@ -178,6 +178,9 @@ function Status({ value }: { value: string }) {
 
 function RegistrationPanel({ reg }: { reg: Registration }) {
   const day = (d: string) => (d ? new Date(d).toLocaleDateString("en-US") : "");
+  // Once a campaign is approved, old rejected ones Twilio keeps on file are just history.
+  const approved = reg.campaigns.some((c) => GOOD.has(c.status.toLowerCase()));
+  const campaigns = approved ? reg.campaigns.filter((c) => !BAD.has(c.status.toLowerCase())) : reg.campaigns;
   return (
     <section className="mt-8 max-w-2xl space-y-3">
       <h2 className="text-lg font-semibold text-ink">Texting registration</h2>
@@ -220,8 +223,8 @@ function RegistrationPanel({ reg }: { reg: Registration }) {
         </div>
         <div>
           <p className="panel-title mb-1 text-cyan/80">Campaigns</p>
-          {reg.campaigns.length ? (
-            reg.campaigns.map((c) => (
+          {campaigns.length ? (
+            campaigns.map((c) => (
               <div key={c.sid} className="mb-2">
                 <p>
                   {c.usecase.replace(/_/g, " ").toLowerCase()} on &ldquo;{c.service}&rdquo;, {day(c.created)} <Status value={c.status} />
