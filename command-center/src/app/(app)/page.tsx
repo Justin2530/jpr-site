@@ -19,7 +19,6 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
   task: { label: "Task", tone: "muted" },
   reminder: { label: "Reminder", tone: "cyan" },
   reply: { label: "Reply", tone: "amber" },
-  screening: { label: "Screening call", tone: "cyan" },
 };
 
 function hrefFor(item: Tables<"needs_me">) {
@@ -47,8 +46,9 @@ const CLOSED_STAGES = "(placed,passed,withdrawn)";
 export default async function Home() {
   const { supabase, staff } = await requireStaff();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const soon = new Date(new Date().getTime() - 2 * 3600_000).toISOString();
 
-  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent, samples] = await Promise.all([
+  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent, samples, upcoming] = await Promise.all([
     supabase.from("needs_me").select("*").order("priority").order("since", { ascending: true }).limit(50),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "open"),
     supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).not("stage", "in", CLOSED_STAGES),
@@ -61,6 +61,13 @@ export default async function Home() {
       .order("occurred_at", { ascending: false })
       .limit(12),
     supabase.from("companies").select("id", { count: "exact", head: true }).eq("is_sample", true),
+    supabase
+      .from("screening_runs")
+      .select("id, scheduled_for, candidate_job_id, candidate_jobs(candidate_id, candidates(full_name), jobs(title))")
+      .eq("status", "scheduled")
+      .gte("scheduled_for", soon)
+      .order("scheduled_for")
+      .limit(8),
   ]);
 
   const items = needs.data ?? [];
@@ -161,6 +168,36 @@ export default async function Home() {
           </form>
         </Panel>
 
+        <div className="space-y-6">
+          <Panel title="Coming up">
+            {(upcoming.data ?? []).length === 0 ? (
+              <Empty>No screening calls booked.</Empty>
+            ) : (
+              <ul className="space-y-3">
+                {(upcoming.data ?? []).map((r) => (
+                  <li key={r.id} className="text-sm">
+                    <p className="font-mono text-[11px] text-cyan">
+                      {new Date(r.scheduled_for!).toLocaleString("en-US", {
+                        timeZone: "America/New_York",
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    <p>
+                      <Link href={`/candidates/${r.candidate_jobs?.candidate_id}?job=${r.candidate_job_id}`} className="link font-medium">
+                        {r.candidate_jobs?.candidates?.full_name}
+                      </Link>{" "}
+                      <span className="text-muted">· Screening call · {r.candidate_jobs?.jobs?.title}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
         <Panel title="What's happening">
           {(recent.data ?? []).length === 0 ? (
             <Empty>No activity yet.</Empty>
@@ -183,6 +220,7 @@ export default async function Home() {
             </ol>
           )}
         </Panel>
+        </div>
       </div>
     </div>
   );
