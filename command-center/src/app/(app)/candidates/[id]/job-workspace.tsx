@@ -100,8 +100,17 @@ export async function JobWorkspace({
     notes: [],
   });
   const early = ["applied", "assigned", "contacting", "conversation"].includes(cj.stage);
+  // A dial that never reached the assistant a few minutes in is stuck; Call now replaces it.
+  const stuck =
+    run?.status === "in_progress" &&
+    !run.live_session_id &&
+    !run.process_state &&
+    new Date(run.dial_started_at ?? run.created_at).getTime() < new Date().getTime() - 3 * 60_000;
   const canCall =
-    liveReady() && Boolean(candidate.phone) && run?.status !== "in_progress" && !["placed", "passed", "withdrawn"].includes(cj.stage);
+    liveReady() &&
+    Boolean(candidate.phone) &&
+    (run?.status !== "in_progress" || stuck) &&
+    !["placed", "passed", "withdrawn"].includes(cj.stage);
   const state = submission ? SUBMISSION_STATE[submission.status] : null;
 
   return (
@@ -243,13 +252,18 @@ export async function JobWorkspace({
           <Empty>No call yet. The AI assistant calls at the time the candidate books, or press Call now.</Empty>
         ) : (
           <div className="space-y-4">
-            {run.status === "in_progress" && (
+            {run.status === "in_progress" && !stuck && (
               <p className="rounded-md border border-cyan/30 bg-cyan/5 px-3 py-2 text-sm text-cyan">
                 {run.process_state === "pending" || run.process_state === "working"
                   ? "Call finished. Writing up the notes and the submission draft…"
                   : run.answered_by
                     ? "On the call now."
                     : "Calling…"}
+              </p>
+            )}
+            {stuck && (
+              <p className="rounded-md border border-rose/30 bg-rose/5 px-3 py-2 text-sm text-rose">
+                The call never connected to the AI assistant. Press Call now to try again.
               </p>
             )}
             {(run.status === "failed" || run.process_state === "failed") && run.process_note && (
