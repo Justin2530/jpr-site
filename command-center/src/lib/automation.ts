@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { runBrain } from "@/lib/brain";
 import { runTriage } from "@/lib/triage";
+import { runScreening } from "@/lib/screening";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
@@ -128,6 +129,13 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Brain pass failed", e);
   }
+  // Screening calls whose time has come, and write-ups of calls that just ended.
+  let calls = { dialed: 0, processed: 0 };
+  try {
+    calls = await runScreening(db, secret, origin);
+  } catch (e) {
+    console.error("Screening pass failed", e);
+  }
   // Then everything else that came in: only what needs Justin stays on What needs me.
   let cleared = 0;
   try {
@@ -135,7 +143,7 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Triage pass failed", e);
   }
-  return { sent, due: steps.length, logged, brain, cleared };
+  return { sent, due: steps.length, logged, brain, cleared, calls };
 }
 
 export type Mailbox = { staff_id: string; email: string; token: string; connected_at: string; last_synced_at: string | null };

@@ -6,7 +6,8 @@ import { StageSelect } from "@/components/stage-select";
 import { SubmissionEditor } from "@/components/submission-editor";
 import { draftSubmission, emailName } from "@/lib/submission";
 import { gmailAccount } from "@/lib/gmail-account";
-import { setOutreach } from "@/app/(app)/pipeline-actions";
+import { callNow, setOutreach } from "@/app/(app)/pipeline-actions";
+import { liveReady } from "@/lib/live";
 import { automationState } from "@/lib/automation-state";
 import { SubmitButton } from "@/components/submit-button";
 import { label, shortDate, STAGE_LABEL, STAGE_TONE, timeAgo, type Tone } from "@/lib/format";
@@ -99,6 +100,8 @@ export async function JobWorkspace({
     notes: [],
   });
   const early = ["applied", "assigned", "contacting", "conversation"].includes(cj.stage);
+  const canCall =
+    liveReady() && Boolean(candidate.phone) && run?.status !== "in_progress" && !["placed", "passed", "withdrawn"].includes(cj.stage);
   const state = submission ? SUBMISSION_STATE[submission.status] : null;
 
   return (
@@ -229,10 +232,35 @@ export async function JobWorkspace({
           )
         }
       >
+        {canCall && (
+          <form action={callNow} className="mb-4 flex flex-wrap items-center gap-3">
+            <input type="hidden" name="id" value={cj.id} />
+            <SubmitButton className="btn-quiet">Call now</SubmitButton>
+            <span className="text-xs text-faint">The AI assistant calls {candidate.full_name.split(" ")[0]} within a minute.</span>
+          </form>
+        )}
         {!run ? (
-          <Empty>No call yet. The AI calls after you assign a candidate, once calling goes live in phase 4.</Empty>
+          <Empty>No call yet. The AI assistant calls at the time the candidate books, or press Call now.</Empty>
         ) : (
           <div className="space-y-4">
+            {run.status === "in_progress" && (
+              <p className="rounded-md border border-cyan/30 bg-cyan/5 px-3 py-2 text-sm text-cyan">
+                {run.process_state === "pending" || run.process_state === "working"
+                  ? "Call finished. Writing up the notes and the submission draft…"
+                  : run.answered_by
+                    ? "On the call now."
+                    : "Calling…"}
+              </p>
+            )}
+            {(run.status === "failed" || run.process_state === "failed") && run.process_note && (
+              <p className="rounded-md border border-rose/30 bg-rose/5 px-3 py-2 text-sm text-rose">{run.process_note}</p>
+            )}
+            {run.status === "no_answer" && run.outcome_note && <p className="text-sm text-amber">{run.outcome_note}. We texted them for a better time.</p>}
+            {run.call_outcome && run.outcome_note && run.status !== "no_answer" && (
+              <p className="font-mono text-[11px] text-faint">
+                Ended: {label(run.call_outcome)} · {run.outcome_note}
+              </p>
+            )}
             {run.status === "scheduled" && run.scheduled_for && (
               <p className="rounded-md border border-cyan/30 bg-cyan/5 px-3 py-2 text-sm">
                 <span className="text-cyan">Booked for </span>

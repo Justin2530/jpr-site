@@ -80,3 +80,14 @@ export async function setOutreach(form: FormData) {
   }
   revalidatePath("/");
 }
+
+// "Call now" on the job tab: books the AI screening call for right now; the next tick dials it.
+export async function callNow(form: FormData) {
+  const { supabase } = await requireStaff();
+  const cjId = String(form.get("id") ?? "");
+  const { error } = await supabase.rpc("screening_call_now", { p_candidate_job_id: cjId });
+  if (error) throw new Error(error.message);
+  const { data } = await supabase.from("candidate_jobs").select("candidate_id").eq("id", cjId).single();
+  if (data) revalidatePath(`/candidates/${data.candidate_id}`);
+  revalidatePath("/");
+}

@@ -1,0 +1,44 @@
+import { NextResponse } from "next/server";
+import { automationSecret } from "@/lib/automation";
+import { acceptCall, rejectCall, runFromSipHeaders, validOpenAIWebhook, type CallContext } from "@/lib/live";
+import { update } from "@/lib/screening";
+import { webhookDb } from "@/app/api/twilio/webhook";
+
+// OpenAI tells us a bridged call is waiting. We find which screening it is and accept it with that
+// candidate's brief; anything we can't match is turned away.
+export async function POST(request: Request) {
+  const raw = await request.text();
+  if (!validOpenAIWebhook(raw, request.headers)) return new NextResponse("forbidden", { status: 403 });
+  const event = JSON.parse(raw) as { type?: string; data?: { session_id?: string; call_id?: string; sip_headers?: unknown } };
+  if (!["live.transport.incoming", "live.call.incoming", "realtime.call.incoming"].includes(event.type ?? "")) {
+    return NextResponse.json({ ok: true });
+  }
+  const sessionId = event.data?.session_id ?? event.data?.call_id;
+  if (!sessionId) return NextResponse.json({ ok: true });
+
+  const db = webhookDb();
+  const secret = automationSecret()!;
+  let run = runFromSipHeaders(event.data?.sip_headers);
+  if (!run) {
+    const { data } = await db.rpc("screening_awaiting_agent", { p_secret: secret });
+    run = (data as string | null) ?? null;
+  }
+  const { data } = run ? await db.rpc("screening_get", { p_secret: secret, p_run: run }) : { data: null };
+  const ctx = data as unknown as CallContext | null;
+  if (!run || !ctx || ctx.status !== "in_progress" || ctx.live_session_id) {
+    await rejectCall(sessionId);
+    return NextResponse.json({ ok: true, rejected: true });
+  }
+
+  const url = new URL(request.url);
+  const origin = `https://${request.headers.get("x-forwarded-host") ?? url.host}`;
+  try {
+    await acceptCall(sessionId, ctx, origin);
+  } catch (e) {
+    // If the hang-up tool is what OpenAI objected to, still take the call without it.
+    console.error("Accept with tools failed; retrying without", e);
+    await acceptCall(sessionId, ctx, origin, false);
+  }
+  await update(db, secret, run, { live_session_id: sessionId, started: true });
+  return NextResponse.json({ ok: true });
+}

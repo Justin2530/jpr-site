@@ -912,6 +912,15 @@ export type Database = {
       };
       screening_runs: {
         Row: {
+          answered_by: string | null;
+          call_outcome: string | null;
+          call_sid: string | null;
+          dial_started_at: string | null;
+          live_session_id: string | null;
+          outcome_note: string | null;
+          process_claimed_at: string | null;
+          process_note: string | null;
+          process_state: string | null;
           candidate_job_id: string;
           candidate_questions: string[];
           channel: string;
@@ -929,6 +938,15 @@ export type Database = {
           unresolved: string[];
         };
         Insert: {
+          answered_by?: string | null;
+          call_outcome?: string | null;
+          call_sid?: string | null;
+          dial_started_at?: string | null;
+          live_session_id?: string | null;
+          outcome_note?: string | null;
+          process_claimed_at?: string | null;
+          process_note?: string | null;
+          process_state?: string | null;
           candidate_job_id: string;
           candidate_questions?: string[];
           channel?: string;
@@ -1141,6 +1159,13 @@ export type Database = {
       phone_key: { Args: { p: string }; Returns: string };
       set_automated_recruiting: { Args: { p_on: boolean }; Returns: undefined };
       start_pursuit: { Args: { p_candidate_job_id: string; p_purpose?: string }; Returns: string | null };
+      screening_get: { Args: { p_secret: string; p_run: string }; Returns: Json };
+      screening_due: { Args: { p_secret: string }; Returns: Json };
+      screening_call_now: { Args: { p_candidate_job_id: string }; Returns: string };
+      screening_update: { Args: { p_secret: string; p_run: string; p: Json }; Returns: undefined };
+      screening_awaiting_agent: { Args: { p_secret: string }; Returns: string | null };
+      screening_to_process: { Args: { p_secret: string }; Returns: Json };
+      screening_complete: { Args: { p_secret: string; p_run: string; p: Json }; Returns: string };
       triage_pending: { Args: { p_secret: string }; Returns: Json };
       triage_apply: { Args: { p_secret: string; p_item: string; p_needs_justin: boolean; p_note: string }; Returns: undefined };
       brain_pending: { Args: { p_secret: string }; Returns: Json };

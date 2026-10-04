@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { webhookDb } from "@/app/api/twilio/webhook";
 import { runTick, validAutomationSecret } from "@/lib/automation";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // pg_cron knocks here every minute with the automation secret: send what's due, check Gmail.
 export async function POST(request: Request) {

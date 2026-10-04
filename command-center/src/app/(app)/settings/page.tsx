@@ -8,6 +8,8 @@ import { gmailAccount } from "@/lib/gmail-account";
 import { headers } from "next/headers";
 import { automationSecret, registerAutomation } from "@/lib/automation";
 import { saveMyCell, setAutomatedRecruiting } from "./actions";
+import { liveSetup } from "@/lib/live";
+import { webhookUrl } from "@/lib/twilio";
 import { ConnectButton } from "./connect-button";
 
 export const metadata = { title: "Phone & email · JPR" };
@@ -77,10 +79,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const automation = Boolean(automationSecret());
   const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after").maybeSingle();
   const autoOn = Boolean(auto?.automated_recruiting);
-  if (automation && staff.role === "owner") {
-    const h = await headers();
-    await registerAutomation(supabase, `https://${h.get("x-forwarded-host") ?? h.get("host")}`);
-  }
+  const h = await headers();
+  const origin = `https://${h.get("x-forwarded-host") ?? h.get("host")}`;
+  if (automation && staff.role === "owner") await registerAutomation(supabase, origin);
+  const live = liveSetup();
+  const liveOk = live.key && live.project && live.webhook;
 
   return (
     <>
@@ -158,11 +161,30 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             </form>
           )}
         </Step>
+        <Step done={liveOk} title="AI screening calls">
+          <p className="text-sm text-muted">
+            At the time a candidate booked, the Command Center calls them from the business number and OpenAI&apos;s voice assistant runs a
+            short screening. It says it&apos;s JPR&apos;s AI assistant, asks if recording is okay, covers the job&apos;s screening questions and answers
+            theirs. Afterwards the answers, notes and a submission draft land on their job tab, ready for your Send. Voicemail or no answer
+            gets a text asking for a better time.
+          </p>
+          <ul className="space-y-1 font-mono text-[12px]">
+            <li className={live.key ? "text-mint" : "text-amber"}>{live.key ? "✓" : "○"} OPENAI_API_KEY</li>
+            <li className={live.project ? "text-mint" : "text-amber"}>{live.project ? "✓" : "○"} OPENAI_PROJECT_ID</li>
+            <li className={live.webhook ? "text-mint" : "text-amber"}>{live.webhook ? "✓" : "○"} OPENAI_WEBHOOK_SECRET</li>
+          </ul>
+          {staff.role === "owner" && (
+            <div className="space-y-1">
+              <p className="text-sm text-muted">Webhook address for OpenAI (Settings, Project, Webhooks):</p>
+              <input readOnly value={webhookUrl(origin, "/api/openai/webhook")} className="field w-full font-mono text-[11px]" aria-label="Webhook address" />
+            </div>
+          )}
+        </Step>
       </ol>
       {registration && <RegistrationPanel reg={registration} />}
       <p className="mt-6 max-w-2xl text-xs text-faint">
-        Calls aren&apos;t recorded, since Pennsylvania requires everyone on the call to agree. Anyone who replies STOP is blocked from
-        further texts automatically.
+        Your own calls aren&apos;t recorded, since Pennsylvania requires everyone on the call to agree. AI screening calls are recorded only
+        after the candidate says it&apos;s okay. Anyone who replies STOP is blocked from further texts automatically.
       </p>
     </>
   );
