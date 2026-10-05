@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { tasks } from "@trigger.dev/sdk";
+import type { callWatch } from "@/trigger/call-watch";
 import { automationSecret } from "@/lib/automation";
 import { acceptCall, rejectCall, runFromSipHeaders, validOpenAIWebhook, type CallContext } from "@/lib/live";
 import { update } from "@/lib/screening";
@@ -40,5 +42,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false });
   }
   await update(db, secret, run, { live_session_id: sessionId, started: true });
+  // Trigger.dev stays on the call so the assistant can hang up once it's over.
+  if (process.env.TRIGGER_SECRET_KEY) {
+    await tasks
+      .trigger<typeof callWatch>("screening-call-watch", { sessionId, runId: run })
+      .catch((e) => console.error("Couldn't start the call watcher", e));
+  }
   return NextResponse.json({ ok: true });
 }
