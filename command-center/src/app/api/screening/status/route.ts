@@ -21,12 +21,13 @@ export async function POST(request: Request) {
   }
   if (status !== "completed") return EMPTY_TWIML.clone();
 
-  if (/^machine|^fax/.test(p.AnsweredBy ?? "")) {
+  const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
+  const ctx = data as unknown as (CallContext & { answered_by?: string | null }) | null;
+  // Machine detection runs alongside the call, so its answer is on the run rather than in this callback.
+  if (/^machine|^fax/.test(p.AnsweredBy ?? ctx?.answered_by ?? "")) {
     await missedCall(db, secret, run, "Went to voicemail");
     return EMPTY_TWIML.clone();
   }
-  const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
-  const ctx = data as unknown as CallContext | null;
   if (ctx?.live_session_id) {
     await update(db, secret, run, { duration_seconds: duration, ended: true, process_state: "pending" });
   } else {

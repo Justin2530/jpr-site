@@ -1,13 +1,13 @@
 import { escapeXml } from "@/lib/twilio";
 import { automationSecret } from "@/lib/automation";
 import { sipUri, validRunSig } from "@/lib/live";
-import { update } from "@/lib/screening";
+import { update, voicemailTwiml } from "@/lib/screening";
 import { readTwilio, webhookDb } from "@/app/api/twilio/webhook";
 
 const twiml = (xml: string) => new Response(`<Response>${xml}</Response>`, { headers: { "Content-Type": "text/xml" } });
 
-// The candidate's phone was answered. A person gets handed to the AI assistant; an answering machine
-// gets a short message (the missed-call text follows from the status callback).
+// The candidate's phone was answered: hand them straight to the AI assistant. Answering machines are
+// caught by /api/screening/amd while this runs.
 export async function POST(request: Request) {
   const p = await readTwilio(request);
   if (!p) return new Response("Forbidden", { status: 403 });
@@ -20,12 +20,7 @@ export async function POST(request: Request) {
 
   if (/^machine|^fax/.test(answeredBy)) {
     await update(db, secret, run, { answered_by: answeredBy });
-    const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
-    const ctx = data as { full_name?: string; job_title?: string } | null;
-    const name = ctx?.full_name?.split(" ")[0] ?? "there";
-    return twiml(
-      `<Pause length="1"/><Say voice="Polly.Matthew">Hi ${escapeXml(name)}, this is J P R calling for your phone call about the ${escapeXml(ctx?.job_title ?? "")} position. Sorry we missed you. We'll send you a text to find a better time, or you can reach us at 8 1 4, 8 4 5, 4 3 4 1. Thanks!</Say><Hangup/>`,
-    );
+    return twiml(await voicemailTwiml(db, secret, run));
   }
 
   await update(db, secret, run, { answered_by: answeredBy, started: true });

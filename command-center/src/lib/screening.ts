@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
-import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
+import { escapeXml, toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 import { callRecording, liveReady, runSig, type CallContext } from "@/lib/live";
 import { SIGNATURE, SUBMISSION_STYLE } from "@/lib/submission";
 
@@ -47,10 +47,23 @@ async function dial(db: Db, secret: string, origin: string, c: CallContext) {
     From: twilioNumber!,
     Url: webhookUrl(origin, `/api/screening/answer?${q}`),
     StatusCallback: webhookUrl(origin, `/api/screening/status?${q}`),
+    // Detection runs alongside the call, so the person is put straight through to the assistant
+    // instead of hearing seconds of silence; a voicemail gets switched over by /api/screening/amd.
     MachineDetection: "Enable",
+    AsyncAmd: "true",
+    AsyncAmdStatusCallback: webhookUrl(origin, `/api/screening/amd?${q}`),
+    AsyncAmdStatusCallbackMethod: "POST",
     Timeout: "30",
   });
   await update(db, secret, c.run_id, { call_sid: call.sid });
+}
+
+// What an answering machine hears: a short message, then the missed-call text follows.
+export async function voicemailTwiml(db: Db, secret: string, run: string) {
+  const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
+  const ctx = data as { full_name?: string; job_title?: string } | null;
+  const name = ctx?.full_name?.split(" ")[0] ?? "there";
+  return `<Pause length="1"/><Say voice="Polly.Matthew">Hi ${escapeXml(name)}, this is J P R calling for your phone call about the ${escapeXml(ctx?.job_title ?? "")} position. Sorry we missed you. We'll send you a text to find a better time, or you can reach us at 8 1 4, 8 4 5, 4 3 4 1. Thanks!</Say><Hangup/>`;
 }
 
 // Voicemail, no answer, busy: one friendly text asking for a better time. The reply brain books it.
