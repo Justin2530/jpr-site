@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { webhookUrl } from "@/lib/twilio";
 
 // OpenAI GPT-Live, the voice agent on screening calls. Twilio dials the candidate and, once a person
 // answers, bridges the call to OpenAI over SIP; OpenAI then asks our webhook how to run the call.
@@ -9,7 +8,6 @@ const API = "https://api.openai.com/v1";
 
 export const liveModel = () => process.env.OPENAI_LIVE_MODEL?.trim() || "gpt-live-1";
 export const liveVoice = () => process.env.OPENAI_LIVE_VOICE?.trim() || "marin";
-const backendModel = () => process.env.OPENAI_MODEL?.trim() || "gpt-5-mini";
 
 export function liveSetup() {
   return {
@@ -127,8 +125,7 @@ export type CallContext = {
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0];
 
-// The voice agent's brief. GPT-Live speaks; it hands "end the call" to a small backend model whose only
-// tool is our end_call.
+// The voice agent's brief.
 export function callInstructions(c: CallContext) {
   const questions = c.goals.length
     ? c.goals.map((g, i) => `${i + 1}. ${g.question}${g.required ? " (must cover)" : ""}`).join("\n")
@@ -172,16 +169,14 @@ SAFETY: if they're upset, inappropriate, abusive, or ask to stop, stay polite, s
 
 WRAP-UP: when the questions are covered, ask if they have any questions, answer what you can, then tell them Justin will review everything and reach out about next steps with the employer. Thank them and say goodbye.
 
-ENDING THE CALL: after your goodbye (or any time the call should end), ask your backend to end the call, saying the outcome (interested, not_interested, callback, declined_recording, wrong_person or incomplete) and a one-line note. Don't hang up in the middle of their sentence.`;
+ENDING THE CALL: after your goodbye, stop talking and let them hang up. If they stay on the line, say a short "Take care, bye now" once and then stay quiet.`;
 }
 
-function endCallBackendInstructions() {
-  return `You support a live phone screening call run by a voice agent. Your only job: when the voice agent asks you to end the call, call the end_call tool once with the outcome and a short note, then reply "done". If asked anything else, reply in one short sentence that the voice agent should continue the conversation.`;
-}
-
-// Accept the bridged call with this run's brief. The hang-up tool is our own small MCP endpoint.
-export async function acceptCall(sessionId: string, c: CallContext, origin: string, withTools = true) {
-  const mcpUrl = webhookUrl(origin, `/api/screening/mcp?run=${c.run_id}&sig=${runSig(c.run_id)}`);
+// Accept the bridged call with this run's brief. Live delegation only takes function tools run over a
+// WebSocket, which a Vercel function can't hold for a whole call, so the candidate ends the call (with
+// Twilio's time limit as the backstop) and the write-up decides the outcome from the recording.
+// Accept once: a rejected accept ends OpenAI's side of the call, so there's no second try.
+export async function acceptCall(sessionId: string, c: CallContext) {
   return openai(`/live/sessions/${sessionId}/accept`, {
     session: {
       type: "live",
@@ -189,25 +184,6 @@ export async function acceptCall(sessionId: string, c: CallContext, origin: stri
       instructions: callInstructions(c),
       audio: { output: { voice: liveVoice() } },
       store: true,
-      delegation: withTools
-        ? {
-            type: "responses",
-            responses: {
-              model: backendModel(),
-              instructions: endCallBackendInstructions(),
-              tools: [
-                {
-                  type: "mcp",
-                  server_label: "jpr_call",
-                  server_url: mcpUrl,
-                  allowed_tools: ["end_call"],
-                  require_approval: "never",
-                },
-              ],
-              tool_choice: "auto",
-            },
-          }
-        : null,
     },
   });
 }

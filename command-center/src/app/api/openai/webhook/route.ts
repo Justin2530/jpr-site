@@ -32,14 +32,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, rejected: true });
   }
 
-  const url = new URL(request.url);
-  const origin = `https://${request.headers.get("x-forwarded-host") ?? url.host}`;
   try {
-    await acceptCall(sessionId, ctx, origin);
+    await acceptCall(sessionId, ctx);
   } catch (e) {
-    // If the hang-up tool is what OpenAI objected to, still take the call without it.
-    console.error("Accept with tools failed; retrying without", e);
-    await acceptCall(sessionId, ctx, origin, false);
+    console.error("Accept failed", e);
+    await update(db, secret, run, { process_note: `OpenAI wouldn't take the call: ${String(e).slice(0, 300)}` });
+    return NextResponse.json({ ok: false });
   }
   await update(db, secret, run, { live_session_id: sessionId, started: true });
   return NextResponse.json({ ok: true });
