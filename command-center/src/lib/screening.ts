@@ -190,6 +190,11 @@ async function whisper(wav: Buffer): Promise<Segment[]> {
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "segment");
   form.append("language", "en");
+  // Spelling hints for shop-floor words the transcriber otherwise mangles ("Mazak" came out "Mays Act").
+  form.append(
+    "prompt",
+    "JPR recruiting screening call, Punxsutawney PA. Mazak, Haas, Okuma, Fanuc, Doosan, Hurco, Brother, CNC, VMC, HMC, Swiss lathe, G-code, M-code, Mastercam, ESPRIT, CMM, Keyence, MIG, TIG, forklift, OSHA, first shift, second shift, third shift.",
+  );
   const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` },
