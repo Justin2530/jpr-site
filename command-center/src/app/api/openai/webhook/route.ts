@@ -10,7 +10,9 @@ export async function POST(request: Request) {
   const raw = await request.text();
   if (!validOpenAIWebhook(raw, request.headers)) return new NextResponse("forbidden", { status: 403 });
   const event = JSON.parse(raw) as { type?: string; data?: { session_id?: string; call_id?: string; sip_headers?: unknown } };
-  if (!["live.transport.incoming", "live.call.incoming", "realtime.call.incoming"].includes(event.type ?? "")) {
+  // Each call also raises realtime.call.incoming with an rtc_ id that the Live accept endpoint doesn't
+  // know, so only the live.* events are handled.
+  if (!["live.transport.incoming", "live.call.incoming"].includes(event.type ?? "")) {
     return NextResponse.json({ ok: true });
   }
   const sessionId = event.data?.session_id ?? event.data?.call_id;

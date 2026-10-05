@@ -25,8 +25,9 @@ export function liveReady() {
 
 // Where Twilio sends the answered call. The run id rides along as a SIP header so the webhook knows
 // which call it is; it's signed, because SIP headers are only as trustworthy as whoever sent them.
+// secure=true makes Twilio encrypt the audio (SRTP), which GPT-Live requires.
 export function sipUri(runId: string) {
-  return `sip:${process.env.OPENAI_PROJECT_ID!.trim()}@sip.api.openai.com;transport=tls?X-JPR-Run=${runId}.${runSig(runId)}`;
+  return `sip:${process.env.OPENAI_PROJECT_ID!.trim()}@sip.api.openai.com;transport=tls;secure=true?X-JPR-Run=${runId}.${runSig(runId)}`;
 }
 
 export function runSig(runId: string) {
