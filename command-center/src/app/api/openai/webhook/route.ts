@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { tasks } from "@trigger.dev/sdk";
 import type { callWatch } from "@/trigger/call-watch";
 import { automationSecret } from "@/lib/automation";
-import { acceptCall, rejectCall, runFromSipHeaders, validOpenAIWebhook, type CallContext } from "@/lib/live";
+import { acceptCall, rejectCall, startGreeting, runFromSipHeaders, validOpenAIWebhook, type CallContext } from "@/lib/live";
 import { update } from "@/lib/screening";
 import { webhookDb } from "@/app/api/twilio/webhook";
 
@@ -42,6 +42,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false });
   }
   await update(db, secret, run, { live_session_id: sessionId, started: true });
+  const greeting = await startGreeting(sessionId, ctx.full_name.split(" ")[0]).catch((e) => `failed ${String(e)}`);
+  console.info("Greeting", greeting);
   // Trigger.dev stays on the call so the assistant can hang up once it's over.
   if (process.env.TRIGGER_SECRET_KEY) {
     await tasks

@@ -144,9 +144,9 @@ export function callInstructions(c: CallContext) {
 
 YOUR GOAL: a friendly, quick 5 to 10 minute screening call that gets Justin what he needs to submit this person to the employer, and answers their questions about the job.
 
-OPENING (always, in this order, before anything else):
+OPENING (always, in this order, before anything else). You speak first: the moment the call connects, start without waiting for them to say hello.
 1. "Hi, is this ${firstName(c.full_name)}?" If it's someone else, ask politely when ${firstName(c.full_name)} is available, then say goodbye (outcome wrong_person).
-2. Then, in one breath: "Hey ${firstName(c.full_name)}, this is JPR's AI assistant, calling for Justin about the ${c.job_title} job. Heads up, the call is recorded so Justin gets good notes. Is that okay?" Get a clear yes before going on. If they say no, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording).
+2. Then, in one breath: "This is JPR's AI assistant, calling for Justin about the ${c.job_title} job. Heads up, the call is recorded so Justin gets good notes. Is that okay?" Get a clear yes before going on. If they say no, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording).
 3. "Is now still a good time? It'll take about five minutes." If not, ask when is better (day and time), confirm it, and say goodbye (outcome callback, with the time in the note).
 
 THE QUESTIONS to cover, in a natural order, one at a time:
@@ -192,6 +192,44 @@ export async function acceptCall(sessionId: string, c: CallContext) {
       audio: { output: { voice: liveVoice() } },
       store: true,
     },
+  });
+}
+
+// GPT-Live waits for the other person to speak first; on a call we place, the assistant should open.
+// Attach over the sideband for a moment and tell it to greet now. Best effort: a failure only means
+// it waits for "hello" like before.
+export async function startGreeting(sessionId: string, firstName: string) {
+  const { default: WebSocket } = await import("ws");
+  const ws = new WebSocket(`wss://api.openai.com/v1/live/sessions/${sessionId}/attach`, {
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` },
+  });
+  const content = `The call just connected and they've picked up. Start now with your opening: "Hi, is this ${firstName}?" Then stop and listen.`;
+  return new Promise<string>((resolve) => {
+    let sent = false;
+    const finish = (result: string) => {
+      clearTimeout(giveUp);
+      ws.close();
+      resolve(result);
+    };
+    const send = () => {
+      if (sent || ws.readyState !== WebSocket.OPEN) return;
+      sent = true;
+      ws.send(JSON.stringify({ type: "session.instructions.append", event_id: "greeting", delegation_id: null, content }));
+    };
+    const giveUp = setTimeout(() => finish(sent ? "sent, no ack" : "timed out"), 6000);
+    ws.on("open", () => setTimeout(send, 800)); // give session.started a moment to arrive first
+    ws.on("message", (raw) => {
+      let e: { type?: string };
+      try {
+        e = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+      if (e.type === "session.started") send();
+      else if (e.type === "session.instructions.appended") finish("ok");
+      else if (e.type === "error") finish(`error ${raw.toString().slice(0, 300)}`);
+    });
+    ws.on("error", (err) => finish(`socket ${String(err).slice(0, 200)}`));
   });
 }
 
