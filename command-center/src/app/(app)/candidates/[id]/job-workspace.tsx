@@ -54,7 +54,7 @@ export async function JobWorkspace({
 
   const [{ data: runs }, { data: facts }, { data: goals }, { data: subs }, { data: contacts }, { data: activity }] = await Promise.all([
     supabase.from("screening_runs").select("*").eq("candidate_job_id", cj.id).order("created_at", { ascending: false }),
-    supabase.from("screening_facts").select("*").eq("candidate_job_id", cj.id).order("sort"),
+    supabase.from("screening_facts").select("*").eq("candidate_job_id", cj.id).order("created_at").order("sort"),
     supabase.from("screening_goals").select("id, prompt, required").eq("job_id", job.id).order("sort"),
     supabase.from("submissions").select("*").eq("candidate_job_id", cj.id).order("created_at", { ascending: false }).limit(1),
     supabase.from("contacts").select("id, full_name, title, email").eq("company_id", job.company_id).order("full_name"),
@@ -78,7 +78,10 @@ export async function JobWorkspace({
   const earlier = (runs ?? []).slice(1);
   const submission = subs?.[0];
   const people = contacts ?? [];
-  const allFacts = facts ?? [];
+  // Only the latest call's AI facts count (each call files a full set); facts Justin added always do.
+  // Oldest first, so a later fact for the same question wins.
+  const latestAiRun = (facts ?? []).findLast((f) => f.source === "ai")?.run_id;
+  const allFacts = (facts ?? []).filter((f) => f.source !== "ai" || f.run_id === latestAiRun);
   const byGoal = new Map(allFacts.filter((f) => f.goal_id).map((f) => [f.goal_id!, f]));
   const extraFacts = allFacts.filter((f) => !f.goal_id);
   const missing = (goals ?? []).filter((g) => g.required && !byGoal.get(g.id)?.value);
