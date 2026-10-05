@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
-import { escapeXml, toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
-import { callRecording, liveReady, runSig, type CallContext } from "@/lib/live";
+import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
+import { callRecording, liveReady, runSig, sipUri, type CallContext } from "@/lib/live";
 import { SIGNATURE, SUBMISSION_STYLE } from "@/lib/submission";
 
 // The screening-call engine: dial calls whose time has come, text people we missed, and turn finished
@@ -41,29 +41,18 @@ async function dial(db: Db, secret: string, origin: string, c: CallContext) {
     await update(db, secret, c.run_id, { status: "failed", process_note: "No phone number on file", ended: true });
     return;
   }
+  // The AI assistant is called first and then dials the candidate (see /api/screening/answer), so
+  // the candidate never hears ringing or silence while the assistant connects.
   const q = `run=${c.run_id}&sig=${runSig(c.run_id)}`;
+  await update(db, secret, c.run_id, { answered_by: "ringing" }); // lets the OpenAI webhook match the call
   const call = await twilioApi("Calls", {
-    To: to,
+    To: sipUri(c.run_id),
     From: twilioNumber!,
     Url: webhookUrl(origin, `/api/screening/answer?${q}`),
     StatusCallback: webhookUrl(origin, `/api/screening/status?${q}`),
-    // Detection runs alongside the call, so the person is put straight through to the assistant
-    // instead of hearing seconds of silence; a voicemail gets switched over by /api/screening/amd.
-    MachineDetection: "Enable",
-    AsyncAmd: "true",
-    AsyncAmdStatusCallback: webhookUrl(origin, `/api/screening/amd?${q}`),
-    AsyncAmdStatusCallbackMethod: "POST",
-    Timeout: "30",
+    Timeout: "20",
   });
   await update(db, secret, c.run_id, { call_sid: call.sid });
-}
-
-// What an answering machine hears: a short message, then the missed-call text follows.
-export async function voicemailTwiml(db: Db, secret: string, run: string) {
-  const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
-  const ctx = data as { full_name?: string; job_title?: string } | null;
-  const name = ctx?.full_name?.split(" ")[0] ?? "there";
-  return `<Pause length="1"/><Say voice="Polly.Matthew">Hi ${escapeXml(name)}, this is J P R calling for your phone call about the ${escapeXml(ctx?.job_title ?? "")} position. Sorry we missed you. We'll send you a text to find a better time, or you can reach us at 8 1 4, 8 4 5, 4 3 4 1. Thanks!</Say><Hangup/>`;
 }
 
 // Voicemail, no answer, busy: one friendly text asking for a better time. The reply brain books it.
@@ -107,6 +96,12 @@ async function processOne(db: Db, secret: string) {
     }
     const transcript = wav ? await transcribe(wav) : [];
     const notes = await writeUp(c, transcript);
+    if (notes.outcome === "voicemail") {
+      // Same as any missed call: one text asking for a better time.
+      await missedCall(db, secret, run, "Went to voicemail");
+      await update(db, secret, run, { process_state: "done" });
+      return true;
+    }
     const { error } = await db.rpc("screening_complete", {
       p_secret: secret,
       p_run: run,
@@ -255,7 +250,7 @@ const NOTES_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    outcome: { type: "string", enum: ["interested", "not_interested", "callback", "incomplete"] },
+    outcome: { type: "string", enum: ["interested", "not_interested", "callback", "voicemail", "incomplete"] },
     callback_at_local: { type: "string" },
     summary: { type: "string" },
     facts: {
@@ -306,7 +301,7 @@ async function writeUp(c: CallContext, transcript: Line[]) {
       model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
       reasoning: { effort: "medium" },
       instructions: `You turn a recorded recruiting screening call into notes for Justin Peace (JPR). Use only what was actually said on the call and what the resume shows. Never invent anything.
-outcome: interested (they want to move forward), not_interested, callback (they asked to talk at another time; put it in callback_at_local as "YYYY-MM-DD HH:MM" Eastern, else ""), or incomplete (call cut short, declined recording, wrong person, or too little was covered).
+outcome: interested (they want to move forward), not_interested, callback (they asked to talk at another time; put it in callback_at_local as "YYYY-MM-DD HH:MM" Eastern, else ""), voicemail (the call reached voicemail or an automated message, not the person), or incomplete (call cut short, declined recording, wrong person, or too little was covered).
 summary: 2-4 plain sentences for Justin: who they are, fit for the job, pay and availability, and anything to watch.
 facts: one entry per screening question that got an answer, with goal_id set to that question's id and label a short name (e.g. "Pay", "Commute", "Availability"); value is their answer in a short plain sentence. Add extra entries with goal_id "" for other useful facts (current pay, interview availability, start date, certifications, machines). Skip questions that weren't answered.
 candidate_questions: questions they asked that Justin should follow up on. concerns: anything that could be a problem for the employer. unresolved: required questions not covered.

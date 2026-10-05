@@ -1,13 +1,13 @@
-import { escapeXml } from "@/lib/twilio";
+import { escapeXml, toE164, twilioNumber, webhookUrl } from "@/lib/twilio";
 import { automationSecret } from "@/lib/automation";
-import { sipUri, validRunSig } from "@/lib/live";
-import { update, voicemailTwiml } from "@/lib/screening";
+import { validRunSig, type CallContext } from "@/lib/live";
+import { update } from "@/lib/screening";
 import { readTwilio, webhookDb } from "@/app/api/twilio/webhook";
 
 const twiml = (xml: string) => new Response(`<Response>${xml}</Response>`, { headers: { "Content-Type": "text/xml" } });
 
-// The candidate's phone was answered: hand them straight to the AI assistant. Answering machines are
-// caught by /api/screening/amd while this runs.
+// The AI assistant picked up (it's called first). Now ring the candidate and bridge them in, so they
+// hear the assistant the moment they answer. A 15-minute cap is the backstop if nobody hangs up.
 export async function POST(request: Request) {
   const p = await readTwilio(request);
   if (!p) return new Response("Forbidden", { status: 403 });
@@ -16,14 +16,18 @@ export async function POST(request: Request) {
   if (!validRunSig(run, url.searchParams.get("sig"))) return new Response("Forbidden", { status: 403 });
   const db = webhookDb();
   const secret = automationSecret()!;
-  const answeredBy = p.AnsweredBy ?? "unknown";
-
-  if (/^machine|^fax/.test(answeredBy)) {
-    await update(db, secret, run, { answered_by: answeredBy });
-    return twiml(await voicemailTwiml(db, secret, run));
+  const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
+  const ctx = data as unknown as CallContext | null;
+  const to = toE164(ctx?.phone);
+  if (!ctx || !to || ctx.status !== "in_progress") {
+    if (ctx) await update(db, secret, run, { status: "failed", process_note: "No phone number on file", ended: true });
+    return twiml("<Hangup/>");
   }
-
-  await update(db, secret, run, { answered_by: answeredBy, started: true });
-  // The AI assistant answers on OpenAI's side; a 15-minute cap is the backstop if nobody hangs up.
-  return twiml(`<Dial timeLimit="900" answerOnBridge="true"><Sip>${escapeXml(sipUri(run))}</Sip></Dial>`);
+  const q = url.search;
+  const origin = `https://${request.headers.get("x-forwarded-host") ?? url.host}`;
+  return twiml(
+    `<Dial timeLimit="900" timeout="30" callerId="${escapeXml(twilioNumber!)}" action="${escapeXml(webhookUrl(origin, `/api/screening/dialed${q}`))}">` +
+      `<Number statusCallbackEvent="answered" statusCallback="${escapeXml(webhookUrl(origin, `/api/screening/answered${q}`))}">${escapeXml(to)}</Number>` +
+      `</Dial>`,
+  );
 }

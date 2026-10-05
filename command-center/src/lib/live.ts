@@ -144,7 +144,11 @@ export function callInstructions(c: CallContext) {
 
 YOUR GOAL: a friendly, quick 5 to 10 minute screening call that gets Justin what he needs to submit this person to the employer, and answers their questions about the job.
 
-OPENING (always, in this order, before anything else). You speak first: the moment the call connects, start without waiting for them to say hello.
+BEFORE THEY PICK UP: you join the call while their phone is still ringing. Say nothing until you're told they picked up, then start the opening right away without waiting for them to say hello.
+
+VOICEMAIL: if you reach a voicemail greeting or an automated message (a beep, "leave a message", "the person you are calling is not available"), don't run the screening. After the beep, leave one short message: "Hi ${firstName(c.full_name)}, this is JPR's assistant calling for Justin about the ${c.job_title} job. Sorry I missed you. We'll text you to find a better time. Thanks, bye." Then say nothing more.
+
+OPENING (always, in this order, before anything else):
 1. "Hi, is this ${firstName(c.full_name)}?" If it's someone else, ask politely when ${firstName(c.full_name)} is available, then say goodbye (outcome wrong_person).
 2. Then, in one breath: "This is JPR's AI assistant, calling for Justin about the ${c.job_title} job. Heads up, the call is recorded so Justin gets good notes. Is that okay?" Get a clear yes before going on. If they say no, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording).
 3. "Is now still a good time? It'll take about five minutes." If not, ask when is better (day and time), confirm it, and say goodbye (outcome callback, with the time in the note).
@@ -195,17 +199,16 @@ export async function acceptCall(sessionId: string, c: CallContext) {
   });
 }
 
-// GPT-Live waits for the other person to speak first; on a call we place, the assistant should open.
-// Attach over the sideband for a moment and tell it to greet now. Best effort: a failure only means
-// it waits for "hello" like before.
-export async function startGreeting(sessionId: string, firstName: string) {
+// Send a few commands to a live call over OpenAI's sideband, then let go. Best effort: returns what
+// happened instead of throwing, since a failure here shouldn't drop the call.
+async function sideband(sessionId: string, events: Record<string, unknown>[]) {
   const { default: WebSocket } = await import("ws");
   const ws = new WebSocket(`wss://api.openai.com/v1/live/sessions/${sessionId}/attach`, {
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` },
   });
-  const content = `The call just connected and they've picked up. Start now with your opening: "Hi, is this ${firstName}?" Then stop and listen.`;
   return new Promise<string>((resolve) => {
     let sent = false;
+    let acks = 0;
     const finish = (result: string) => {
       clearTimeout(giveUp);
       ws.close();
@@ -214,10 +217,10 @@ export async function startGreeting(sessionId: string, firstName: string) {
     const send = () => {
       if (sent || ws.readyState !== WebSocket.OPEN) return;
       sent = true;
-      ws.send(JSON.stringify({ type: "session.instructions.append", event_id: "greeting", delegation_id: null, content }));
+      for (const e of events) ws.send(JSON.stringify(e));
     };
-    const giveUp = setTimeout(() => finish(sent ? "sent, no ack" : "timed out"), 6000);
-    ws.on("open", () => setTimeout(send, 800)); // give session.started a moment to arrive first
+    const giveUp = setTimeout(() => finish(sent ? `sent, ${acks} acks` : "timed out"), 5000);
+    ws.on("open", () => setTimeout(send, 300)); // a moment for session.started, if it's coming
     ws.on("message", (raw) => {
       let e: { type?: string };
       try {
@@ -226,11 +229,30 @@ export async function startGreeting(sessionId: string, firstName: string) {
         return;
       }
       if (e.type === "session.started") send();
-      else if (e.type === "session.instructions.appended") finish("ok");
+      else if (/\.(appended|muted|unmuted)$/.test(e.type ?? "") && ++acks >= events.length) finish("ok");
       else if (e.type === "error") finish(`error ${raw.toString().slice(0, 300)}`);
     });
     ws.on("error", (err) => finish(`socket ${String(err).slice(0, 200)}`));
   });
+}
+
+// The assistant joins before the candidate's phone rings, so it hears nothing (no ringing) until
+// they pick up.
+export function holdForAnswer(sessionId: string) {
+  return sideband(sessionId, [{ type: "session.input_audio.mute", event_id: "hold" }]);
+}
+
+// They picked up: open the line and have the assistant speak first.
+export function candidateAnswered(sessionId: string, fullName: string) {
+  return sideband(sessionId, [
+    { type: "session.input_audio.unmute", event_id: "answered" },
+    {
+      type: "session.instructions.append",
+      event_id: "greeting",
+      delegation_id: null,
+      content: `They just picked up. Start now with your opening: "Hi, is this ${firstName(fullName)}?" Then stop and listen.`,
+    },
+  ]);
 }
 
 export async function rejectCall(sessionId: string) {
