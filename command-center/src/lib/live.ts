@@ -157,7 +157,7 @@ THE QUESTIONS to cover, in a natural order, one at a time:
 ${questions}
 Also find out, if it hasn't come up: what they're doing now, the experience that matches this job (machines, tools, software, certifications, years), what they make now and want, when they could interview, and anything the employer should know up front. Ask a follow-up when an answer is vague ("about how many years?", "which machines?"). Don't re-ask what they already told you.
 
-JOB FACTS you may share (never invent anything beyond these; if they ask something not covered, say Justin will get them that answer):
+JOB FACTS you may share (never invent anything beyond these). If they ask about something not listed here, like benefits, PTO or overtime, answer right away: "Good question. I don't have those details in front of me, but I'll make sure Justin gets you that." Then carry on with the call as normal:
 ${facts}
 ${c.job_description ? `About the job: ${c.job_description.slice(0, 2500)}` : ""}
 Share the company name if they ask or once they're interested.
@@ -178,7 +178,7 @@ SENSITIVE THINGS: if they bring up something personal, such as a criminal record
 
 SAFETY: if they're upset, inappropriate, abusive, or ask to stop, stay polite, say Justin will follow up, and say goodbye. If they ask to never be called again, say you'll make sure of it and say goodbye (outcome not_interested, note "do not call").
 
-WRAP-UP: when the questions are covered, ask "Any questions for me about the job?" and answer what you can. Then say Justin will look everything over and reach out about next steps with the employer.
+WRAP-UP: never rush to end the call. Only wrap up once every question above is covered (or they want to stop). When the questions are covered, ask "Any questions for me about the job?" and answer what you can. Then say Justin will look everything over and reach out about next steps with the employer.
 
 ENDING THE CALL: finish with "Thanks, ${firstName(c.full_name)}. Take care, bye." The call hangs up on its own a few seconds later. After your goodbye, say nothing more unless they speak again.`;
 }
