@@ -29,6 +29,6 @@ export async function POST(request: Request) {
   }
 
   await update(db, secret, run, { answered_by: answeredBy, started: true });
-  // The AI assistant answers on OpenAI's side; a 25-minute cap is the backstop if nobody hangs up.
-  return twiml(`<Dial timeLimit="1500" answerOnBridge="true"><Sip>${escapeXml(sipUri(run))}</Sip></Dial>`);
+  // The AI assistant answers on OpenAI's side; a 15-minute cap is the backstop if nobody hangs up.
+  return twiml(`<Dial timeLimit="900" answerOnBridge="true"><Sip>${escapeXml(sipUri(run))}</Sip></Dial>`);
 }
