@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { tasks } from "@trigger.dev/sdk";
-import type { callWatch } from "@/trigger/call-watch";
+import { startWatch } from "@/lib/start-watch";
 import { automationSecret } from "@/lib/automation";
 import { acceptCall, rejectCall, holdForAnswer, runFromSipHeaders, validOpenAIWebhook, type CallContext } from "@/lib/live";
 import { update } from "@/lib/screening";
@@ -43,12 +42,8 @@ export async function POST(request: Request) {
   }
   await update(db, secret, run, { live_session_id: sessionId, started: true });
   console.info("Hold for answer", await holdForAnswer(sessionId).catch((e) => `failed ${String(e)}`));
-  // Trigger.dev stays on the call so the assistant can hang up once it's over.
-  if (process.env.TRIGGER_SECRET_KEY) {
-    await tasks
-      .trigger<typeof callWatch>("screening-call-watch", { sessionId, runId: run })
-      .then((h) => console.info("Call watcher started", h.id))
-      .catch((e) => console.error("Couldn't start the call watcher", e));
-  }
+  // Stays on the call so the assistant can hang up once it's over.
+  const url = new URL(request.url);
+  await startWatch(`https://${request.headers.get("x-forwarded-host") ?? url.host}`, run, sessionId, Date.now());
   return NextResponse.json({ ok: true });
 }
