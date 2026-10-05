@@ -73,7 +73,8 @@ export async function missedCall(db: Db, secret: string, run: string, why: strin
 
 // ---------- After the call ----------
 
-type Segment = { start: number; text: string; no_speech_prob?: number; avg_logprob?: number };
+type Segment = { start: number; end: number; text: string; no_speech_prob?: number; avg_logprob?: number };
+type Word = { word: string; start: number; end: number };
 type Line = { speaker: "agent" | "candidate"; text: string; at: number };
 
 async function processOne(db: Db, secret: string) {
@@ -113,16 +114,47 @@ async function transcribe(wav: Buffer): Promise<Line[]> {
   const audio = readWav(wav);
   const channels = audio.channels.length === 2 ? audio.channels : [audio.channels[0]];
   const speakers: Line["speaker"][] = channels.length === 2 ? ["candidate", "agent"] : ["candidate"];
-  const parts = await Promise.all(channels.map((ch) => whisper(toWav(downsample(ch, audio.rate, 8000), 8000))));
+  const pcm = channels.map((ch) => downsample(ch, audio.rate, 8000));
+  const parts = await Promise.all(pcm.map((x) => whisper(toWav(x, 8000))));
   const lines: Line[] = [];
-  parts.forEach((segments, i) => {
+  parts.forEach(({ segments, words }, i) => {
+    const onset = speechOnset(pcm[i], 8000);
+    let prevEnd = 0;
     for (const s of segments) {
       const text = s.text.trim();
       if (!text || (s.no_speech_prob ?? 0) > 0.6) continue;
-      lines.push({ speaker: speakers[i], text, at: Math.round(s.start) });
+      // A segment's own start time is rough (often snapped to the previous segment's end), which put
+      // replies ahead of the questions they answered. The first word's time is where speech starts.
+      const first = words.find((w) => w.start >= s.start - 0.05 && w.start < s.end);
+      lines.push({ speaker: speakers[i], text, at: Math.round(onset(first?.start ?? s.start, prevEnd) * 10) / 10 });
+      prevEnd = s.end;
     }
   });
-  return lines.sort((a, b) => a.at - b.at);
+  // Same instant: the assistant's line goes first, since it opens and the candidate answers.
+  return lines.sort((a, b) => a.at - b.at || (a.speaker === "agent" ? -1 : 1));
+}
+
+// The transcriber's times can be off by a second or two. Each speaker has their own channel, so the
+// moment their voice actually starts is where the sound gets loud near that time: the first 20 ms frame
+// well above the channel's background level, searched from 1.5 s before (but not back into their
+// previous line) to 1.5 s after.
+export function speechOnset(x: Float32Array, rate: number) {
+  const frame = Math.round(rate * 0.02);
+  const rms = new Float32Array(Math.floor(x.length / frame));
+  for (let f = 0; f < rms.length; f++) {
+    let sum = 0;
+    for (let j = f * frame; j < (f + 1) * frame; j++) sum += x[j] * x[j];
+    rms[f] = Math.sqrt(sum / frame);
+  }
+  const sorted = Array.from(rms).sort((a, b) => a - b);
+  const floor = sorted[Math.floor(sorted.length * 0.5)] ?? 0;
+  const loud = Math.max(0.02, floor * 4);
+  return (t: number, notBefore = 0) => {
+    const from = Math.max(0, Math.floor(Math.max(t - 1.5, notBefore) / 0.02));
+    const to = Math.min(rms.length, Math.ceil((t + 1.5) / 0.02));
+    for (let f = from; f < to; f++) if (rms[f] > loud) return (f * frame) / rate;
+    return t;
+  };
 }
 
 export function readWav(buf: Buffer) {
@@ -183,12 +215,13 @@ export function toWav(x: Float32Array, rate: number) {
   return buf;
 }
 
-async function whisper(wav: Buffer): Promise<Segment[]> {
+async function whisper(wav: Buffer): Promise<{ segments: Segment[]; words: Word[] }> {
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(wav)], { type: "audio/wav" }), "call.wav");
   form.append("model", "whisper-1");
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "segment");
+  form.append("timestamp_granularities[]", "word");
   form.append("language", "en");
   // Spelling hints for shop-floor words the transcriber otherwise mangles ("Mazak" came out "Mays Act").
   form.append(
@@ -201,7 +234,8 @@ async function whisper(wav: Buffer): Promise<Segment[]> {
     body: form,
   });
   if (!res.ok) throw new Error(`Transcription failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
-  return ((await res.json()).segments ?? []) as Segment[];
+  const out = await res.json();
+  return { segments: (out.segments ?? []) as Segment[], words: (out.words ?? []) as Word[] };
 }
 
 const NOTES_SCHEMA = {
