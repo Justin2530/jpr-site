@@ -57,18 +57,31 @@ export function runFromSipHeaders(headers: unknown): string | null {
 // Standard Webhooks signature check (what OpenAI uses): HMAC-SHA256 over "id.timestamp.body" with the
 // base64 secret after "whsec_", compared against each "v1,<sig>" in the header. Five-minute window.
 export function validOpenAIWebhook(body: string, headers: Headers) {
-  const secret = process.env.OPENAI_WEBHOOK_SECRET?.trim();
+  // Tolerate stray quotes or spaces from pasting the secret into Vercel.
+  const secret = process.env.OPENAI_WEBHOOK_SECRET?.trim().replace(/^["']|["']$/g, "").trim();
   const id = headers.get("webhook-id");
   const ts = headers.get("webhook-timestamp");
   const sigs = headers.get("webhook-signature");
-  if (!secret || !id || !ts || !sigs) return false;
-  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
-  const key = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
+  const fail = (why: string) => {
+    // Never logs the secret itself, only its shape, so a bad paste can be spotted.
+    console.warn("OpenAI webhook rejected:", why, {
+      secretLength: secret?.length ?? 0,
+      secretHasPrefix: secret?.startsWith("whsec_") ?? false,
+      hasId: Boolean(id),
+      hasTimestamp: Boolean(ts),
+      signatureShape: sigs?.split(" ").map((p) => p.split(",")[0]).join(" ") ?? null,
+    });
+    return false;
+  };
+  if (!secret || !id || !ts || !sigs) return fail("missing secret or header");
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return fail("timestamp outside 5 minutes");
+  const key = secret.startsWith("whsec_") ? Buffer.from(secret.slice(6), "base64") : Buffer.from(secret, "utf8");
   const expected = Buffer.from(createHmac("sha256", key).update(`${id}.${ts}.${body}`).digest("base64"));
-  return sigs.split(" ").some((part) => {
-    const sig = Buffer.from(part.split(",")[1] ?? "");
+  const ok = sigs.split(" ").some((part) => {
+    const sig = Buffer.from(part.startsWith("v1,") ? part.slice(3) : part);
     return sig.length === expected.length && timingSafeEqual(sig, expected);
   });
+  return ok || fail("signature mismatch");
 }
 
 async function openai(path: string, body?: unknown) {
