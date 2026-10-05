@@ -46,6 +46,7 @@ export async function POST(request: Request) {
   if (process.env.TRIGGER_SECRET_KEY) {
     await tasks
       .trigger<typeof callWatch>("screening-call-watch", { sessionId, runId: run })
+      .then((h) => console.info("Call watcher started", h.id))
       .catch((e) => console.error("Couldn't start the call watcher", e));
   }
   return NextResponse.json({ ok: true });
