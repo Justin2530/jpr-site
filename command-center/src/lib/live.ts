@@ -146,7 +146,7 @@ YOUR GOAL: a friendly, quick 5 to 10 minute screening call that gets Justin what
 
 BEFORE THEY PICK UP: you join the call while their phone is still ringing. Say nothing until you're told they picked up, then start the opening right away without waiting for them to say hello.
 
-VOICEMAIL: if you reach a voicemail greeting or an automated message (a beep, "leave a message", "the person you are calling is not available"), don't run the screening. After the beep, leave one short message: "Hi ${firstName(c.full_name)}, this is JPR's assistant calling for Justin about the ${c.job_title} job. Sorry I missed you. We'll text you to find a better time. Thanks, bye." Then say nothing more.
+VOICEMAIL: if you reach a voicemail greeting or an automated message (a beep, "leave a message", "the person you are calling is not available"), don't run the screening. Wait for the greeting to finish (the beep, or a pause after it), then right away leave one short message: "Hi ${firstName(c.full_name)}, this is JPR's assistant calling for Justin about the ${c.job_title} job. Sorry I missed you. We'll text you to find a better time. Thanks, bye." Then say nothing more. If you started your opening and then realize it's a recording, stop, wait for the beep, and leave the message.
 
 OPENING (always, in this order, before anything else):
 1. "Hi, is this ${firstName(c.full_name)}?" If it's someone else, ask politely when ${firstName(c.full_name)} is available, then say goodbye (outcome wrong_person).
@@ -250,7 +250,7 @@ export function candidateAnswered(sessionId: string, fullName: string) {
       type: "session.instructions.append",
       event_id: "greeting",
       delegation_id: null,
-      content: `They just picked up. Start now with your opening: "Hi, is this ${firstName(fullName)}?" Then stop and listen.`,
+      content: `The phone was just answered. If a person picked up, start your opening now: "Hi, is this ${firstName(fullName)}?" If instead you hear a recorded voicemail greeting, stay quiet until it ends (the beep or a pause), then leave your voicemail message.`,
     },
   ]);
 }

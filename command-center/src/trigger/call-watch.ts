@@ -53,9 +53,34 @@ export const callWatch = task({
       throw new Error("OPENAI_API_KEY isn't set in Trigger.dev");
     }
 
-    const ws = new WebSocket(`wss://api.openai.com/v1/live/sessions/${sessionId}/attach`, {
-      headers: { Authorization: `Bearer ${key}` },
-    });
+    // Attach, retrying briefly; a refusal's body says why (wrong project, unknown session...).
+    const attach = () =>
+      new Promise<WebSocket>((resolve, reject) => {
+        const socket = new WebSocket(`wss://api.openai.com/v1/live/sessions/${sessionId}/attach`, {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        socket.once("open", () => resolve(socket));
+        socket.once("unexpected-response", (_req, res) => {
+          let body = "";
+          res.on("data", (c: Buffer) => (body += c.toString()));
+          res.on("end", () => reject(new Error(`${res.statusCode} ${body.slice(0, 400)}`)));
+        });
+        socket.once("error", reject);
+      });
+    let ws: WebSocket | null = null;
+    for (let i = 0; i < 3 && !ws; i++) {
+      try {
+        ws = await attach();
+      } catch (e) {
+        await report({ watcher_error: `attach ${i + 1}: ${String(e).slice(0, 500)}` });
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+    if (!ws) {
+      await report({ watcher: "couldn't attach" });
+      return { runId, reason: "couldn't attach" };
+    }
+    const sock = ws;
 
     const seen = new Map<string, number>();
     const samples: Record<string, string> = {};
@@ -76,7 +101,7 @@ export const callWatch = task({
       });
       hangupResult = res.ok ? "ok" : `${res.status} ${(await res.text()).slice(0, 300)}`;
       if (!res.ok && res.status !== 404) logger.warn("Hangup failed", { result: hangupResult });
-      ws.close();
+      sock.close();
     };
 
     await new Promise<void>((resolve) => {
@@ -92,19 +117,17 @@ export const callWatch = task({
         resolve();
       };
 
-      ws.on("open", () => {
-        logger.info("Attached to call", { runId, sessionId });
-        void report({ watcher: "attached" });
-      });
-      ws.on("error", (err) => {
+      logger.info("Attached to call", { runId, sessionId });
+      void report({ watcher: "attached" });
+      sock.on("error", (err) => {
         logger.error("Sideband error", { error: String(err) });
         void report({ watcher_error: String(err).slice(0, 300) });
       });
-      ws.on("close", (code, why) => {
+      sock.on("close", (code, why) => {
         logger.info("Sideband closed", { code, why: why.toString(), events: Object.fromEntries(seen) });
         done();
       });
-      ws.on("message", (raw) => {
+      sock.on("message", (raw) => {
         let e: Record<string, unknown>;
         try {
           e = JSON.parse(raw.toString());
@@ -119,7 +142,7 @@ export const callWatch = task({
         if (type === "session.closed" || type === "error") {
           if (type === "error") logger.warn("OpenAI error", { e });
           if (type === "session.closed") reason ||= "call ended";
-          ws.close();
+          sock.close();
           return;
         }
         if (type === "session.delegation.created") {
@@ -127,8 +150,8 @@ export const callWatch = task({
           // this call needs a backend, so tell it to carry on.
           const d = e.delegation as { id?: string } | undefined;
           handoffs++;
-          if (d?.id && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: "session.thinking.append", delegation_id: d.id, content: HANDOFF_REPLY }));
+          if (d?.id && sock.readyState === WebSocket.OPEN) {
+            sock.send(JSON.stringify({ type: "session.thinking.append", delegation_id: d.id, content: HANDOFF_REPLY }));
           }
           return;
         }
