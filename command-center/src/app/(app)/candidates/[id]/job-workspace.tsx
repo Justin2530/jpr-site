@@ -430,7 +430,7 @@ function Outreach({
 }
 
 // The per-job Automated recruiting switch: on texts and emails them on the schedule until they reply,
-// off pauses it where it is. The master switch on Phone & email sits above every one of these.
+// off pauses it where it is. The master switch in Settings sits above every one of these.
 function AutomationSwitch({
   cjId,
   live,
@@ -450,8 +450,8 @@ function AutomationSwitch({
     ? "Stays manual. This candidate was in the system before automated recruiting was first turned on."
     : !masterOn
       ? on
-        ? "On here, but nothing sends while automated recruiting is off on Phone & email."
-        : "Automated recruiting is off for the whole Command Center. Turn it on in Phone & email first."
+        ? "On here, but nothing sends while automated recruiting is off in Settings."
+        : "Automated recruiting is off for the whole Command Center. Turn it on in Settings first."
       : on
         ? "Texting and emailing them on the schedule until they reply. Turning it off pauses it where it is."
         : live

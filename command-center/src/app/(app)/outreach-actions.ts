@@ -154,7 +154,7 @@ export async function startCall(form: FormData): Promise<OutreachResult> {
   const links = reachLinks(form);
   const myCell = toE164(staff.phone);
   if (!twilioReady()) return { ok: false, message: "Twilio isn't connected yet." };
-  if (!myCell) return { ok: false, message: "Add your cell number under Phone & email first." };
+  if (!myCell) return { ok: false, message: "Add your cell number in Settings first." };
   if (!to) return { ok: false, message: "That phone number doesn't look right." };
 
   const twiml =
@@ -216,14 +216,14 @@ export async function sendEmail(form: FormData): Promise<OutreachResult> {
   if (!subject || !body) return { ok: false, message: "Add a subject and a message." };
 
   const { data: account } = await supabase.from("google_accounts").select("email, token_enc").eq("staff_id", userId).maybeSingle();
-  if (!account) return { ok: false, message: "Connect your Gmail on the Phone & email page first." };
+  if (!account) return { ok: false, message: "Connect your Gmail in Settings first." };
 
   let sent: { id: string; threadId: string };
   try {
     sent = await sendGmail(await accessToken(openToken(account.token_enc)), { from: account.email, to, subject, body });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Gmail didn't accept the email.";
-    return { ok: false, message: /invalid_grant|decrypt|auth/i.test(msg) ? "Gmail needs reconnecting on the Phone & email page." : msg };
+    return { ok: false, message: /invalid_grant|decrypt|auth/i.test(msg) ? "Gmail needs reconnecting in Settings." : msg };
   }
   const { error } = await supabase.from("activities").insert({
     kind: "email",

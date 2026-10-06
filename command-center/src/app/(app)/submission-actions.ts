@@ -65,7 +65,7 @@ export async function decideSubmission(input: {
         const msg = e instanceof Error ? e.message : "Gmail didn't accept the email.";
         return {
           ok: false,
-          message: /invalid_grant|decrypt|auth/i.test(msg) ? "Gmail needs reconnecting on the Phone & email page." : msg,
+          message: /invalid_grant|decrypt|auth/i.test(msg) ? "Gmail needs reconnecting in Settings." : msg,
         };
       }
     }

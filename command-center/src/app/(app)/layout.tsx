@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen lg:pl-60">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col overflow-y-auto border-r border-line bg-deep/70 px-4 py-5 backdrop-blur-md lg:flex">
         <Link href="/" className="mb-6 flex items-center gap-3 px-1">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-cyan/50 shadow-[0_0_24px_-6px_rgb(56_217_245/0.8)]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-cyan/50 shadow-[0_0_24px_-6px_rgb(var(--glow)/0.8)]">
             <span className="readout text-[11px] text-cyan">JPR</span>
           </span>
           <span>

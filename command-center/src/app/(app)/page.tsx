@@ -94,7 +94,10 @@ export default async function Home() {
       )}
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="panel-title mb-1.5 text-cyan/80">Systems online</p>
+          <p className="panel-title mb-1.5 text-cyan/80">
+            <span className="jarvis-only">Systems online</span>
+            <span className="matrix-only">Wake up, {name}…</span>
+          </p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {greeting()}, {name}.
           </h1>

@@ -28,7 +28,7 @@ function Bars({ rows }: { rows: { label: string; value: number; sub?: string }[]
         <li key={r.label} className="grid grid-cols-[120px_1fr_auto] items-center gap-3 text-sm">
           <span className="truncate text-muted">{r.label}</span>
           <span className="h-2 rounded-full bg-white/[0.04]">
-            <span className="block h-2 rounded-full bg-cyan/70 shadow-[0_0_10px_rgb(56_217_245/0.5)]" style={{ width: `${(r.value / max) * 100}%` }} />
+            <span className="block h-2 rounded-full bg-cyan/70 shadow-[0_0_10px_rgb(var(--glow)/0.5)]" style={{ width: `${(r.value / max) * 100}%` }} />
           </span>
           <span className="readout w-20 text-right text-xs">{r.sub ?? r.value}</span>
         </li>

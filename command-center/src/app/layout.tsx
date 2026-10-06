@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
+import { MatrixRain } from "@/components/matrix-rain";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -17,14 +19,21 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: "#060e1c" };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // JARVIS or Matrix, chosen in Settings.
+  const jar = await cookies();
+  const theme = jar.get("jpr-theme")?.value === "matrix" ? "matrix" : "jarvis";
+  const rain = jar.get("jpr-rain")?.value === "off" ? "off" : "on";
   return (
-    <html lang="en">
+    <html lang="en" data-theme={theme} data-rain={rain} className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>
         {/* With credentials so the manifest loads behind Vercel sign-in. */}
         <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
+      <body className="antialiased">
+        <MatrixRain />
+        {children}
+      </body>
     </html>
   );
 }

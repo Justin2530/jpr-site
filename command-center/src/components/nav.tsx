@@ -10,7 +10,7 @@ import {
   HomeIcon,
   JobsIcon,
   MenuIcon,
-  PhoneIcon,
+  SettingsIcon,
   PipelineIcon,
   PlacementIcon,
   ReportsIcon,
@@ -43,7 +43,7 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
     items: [
       { href: "/reports", label: "Reports", Icon: ReportsIcon, ownerOnly: true },
       { href: "/tools", label: "Tools & costs", Icon: ToolsIcon, ownerOnly: true },
-      { href: "/settings", label: "Phone & email", Icon: PhoneIcon },
+      { href: "/settings", label: "Settings", Icon: SettingsIcon },
     ],
   },
 ];
@@ -100,7 +100,7 @@ export function Nav({ mobile = false, owner = false }: { mobile?: boolean; owner
                     }`}
                   >
                     {on && (
-                      <span className="absolute -left-4 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-cyan shadow-[0_0_12px_rgb(56_217_245/0.9)]" />
+                      <span className="absolute -left-4 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-cyan shadow-[0_0_12px_rgb(var(--glow)/0.9)]" />
                     )}
                     <Icon />
                     {label}

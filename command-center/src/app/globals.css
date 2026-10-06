@@ -1,22 +1,62 @@
 @import "tailwindcss";
 
-/* JPR Command Center: dark HUD theme. Calm, readable, cyan as the single accent. */
+/* JPR Command Center: dark HUD theme. Calm, readable, one accent color.
+   Two looks share every class: JARVIS (navy + cyan, the default) and Matrix (black + green).
+   The <html data-theme> attribute picks one; "cyan" below just means "the accent". */
+:root {
+  --c-void: #04070d;
+  --c-deep: #070c16;
+  --c-panel: rgb(12 21 36 / 0.72);
+  --c-panel-solid: #0c1524;
+  --c-line: rgb(56 189 248 / 0.14);
+  --c-line-strong: rgb(56 189 248 / 0.32);
+  --c-ink: #e6f1ff;
+  --c-muted: #8ba3bf;
+  --c-faint: #5b708a;
+  --c-cyan: #38d9f5;
+  --c-cyan-soft: rgb(56 217 245 / 0.12);
+  --c-amber: #f5b94a;
+  --c-rose: #f47a8f;
+  --c-mint: #4fe0a6;
+  --glow: 56 217 245;
+  --c-font: var(--font-geist-sans);
+}
+
+:root[data-theme="matrix"] {
+  --c-void: #000000;
+  --c-deep: #020a04;
+  --c-panel: rgb(0 14 5 / 0.8);
+  --c-panel-solid: #03110a;
+  --c-line: rgb(0 255 102 / 0.16);
+  --c-line-strong: rgb(0 255 102 / 0.36);
+  --c-ink: #cfffdc;
+  --c-muted: #74c48c;
+  --c-faint: #437a55;
+  --c-cyan: #00ff66;
+  --c-cyan-soft: rgb(0 255 102 / 0.1);
+  --c-amber: #e3ff6b;
+  --c-rose: #ff6b7f;
+  --c-mint: #7affd4;
+  --glow: 0 255 102;
+  --c-font: var(--font-geist-mono);
+}
+
 @theme inline {
-  --color-void: #04070d;
-  --color-deep: #070c16;
-  --color-panel: rgb(12 21 36 / 0.72);
-  --color-panel-solid: #0c1524;
-  --color-line: rgb(56 189 248 / 0.14);
-  --color-line-strong: rgb(56 189 248 / 0.32);
-  --color-ink: #e6f1ff;
-  --color-muted: #8ba3bf;
-  --color-faint: #5b708a;
-  --color-cyan: #38d9f5;
-  --color-cyan-soft: rgb(56 217 245 / 0.12);
-  --color-amber: #f5b94a;
-  --color-rose: #f47a8f;
-  --color-mint: #4fe0a6;
-  --font-sans: var(--font-geist-sans);
+  --color-void: var(--c-void);
+  --color-deep: var(--c-deep);
+  --color-panel: var(--c-panel);
+  --color-panel-solid: var(--c-panel-solid);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-faint: var(--c-faint);
+  --color-cyan: var(--c-cyan);
+  --color-cyan-soft: var(--c-cyan-soft);
+  --color-amber: var(--c-amber);
+  --color-rose: var(--c-rose);
+  --color-mint: var(--c-mint);
+  --font-sans: var(--c-font);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -25,20 +65,30 @@ html {
 }
 
 body {
-  background-color: var(--color-void);
-  color: var(--color-ink);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background-color: var(--c-void);
+  color: var(--c-ink);
+  font-family: var(--c-font), system-ui, sans-serif;
   min-height: 100vh;
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgb(56 217 245 / 0.10), transparent 60%),
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgb(var(--glow) / 0.10), transparent 60%),
     linear-gradient(rgb(56 189 248 / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgb(56 189 248 / 0.035) 1px, transparent 1px);
   background-size: 100% 100%, 44px 44px, 44px 44px;
   background-attachment: fixed;
 }
 
+:root[data-theme="matrix"] body {
+  background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgb(var(--glow) / 0.08), transparent 60%);
+}
+
+/* Bits of text that only show in one look. */
+:root[data-theme="matrix"] .jarvis-only,
+:root:not([data-theme="matrix"]) .matrix-only {
+  display: none;
+}
+
 ::selection {
-  background: rgb(56 217 245 / 0.3);
+  background: rgb(var(--glow) / 0.3);
 }
 
 @layer components {
@@ -51,7 +101,7 @@ body {
   }
   .readout {
     @apply font-mono tabular-nums text-ink;
-    text-shadow: 0 0 18px rgb(56 217 245 / 0.35);
+    text-shadow: 0 0 18px rgb(var(--glow) / 0.35);
   }
   .field {
     @apply w-full rounded-lg border border-line bg-deep/80 px-3 py-2 text-sm text-ink placeholder:text-faint

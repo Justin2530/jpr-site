@@ -11,8 +11,10 @@ import { saveMyCell, setAutomatedRecruiting } from "./actions";
 import { liveSetup } from "@/lib/live";
 import { webhookUrl } from "@/lib/twilio";
 import { ConnectButton } from "./connect-button";
+import { cookies } from "next/headers";
+import { AppearanceSettings } from "@/components/theme";
 
-export const metadata = { title: "Phone & email · JPR" };
+export const metadata = { title: "Settings · JPR" };
 
 function pretty(e164: string | null) {
   const d = e164?.replace(/\D/g, "").slice(-10);
@@ -84,10 +86,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   if (automation && staff.role === "owner") await registerAutomation(supabase, origin);
   const live = liveSetup();
   const liveOk = live.key && live.project && live.webhook;
+  const jar = await cookies();
 
   return (
     <>
-      <PageHeader kicker="Business" title="Phone & email" />
+      <PageHeader kicker="Business" title="Settings" />
+      <section className="panel mb-6 max-w-2xl">
+        <div className="border-b border-line px-4 py-3">
+          <h2 className="panel-title">Appearance</h2>
+        </div>
+        <div className="p-4">
+          <AppearanceSettings
+            theme={jar.get("jpr-theme")?.value === "matrix" ? "matrix" : "jarvis"}
+            rain={jar.get("jpr-rain")?.value !== "off"}
+          />
+        </div>
+      </section>
+      <h2 className="panel-title mb-3">Phone &amp; email</h2>
       <ol className="max-w-2xl space-y-3">
         <Step done={Boolean(twilioNumber)} title="Business number">
           <p className="text-sm text-muted">
