@@ -19,6 +19,7 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
   task: { label: "Task", tone: "muted" },
   reminder: { label: "Reminder", tone: "cyan" },
   reply: { label: "Reply", tone: "amber" },
+  website_lead: { label: "Website", tone: "cyan" },
 };
 
 function hrefFor(item: Tables<"needs_me">) {
