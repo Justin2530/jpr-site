@@ -18,6 +18,7 @@ import { ConfirmSubmit } from "@/components/confirm-submit";
 import { JobWorkspace } from "./job-workspace";
 import { automationState } from "@/lib/automation-state";
 import { ResumePanel } from "./resume-panel";
+import { resumeText } from "@/lib/resume-parse";
 import { assignToJob, unassign } from "../../pipeline-actions";
 
 const KIND_LABEL: Record<string, string> = {
@@ -62,11 +63,27 @@ export default async function CandidateDetail({
     : { data: false };
 
   const signed = await Promise.all(
-    (resumes ?? []).map(async (r) => {
-      if (!r.storage_path) return r;
+    (resumes ?? []).map(async (resume) => {
+      let r = resume;
+      const path = r.storage_path;
+      if (!path) return r;
+      // Resumes from the website arrive as files only; read their text the first time they're opened
+      // so the screening call and write-up can use it, same as one dropped in here.
+      if (r.text_content == null && path.startsWith("website/")) {
+        try {
+          const { data: blob } = await supabase.storage.from("resumes").download(path);
+          const text = blob ? (await resumeText(new File([blob], r.file_name, { type: r.mime_type ?? blob.type }))) || "" : null;
+          if (text != null) {
+            await supabase.from("resumes").update({ text_content: text }).eq("id", r.id);
+            r = { ...r, text_content: text };
+          }
+        } catch (e) {
+          console.error("Couldn't read website resume", e);
+        }
+      }
       const [view, download] = await Promise.all([
-        supabase.storage.from("resumes").createSignedUrl(r.storage_path, 60 * 30),
-        supabase.storage.from("resumes").createSignedUrl(r.storage_path, 60 * 30, { download: r.file_name }),
+        supabase.storage.from("resumes").createSignedUrl(path, 60 * 30),
+        supabase.storage.from("resumes").createSignedUrl(path, 60 * 30, { download: r.file_name }),
       ]);
       return { ...r, viewUrl: view.data?.signedUrl, downloadUrl: download.data?.signedUrl };
     }),

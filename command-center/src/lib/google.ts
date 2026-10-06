@@ -85,15 +85,25 @@ export function openToken(sealed: string) {
 }
 
 export type Attachment = { filename: string; mimeType: string; data: Buffer };
-type Message = { from: string; to: string; cc?: string | null; subject: string; body: string; attachments?: Attachment[]; threadId?: string };
+type Message = {
+  from: string;
+  to: string;
+  cc?: string | null;
+  replyTo?: string | null;
+  subject: string;
+  body: string;
+  attachments?: Attachment[];
+  threadId?: string;
+};
 
 const b64lines = (b: Buffer) => b.toString("base64").replace(/(.{76})/g, "$1\r\n");
 const header = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
 
 // RFC 2822 message, base64url-encoded the way the Gmail send endpoint wants it. Plain text, plus
 // a multipart/mixed wrapper when there are attachments (a resume on a submission).
-function mime({ from, to, cc, subject, body, attachments = [] }: Message) {
-  const top = [`From: ${from}`, `To: ${to}`, ...(cc ? [`Cc: ${cc}`] : []), `Subject: ${header(subject)}`, "MIME-Version: 1.0"];
+function mime({ from, to, cc, replyTo, subject, body, attachments = [] }: Message) {
+  const reply = replyTo?.replace(/[\r\n]/g, "");
+  const top = [`From: ${from}`, `To: ${to}`, ...(cc ? [`Cc: ${cc}`] : []), ...(reply ? [`Reply-To: ${reply}`] : []), `Subject: ${header(subject)}`, "MIME-Version: 1.0"];
   const text = ['Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", b64lines(Buffer.from(body, "utf8"))];
   let lines: string[];
   if (!attachments.length) {

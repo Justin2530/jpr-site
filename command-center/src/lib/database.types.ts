@@ -1197,6 +1197,8 @@ export type Database = {
       twilio_relay_target: { Args: { p_secret: string; p_name?: string }; Returns: { phone: string; name: string }[] };
       twilio_log_relay: { Args: { p_secret: string; p_sid: string; p_to: string; p_body: string }; Returns: undefined };
       twilio_status: { Args: { p_secret: string; p_sid: string; p_status: string; p_duration: number | null }; Returns: undefined };
+      website_leads_unsent: { Args: { p_secret: string }; Returns: Json };
+      website_lead_notified: { Args: { p_secret: string; p_item: string }; Returns: undefined };
       twilio_voicemail: { Args: { p_secret: string; p_sid: string; p_seconds: number; p_text: string }; Returns: undefined };
     };
     Enums: {

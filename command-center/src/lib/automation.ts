@@ -122,6 +122,13 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
       }
     }
   }
+  // Hiring requests from the website also go to Justin's inbox, with Reply-To set to the employer.
+  let leads = 0;
+  try {
+    leads = await emailWebsiteLeads(db, secret, origin);
+  } catch (e) {
+    console.error("Website lead email failed", e);
+  }
   // Replies the sync just logged get read by the brain right away.
   let brain = 0;
   try {
@@ -143,7 +150,29 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Triage pass failed", e);
   }
-  return { sent, due: steps.length, logged, brain, cleared, calls };
+  return { sent, due: steps.length, logged, leads, brain, cleared, calls };
+}
+
+async function emailWebsiteLeads(db: SupabaseClient<Database>, secret: string, origin: string) {
+  if (!googleReady()) return 0;
+  const { data } = await db.rpc("website_leads_unsent", { p_secret: secret });
+  const items = (data ?? []) as unknown as { id: string; title: string; detail: string | null }[];
+  if (!items.length) return 0;
+  const { data: boxes } = await db.rpc("gmail_mailboxes", { p_secret: secret });
+  const box = ((boxes ?? []) as unknown as Mailbox[])[0];
+  if (!box) return 0;
+  const token = await accessToken(openToken(box.token));
+  let sent = 0;
+  for (const item of items) {
+    const replyTo = item.detail?.match(/^Email: (\S+@\S+\.\S+)$/m)?.[1] ?? null;
+    const body = `${item.title.replace(/^Hiring request: /, "New hiring request from ")} on jpeacerecruiting.com.\n\n${item.detail ?? ""}\n\n${
+      replyTo ? "Reply to this email to answer them directly.\n" : ""
+    }It's also on What needs me: ${origin}/`;
+    await sendGmail(token, { from: box.email, to: box.email, replyTo, subject: item.title.replace(/^Hiring request/, "Website hiring request"), body });
+    await db.rpc("website_lead_notified", { p_secret: secret, p_item: item.id });
+    sent++;
+  }
+  return sent;
 }
 
 export type Mailbox = { staff_id: string; email: string; token: string; connected_at: string; last_synced_at: string | null };
