@@ -23,7 +23,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // JARVIS or Matrix, chosen in Settings.
   const jar = await cookies();
   const theme = jar.get("jpr-theme")?.value === "matrix" ? "matrix" : "jarvis";
-  const rain = jar.get("jpr-rain")?.value === "off" ? "off" : "on";
+  const rain = ["off", "subtle"].includes(jar.get("jpr-rain")?.value ?? "") ? jar.get("jpr-rain")!.value : "bright";
   return (
     <html lang="en" data-theme={theme} data-rain={rain} className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>

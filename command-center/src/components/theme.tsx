@@ -27,7 +27,9 @@ function Choice<T extends string>({ value, options, onChange }: { value: T; opti
   );
 }
 
-export function AppearanceSettings({ theme: initialTheme, rain: initialRain }: { theme: Theme; rain: boolean }) {
+export type Rain = "bright" | "subtle" | "off";
+
+export function AppearanceSettings({ theme: initialTheme, rain: initialRain }: { theme: Theme; rain: Rain }) {
   const [theme, setTheme] = useState(initialTheme);
   const [rain, setRain] = useState(initialRain);
   return (
@@ -54,16 +56,17 @@ export function AppearanceSettings({ theme: initialTheme, rain: initialRain }: {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm text-ink">Falling code</p>
-            <p className="text-sm text-muted">Faint green code running behind everything.</p>
+            <p className="text-sm text-muted">Green code running behind everything.</p>
           </div>
           <Choice
-            value={rain ? "on" : "off"}
+            value={rain}
             options={[
-              ["on", "On"],
+              ["bright", "Bright"],
+              ["subtle", "Subtle"],
               ["off", "Off"],
             ]}
             onChange={(v) => {
-              setRain(v === "on");
+              setRain(v);
               save("jpr-rain", v);
               document.documentElement.dataset.rain = v;
             }}

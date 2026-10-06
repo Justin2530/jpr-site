@@ -24,11 +24,12 @@ export function MatrixRain() {
       drops = Array.from({ length: Math.ceil(canvas.width / SIZE) }, () => Math.random() * -60);
     };
     const frame = () => {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.06)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#00ff66";
       ctx.font = `${SIZE}px monospace`;
       drops.forEach((y, i) => {
+        // Each column leaves a fading green trail, like the film.
+        ctx.fillStyle = "#33ff7a";
         ctx.fillText(GLYPHS[Math.floor(Math.random() * GLYPHS.length)], i * SIZE, y * SIZE);
         drops[i] = y * SIZE > canvas.height && Math.random() > 0.975 ? 0 : y + 1;
       });
@@ -36,6 +37,7 @@ export function MatrixRain() {
     const sync = () => {
       const on = root.dataset.theme === "matrix" && root.dataset.rain !== "off" && !still.matches;
       canvas.style.display = on ? "block" : "none";
+      canvas.style.opacity = root.dataset.rain === "subtle" ? "0.25" : "0.5";
       const run = on && !document.hidden;
       if (run && !timer) {
         resize();
@@ -62,5 +64,5 @@ export function MatrixRain() {
     };
   }, []);
 
-  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 -z-10 hidden opacity-[0.16]" />;
+  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 -z-10 hidden" />;
 }

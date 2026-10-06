@@ -12,7 +12,7 @@ import { liveSetup } from "@/lib/live";
 import { webhookUrl } from "@/lib/twilio";
 import { ConnectButton } from "./connect-button";
 import { cookies } from "next/headers";
-import { AppearanceSettings } from "@/components/theme";
+import { AppearanceSettings, type Rain } from "@/components/theme";
 
 export const metadata = { title: "Settings · JPR" };
 
@@ -98,7 +98,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <div className="p-4">
           <AppearanceSettings
             theme={jar.get("jpr-theme")?.value === "matrix" ? "matrix" : "jarvis"}
-            rain={jar.get("jpr-rain")?.value !== "off"}
+            rain={(["off", "subtle"].includes(jar.get("jpr-rain")?.value ?? "") ? jar.get("jpr-rain")!.value : "bright") as Rain}
           />
         </div>
       </section>
