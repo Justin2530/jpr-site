@@ -243,50 +243,7 @@ export async function acceptCall(sessionId: string, c: CallContext) {
   });
 }
 
-// Send a few commands to a live call over OpenAI's sideband, then let go. Best effort: returns what
-// happened instead of throwing, since a failure here shouldn't drop the call.
-async function sideband(sessionId: string, events: Record<string, unknown>[]) {
-  const { default: WebSocket } = await import("ws");
-  const ws = new WebSocket(`wss://api.openai.com/v1/live/sessions/${sessionId}/attach`, {
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` },
-  });
-  return new Promise<string>((resolve) => {
-    let sent = false;
-    let acks = 0;
-    const finish = (result: string) => {
-      clearTimeout(giveUp);
-      ws.close();
-      resolve(result);
-    };
-    const send = () => {
-      if (sent || ws.readyState !== WebSocket.OPEN) return;
-      sent = true;
-      for (const e of events) ws.send(JSON.stringify(e));
-    };
-    const giveUp = setTimeout(() => finish(sent ? `sent, ${acks} acks` : "timed out"), 5000);
-    ws.on("open", () => setTimeout(send, 300)); // a moment for session.started, if it's coming
-    ws.on("message", (raw) => {
-      let e: { type?: string };
-      try {
-        e = JSON.parse(raw.toString());
-      } catch {
-        return;
-      }
-      if (e.type === "session.started") send();
-      else if (/\.(appended|muted|unmuted)$/.test(e.type ?? "") && ++acks >= events.length) finish("ok");
-      else if (e.type === "error") finish(`error ${raw.toString().slice(0, 300)}`);
-    });
-    ws.on("error", (err) => finish(`socket ${String(err).slice(0, 200)}`));
-  });
-}
-
-// The assistant joins before the candidate's phone rings, so it hears nothing (no ringing) until
-// they pick up.
-export function holdForAnswer(sessionId: string) {
-  return sideband(sessionId, [{ type: "session.input_audio.mute", event_id: "hold" }]);
-}
-
-// They picked up: open the line and let them say hello first, the way people expect a call to go. If they
+// They picked up: let them say hello first, the way people expect a call to go. If they
 // stay quiet for a few seconds, the assistant opens on its own. Best effort, like sideband().
 const QUIET_MS = 3500;
 export async function candidateAnswered(sessionId: string, fullName: string) {
@@ -310,7 +267,6 @@ export async function candidateAnswered(sessionId: string, fullName: string) {
     const send = () => {
       if (sent || ws.readyState !== WebSocket.OPEN) return;
       sent = true;
-      ws.send(JSON.stringify({ type: "session.input_audio.unmute", event_id: "answered" }));
       append(
         "answered",
         `The phone was just answered. Let them speak first: wait for their hello, then open with "Hi, is this ${name}?" If instead you hear a recorded voicemail greeting, stay quiet until it ends (the beep or a pause), then leave your voicemail message.`,
