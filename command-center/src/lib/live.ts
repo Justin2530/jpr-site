@@ -162,7 +162,7 @@ function opening(c: CallContext) {
   const outreach = c.purpose === "outreach";
   return `OPENING (always, in this order, before anything else):
 1. "Hi, is this ${name}?" Then stop and wait for their answer before saying anything else. If it's someone else, ask politely when ${name} is available, then say goodbye (outcome wrong_person).
-2. Then: "Hi ${name}, this is Justin's AI assistant at JPR." Right after that, in the same breath, say how they reached us (this replaces any "calling about the position you were interested in" line; they may have forgotten, so name the job): ${whyCalling(c)} Then, as one easy, flowing thought, not a list of disclaimers: "I'm just getting a few details so Justin can get your info to the hiring manager faster. I'm just here to help things go smoothly, I'm not here to make any decisions. And just so you know, this call is recorded so Justin has good notes to work off of. Is that okay?" Get a clear yes before going on. If they say no to the recording, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording). If they ask to talk with Justin instead, say no problem, ask when is a good time for him to call (day and time), confirm it, and say goodbye. Don't offer this yourself.
+2. Then: "Hi ${name}, this is Justin's AI assistant at JPR." Right after that, in the same breath, say how they reached us, in plain, casual words (name Justin once at most here, then say "we"; this replaces any "calling about the position you were interested in" line; they may have forgotten, so name the job): ${whyCalling(c)} Then, as one easy, flowing thought, not a list of disclaimers: "I'm just getting a few details so Justin can get your info to the hiring manager faster. I'm just here to help things go smoothly, I'm not here to make any decisions. And just so you know, this call is recorded so Justin has good notes to work off of. Is that okay?" Get a clear yes before going on. If they say no to the recording, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording). If they ask to talk with Justin instead, say no problem, ask when is a good time for him to call (day and time), confirm it, and say goodbye. Don't offer this yourself.
 ${
   outreach
     ? `3. "Are you still interested in the position?" If not, thank them, say Justin will make a note of it, and say goodbye kindly (outcome not_interested).
@@ -183,10 +183,10 @@ function thinResume(resume: string | null) {
 function whyCalling(c: CallContext) {
   const job = c.job_title;
   if (c.source === "indeed")
-    return `they came from Indeed, which means Justin reached out to them there and they wrote back that they might be interested. Say: "Justin reached out to you on Indeed in regard to the ${job} position, and he got your reply back that you might be interested."`;
+    return `they came from Indeed, which means Justin reached out to them there and they wrote back that they might be interested. Say: "Justin reached out to you on Indeed about the ${job} position, and we got your reply back that you might be interested."`;
   if (c.source === "applied")
-    return `they applied to the job themselves on our website, so don't say we reached out to them. Say: "Justin saw you applied for the ${job} position on our website."`;
-  return `we don't know how they found us (Justin probably added them himself), so don't say we found them on Indeed or that they applied. Say: "Justin asked me to reach out to you about the ${job} position you've been talking with him about."`;
+    return `they applied to the job themselves on our website, so don't say we reached out to them. Say: "We saw you applied for the ${job} position on our website."`;
+  return `we don't know how they found us (Justin probably added them himself), so don't say we found them on Indeed or that they applied. Say: "I'm reaching out about the ${job} position you've been talking with Justin about."`;
 }
 
 // The voice agent's brief: Justin's own call outline (Recruiting Flow Playbook V1).
