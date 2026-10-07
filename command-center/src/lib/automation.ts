@@ -37,6 +37,7 @@ type Due = {
   in_thread: boolean;
   subject: string | null;
   body: string;
+  candidate_id: string;
   full_name: string;
   phone: string | null;
   email: string | null;
@@ -158,19 +159,26 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
           sent++;
         }
       } else {
-        const to = d.email?.trim();
+        // Someone who replied on Indeed gets every email in their Indeed thread, even once we have their own address.
+        const { data: indeed } = await db.rpc("automation_indeed", { p_secret: secret, p_candidate: d.candidate_id });
+        const relay = indeed as { relay: string; thread_id: string; subject: string | null } | null;
+        const to = relay?.relay ?? d.email?.trim();
         if (!to) await done("skipped", "no email on file");
         else if (!d.gmail_token || !d.gmail_email || !googleReady()) await done("skipped", "Gmail isn't connected");
         else {
           // Follow-ups reply in the first email's thread, so the whole run reads as one conversation.
-          const reply = d.in_thread && d.thread_id && d.thread_subject;
-          const subject = reply ? `Re: ${d.thread_subject!.replace(/^Re:\s*/i, "")}` : fill(d.subject ?? "{job_title}{near_town}", d);
+          const thread = relay
+            ? { id: relay.thread_id, subject: relay.subject ?? fill("{job_title}{near_town}", d) }
+            : d.in_thread && d.thread_id && d.thread_subject
+              ? { id: d.thread_id, subject: d.thread_subject }
+              : null;
+          const subject = thread ? `Re: ${thread.subject.replace(/^Re:\s*/i, "")}` : fill(d.subject ?? "{job_title}{near_town}", d);
           const res = await sendGmail(await accessToken(openToken(d.gmail_token)), {
             from: d.gmail_email,
             to,
             subject,
             body,
-            ...(reply ? { threadId: d.thread_id! } : {}),
+            ...(thread ? { threadId: thread.id } : {}),
           });
           await done("sent", "", { summary: `Automatic email to ${d.full_name}: ${subject}`, externalId: res.id, threadId: res.threadId });
           sent++;

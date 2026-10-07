@@ -1172,6 +1172,8 @@ export type Database = {
       screening_reminders_due: { Args: { p_secret: string }; Returns: Json };
       screening_missed: { Args: { p_secret: string; p_run: string }; Returns: Json };
       pursuits_resume_due: { Args: { p_secret: string }; Returns: number };
+      gmail_indeed_link: { Args: { p_secret: string; p_from: string; p_name: string; p_thread: string; p_subject: string }; Returns: string | null };
+      automation_indeed: { Args: { p_secret: string; p_candidate: string }; Returns: Json };
       screening_awaiting_agent: { Args: { p_secret: string }; Returns: string | null };
       screening_to_process: { Args: { p_secret: string }; Returns: Json };
       screening_complete: { Args: { p_secret: string; p_run: string; p: Json }; Returns: string };

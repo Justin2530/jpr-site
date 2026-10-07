@@ -35,6 +35,20 @@ export async function syncMailbox(db: SupabaseClient<Database>, secret: string, 
       body: (replyOnly(msg.text) || msg.text.trim()).slice(0, 20000),
     });
   }
+  // Indeed replies come from a relay address; link it to the candidate so the reply is logged and
+  // later emails go back into their Indeed thread.
+  for (const m of messages) {
+    if (/@indeedemail\.com$/i.test(m.from) && m.from.toLowerCase() !== box.email.toLowerCase()) {
+      const { error } = await db.rpc("gmail_indeed_link", {
+        p_secret: secret,
+        p_from: m.from,
+        p_name: m.fromName ?? "",
+        p_thread: m.threadId,
+        p_subject: m.subject ?? "",
+      });
+      if (error) console.error("Indeed link failed", error.message);
+    }
+  }
   const { data, error } = await db.rpc("gmail_log", {
     p_secret: secret,
     p_staff: box.staff_id,
