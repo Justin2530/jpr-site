@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
-import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
+import { toE164, twilioApi, twilioGet, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 import { callRecording, liveReady, runSig, sipUri, type CallContext } from "@/lib/live";
 import { SIGNATURE, SUBMISSION_STYLE } from "@/lib/submission";
 
@@ -107,6 +107,21 @@ type Segment = { start: number; end: number; text: string; no_speech_prob?: numb
 type Word = { word: string; start: number; end: number };
 type Line = { speaker: "agent" | "candidate"; text: string; at: number };
 
+// Twilio's view of both legs (the AI's and the candidate's): its quality tags flag one-way audio or
+// silence, which is how a call can sound dead on the phone while the assistant is talking. Logs only.
+async function logCallQuality(run: string, callSid: string) {
+  try {
+    const kids = (await twilioApi("Calls", { ParentCallSid: callSid }, "GET")) as { calls?: { sid: string }[] };
+    const legs = [callSid, ...(kids.calls ?? []).map((k) => k.sid)];
+    for (const leg of legs) {
+      const summary = await twilioGet(`https://insights.twilio.com/v1/Voice/${leg}/Summary`).catch((e) => ({ error: String(e) }));
+      console.info("Call quality", run, leg, JSON.stringify(summary).slice(0, 3000));
+    }
+  } catch (e) {
+    console.info("Call quality unavailable", run, String(e));
+  }
+}
+
 async function processOne(db: Db, secret: string) {
   const { data } = await db.rpc("screening_to_process", { p_secret: secret });
   const c = data as unknown as (CallContext & { ended_at?: string }) | null;
@@ -122,6 +137,7 @@ async function processOne(db: Db, secret: string) {
         return false;
       }
     }
+    if (c.call_sid) await logCallQuality(run, c.call_sid);
     const transcript = wav ? await transcribe(wav) : [];
     const notes = await writeUp(c, transcript);
     if (notes.outcome === "voicemail") {
