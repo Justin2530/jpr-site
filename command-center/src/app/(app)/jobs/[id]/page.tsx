@@ -6,7 +6,7 @@ import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { StageSelect } from "@/components/stage-select";
 import { ShieldIcon } from "@/components/icons";
-import { daysSince, label, STAGE_LABEL, STAGE_TONE, timeAgo } from "@/lib/format";
+import { daysSince, label, OUTREACH_SOURCES, STAGE_LABEL, STAGE_TONE, timeAgo } from "@/lib/format";
 import { Board } from "@/components/board";
 import { ViewSwitcher } from "@/components/view-switcher";
 import { Constants } from "@/lib/database.types";
@@ -122,6 +122,16 @@ export default async function JobDetail({
                   </option>
                 ))}
               </select>
+              {automation.on && (
+                <select name="outreach_source" defaultValue="" className="field sm:w-auto" aria-label="How they came to this job">
+                  <option value="">Source from their profile</option>
+                  {OUTREACH_SOURCES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              )}
               <SubmitButton className={automation.on ? "btn-quiet shrink-0" : "btn shrink-0"} pendingText="Assigning…">
                 Assign only
               </SubmitButton>

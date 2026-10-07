@@ -42,7 +42,7 @@ function greeting() {
   return "Good evening";
 }
 
-const CLOSED_STAGES = "(placed,passed,withdrawn)";
+const CLOSED_STAGES = "(placed,passed,withdrawn,couldnt_contact)";
 
 export default async function Home() {
   const { supabase, staff } = await requireStaff();

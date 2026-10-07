@@ -11,7 +11,7 @@ import { moveCandidateJob } from "../pipeline-actions";
 export const metadata = { title: "Pipeline · JPR" };
 
 const MAIN: Enums<"pipeline_stage">[] = ["applied", "assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer", "placed"];
-const CLOSED: Enums<"pipeline_stage">[] = ["on_hold", "passed", "withdrawn"];
+const CLOSED: Enums<"pipeline_stage">[] = ["on_hold", "passed", "withdrawn", "couldnt_contact"];
 const STALE_DAYS = 7;
 
 export default async function PipelinePage({
@@ -83,7 +83,7 @@ export default async function PipelinePage({
         </select>
         <label className="flex items-center gap-1.5 text-sm text-muted">
           <input type="checkbox" name="closed" value="1" defaultChecked={showClosed} className="accent-cyan" />
-          Show on hold, passed, withdrawn
+          Show on hold, passed, withdrawn, couldn&apos;t contact
         </label>
         <button className="btn-quiet">Apply</button>
       </form>

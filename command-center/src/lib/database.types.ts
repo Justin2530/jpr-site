@@ -258,6 +258,7 @@ export type Database = {
           id: string;
           job_id: string;
           notes: string | null;
+          outreach_source: "indeed" | "applied" | "linkedin" | "referral" | "other" | null;
           stage: Database["public"]["Enums"]["pipeline_stage"];
           stage_changed_at: string;
         };
@@ -268,6 +269,7 @@ export type Database = {
           id?: string;
           job_id: string;
           notes?: string | null;
+          outreach_source?: "indeed" | "applied" | "linkedin" | "referral" | "other" | null;
           stage?: Database["public"]["Enums"]["pipeline_stage"];
           stage_changed_at?: string;
         };
@@ -553,6 +555,7 @@ export type Database = {
           id: boolean;
           automated_recruiting: boolean;
           eligible_after: string | null;
+          eligible_after_v1: string | null;
           changed_at: string | null;
           changed_by: string | null;
         };
@@ -560,6 +563,7 @@ export type Database = {
           id?: boolean;
           automated_recruiting?: boolean;
           eligible_after?: string | null;
+          eligible_after_v1?: string | null;
           changed_at?: string | null;
           changed_by?: string | null;
         };
@@ -920,6 +924,7 @@ export type Database = {
           outcome_note: string | null;
           process_claimed_at: string | null;
           process_note: string | null;
+          purpose: string;
           process_state: string | null;
           candidate_job_id: string;
           candidate_questions: string[];
@@ -946,6 +951,7 @@ export type Database = {
           outcome_note?: string | null;
           process_claimed_at?: string | null;
           process_note?: string | null;
+          purpose?: string;
           process_state?: string | null;
           candidate_job_id: string;
           candidate_questions?: string[];
@@ -1224,7 +1230,8 @@ export type Database = {
         | "placed"
         | "on_hold"
         | "passed"
-        | "withdrawn";
+        | "withdrawn"
+        | "couldnt_contact";
       screening_status: "scheduled" | "in_progress" | "completed" | "no_answer" | "failed" | "cancelled";
       service_status: "active" | "planned" | "cancelled";
       submission_status: "draft" | "sent" | "held" | "passed";
@@ -1270,6 +1277,7 @@ export const Constants = {
         "on_hold",
         "passed",
         "withdrawn",
+        "couldnt_contact",
       ],
       screening_status: ["scheduled", "in_progress", "completed", "no_answer", "failed", "cancelled"],
       service_status: ["active", "planned", "cancelled"],

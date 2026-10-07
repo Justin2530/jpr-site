@@ -13,6 +13,7 @@ export const STAGE_LABEL: Record<Enums<"pipeline_stage">, string> = {
   on_hold: "On hold",
   passed: "Passed",
   withdrawn: "Withdrawn",
+  couldnt_contact: "Couldn't contact",
 };
 
 export const STAGE_TONE: Record<Enums<"pipeline_stage">, Tone> = {
@@ -28,6 +29,7 @@ export const STAGE_TONE: Record<Enums<"pipeline_stage">, Tone> = {
   on_hold: "muted",
   passed: "muted",
   withdrawn: "muted",
+  couldnt_contact: "muted",
 };
 
 export const SOURCE_LABEL: Record<Enums<"candidate_source">, string> = {
@@ -107,4 +109,20 @@ export function daysSince(iso: string | null | undefined) {
 export function money(n: number | null | undefined, digits = 0) {
   if (n === null || n === undefined) return "—";
   return `$${Number(n).toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: digits })}`;
+}
+
+// How a candidate came to a job, picked at assign. The first outreach message opens with it.
+export const OUTREACH_SOURCES = [
+  { value: "indeed", label: "Replied on Indeed" },
+  { value: "applied", label: "Applied" },
+  { value: "linkedin", label: "Replied on LinkedIn" },
+  { value: "referral", label: "Referral" },
+  { value: "other", label: "Replied to other outreach" },
+] as const;
+export type OutreachSource = (typeof OUTREACH_SOURCES)[number]["value"];
+
+export function outreachSourceFor(source: Enums<"candidate_source">): OutreachSource {
+  if (source === "indeed" || source === "linkedin" || source === "referral") return source;
+  if (source === "website" || source === "inbound") return "applied";
+  return "other";
 }

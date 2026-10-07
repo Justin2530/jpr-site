@@ -11,7 +11,7 @@ import { gmailAccount } from "@/lib/gmail-account";
 import { Correspondence } from "@/components/correspondence";
 import { Reminders } from "@/components/reminders";
 import { candidateCorrespondence } from "@/lib/correspondence";
-import { SOURCE_LABEL, STAGE_LABEL, STAGE_TONE, shortDate, timeAgo } from "@/lib/format";
+import { OUTREACH_SOURCES, outreachSourceFor, SOURCE_LABEL, STAGE_LABEL, STAGE_TONE, shortDate, timeAgo } from "@/lib/format";
 import { CandidateFields } from "../candidate-fields";
 import { addNote, deleteCandidate, updateCandidate } from "../actions";
 import { ConfirmSubmit } from "@/components/confirm-submit";
@@ -185,6 +185,15 @@ export default async function CandidateDetail({
                     </option>
                   ))}
                 </select>
+                {canAutomate && (
+                  <select name="outreach_source" defaultValue={outreachSourceFor(c.source)} className="field sm:w-auto" aria-label="How they came to this job">
+                    {OUTREACH_SOURCES.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <SubmitButton className={canAutomate ? "btn-quiet shrink-0" : "btn shrink-0"} pendingText="Assigning…">
                   Assign only
                 </SubmitButton>

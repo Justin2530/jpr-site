@@ -61,7 +61,8 @@ export async function missedCall(db: Db, secret: string, run: string, why: strin
   const c = data as unknown as CallContext | null;
   const p: Record<string, unknown> = { status: "no_answer", outcome_note: why, ended: true };
   const to = toE164(c?.phone);
-  if (c && to && !c.sms_opted_out && twilioReady()) {
+  // Outreach calls (days 3 and 12) don't send a text: the cadence's own next touch follows.
+  if (c && to && !c.sms_opted_out && c.purpose !== "outreach" && twilioReady()) {
     const body = `Hi ${first(c.full_name)}, it's JPR. I tried calling for our call about the ${c.job_title} position but missed you. What's a better day and time to reach you?`;
     try {
       const msg = await twilioApi("Messages", { To: to, From: twilioNumber!, Body: body });

@@ -61,7 +61,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   // Pipeline right now
   const now = Constants.public.Enums.pipeline_stage
-    .filter((s) => !["passed", "withdrawn"].includes(s))
+    .filter((s) => !["passed", "withdrawn", "couldnt_contact"].includes(s))
     .map((s) => ({ label: STAGE_LABEL[s], value: (stages.data ?? []).filter((r) => r.stage === s).length }));
 
   // Funnel in period: count moves into each stage (from the activity log).
@@ -204,7 +204,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                         </td>
                         <td className="px-4 py-2 text-muted">{j.companies?.name}</td>
                         <td className={`readout px-4 py-2 ${j.days > 30 ? "text-amber" : ""}`}>{j.days}</td>
-                        <td className="readout px-4 py-2">{j.candidate_jobs.filter((c) => !["placed", "passed", "withdrawn", "on_hold"].includes(c.stage)).length}</td>
+                        <td className="readout px-4 py-2">{j.candidate_jobs.filter((c) => !["placed", "passed", "withdrawn", "on_hold", "couldnt_contact"].includes(c.stage)).length}</td>
                         <td className="readout px-4 py-2">{j.candidate_jobs.filter((c) => c.stage === "submitted").length}</td>
                         <td className="readout px-4 py-2">{j.candidate_jobs.filter((c) => c.stage === "interviewing").length}</td>
                       </tr>

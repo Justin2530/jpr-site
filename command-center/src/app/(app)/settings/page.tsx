@@ -79,7 +79,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const wired = ready && staff.role === "owner" ? await numberWired(registration) : false;
   const automation = Boolean(automationSecret());
-  const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after").maybeSingle();
+  const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after_v1").maybeSingle();
   const autoOn = Boolean(auto?.automated_recruiting);
   const h = await headers();
   const origin = `https://${h.get("x-forwarded-host") ?? h.get("host")}`;
@@ -158,13 +158,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <p className="text-sm text-muted">
             {autoOn ? "On." : "Off."} This is the master switch. While it&apos;s on, assigning someone to a job asks whether to automate
             them, and each candidate&apos;s job tab has its own on/off switch. When automated, the Command Center texts and emails them to set up
-            a call: a text and an email right away, a text the next day, an email on day 3 and a last text on day 5. Any reply, text, email
-            or call stops it and lands on What needs me. Emails go out any time; texts go any day between 8am and 9pm. Anyone who replies STOP is never texted
-            again.
+            a call: a text and an email right away, an email on day 1, an AI call on day 3, an email on day 5, a text on day 8, an AI call on
+            day 12 and a last email on day 14. With no reply by day 16 they move to Couldn&apos;t contact. Any reply, text, email or call stops it.
+            Emails go out any time, texts any day between 9am and 9pm, and AI calls Monday to Saturday between 9am and 7pm. Anyone who replies
+            STOP is never texted again.
           </p>
           <p className="text-sm text-muted">
             Only candidates added after it&apos;s first turned on are ever included
-            {auto?.eligible_after ? ` (added after ${new Date(auto.eligible_after).toLocaleDateString("en-US")})` : ""}. Everyone already in
+            {auto?.eligible_after_v1 ? ` (added after ${new Date(auto.eligible_after_v1).toLocaleDateString("en-US")})` : ""}. Everyone already in
             the system stays manual.
           </p>
           {staff.role === "owner" && (

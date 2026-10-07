@@ -33,24 +33,77 @@ export async function registerAutomation(supabase: SupabaseClient<Database>, ori
 
 type Due = {
   step_id: string;
-  channel: "sms" | "email";
+  channel: "sms" | "email" | "call" | "close";
+  in_thread: boolean;
   subject: string | null;
   body: string;
   full_name: string;
   phone: string | null;
   email: string | null;
   sms_opted_out: boolean;
+  source: "indeed" | "applied" | "linkedin" | "referral" | "other";
   job_title: string;
   location: string | null;
+  compensation: string | null;
+  schedule: string | null;
+  job_summary: string | null;
+  thread_id: string | null;
+  thread_subject: string | null;
   gmail_email: string | null;
   gmail_token: string | null;
 };
+
+const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
+
+// "near Punxsutawney" from "Punxsutawney, PA": the town, never the client.
+export function nearTown(location: string | null) {
+  const town = location?.split(",")[0]?.trim();
+  return town ? ` near ${town}` : "";
+}
+
+// The first line after "this is Justin with JPR", by how they came to the job (picked at assign).
+export function opener(source: Due["source"], jobTitle: string, location: string | null) {
+  const job = `${article(jobTitle)} ${jobTitle} position we're hiring for${nearTown(location)}`;
+  switch (source) {
+    case "indeed":
+      return `I reached out to you on Indeed about ${job}, and got your response that you might be interested.`;
+    case "linkedin":
+      return `I reached out to you on LinkedIn about ${job}, and got your response that you might be interested.`;
+    case "applied":
+      return `I got your application for the ${jobTitle} position we're hiring for${nearTown(location)}.`;
+    case "referral":
+      return `I was told you might be interested in ${job}.`;
+    default:
+      return `I reached out to you about ${job}, and got your response that you might be interested.`;
+  }
+}
+
+// Pay, schedule and a couple of points from what candidates can be told about the job.
+export function jobDetails(d: Pick<Due, "compensation" | "schedule" | "job_summary">) {
+  const lines: string[] = [];
+  if (d.compensation?.trim()) lines.push(`Pay: ${d.compensation.trim()}`);
+  if (d.schedule?.trim()) lines.push(`Schedule: ${d.schedule.trim()}`);
+  const summary = d.job_summary?.trim() ?? "";
+  const bullets = summary
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter((l) => /^[-*\u2022]\s+/.test(l))
+    .map((l) => l.replace(/^[-*\u2022]\s+/, ""));
+  const points = bullets.length
+    ? bullets
+    : (summary.replace(/\s+/g, " ").match(/[^.!?]+[.!?]/g) ?? []).map((x) => x.trim()).filter((x) => x.length > 20);
+  lines.push(...points.slice(0, 2));
+  return lines.length ? `A few details on the job:\n${lines.map((l) => `- ${l}`).join("\n")}\n\n` : "";
+}
 
 function fill(template: string, d: Due) {
   return template
     .replaceAll("{first_name}", d.full_name.trim().split(/\s+/)[0] ?? "there")
     .replaceAll("{job_title}", d.job_title)
+    .replaceAll("{near_town}", nearTown(d.location))
     .replaceAll("{in_location}", d.location ? ` in ${d.location}` : "")
+    .replaceAll("{opener}", opener(d.source, d.job_title, d.location))
+    .replaceAll("{job_details}", jobDetails(d))
     .replaceAll("{signature}", SIGNATURE);
 }
 
@@ -80,7 +133,13 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         p_phone: extra.phone ?? "",
       });
     try {
-      if (d.channel === "sms") {
+      if (d.channel === "call") {
+        // The database books the AI call; the screening engine dials it on this same tick.
+        if (!toE164(d.phone)) await done("skipped", "no phone number on file");
+        else await done("sent", "");
+      } else if (d.channel === "close") {
+        await done("sent", ""); // moves them to Couldn't contact
+      } else if (d.channel === "sms") {
         const to = toE164(d.phone);
         if (!to) await done("skipped", "no mobile number on file");
         else if (d.sms_opted_out) await done("skipped", "they replied STOP");
@@ -100,8 +159,16 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         if (!to) await done("skipped", "no email on file");
         else if (!d.gmail_token || !d.gmail_email || !googleReady()) await done("skipped", "Gmail isn't connected");
         else {
-          const subject = fill(d.subject ?? "{job_title} position", d);
-          const res = await sendGmail(await accessToken(openToken(d.gmail_token)), { from: d.gmail_email, to, subject, body });
+          // Follow-ups reply in the first email's thread, so the whole run reads as one conversation.
+          const reply = d.in_thread && d.thread_id && d.thread_subject;
+          const subject = reply ? `Re: ${d.thread_subject!.replace(/^Re:\s*/i, "")}` : fill(d.subject ?? "{job_title}{near_town}", d);
+          const res = await sendGmail(await accessToken(openToken(d.gmail_token)), {
+            from: d.gmail_email,
+            to,
+            subject,
+            body,
+            ...(reply ? { threadId: d.thread_id! } : {}),
+          });
           await done("sent", "", { summary: `Automatic email to ${d.full_name}: ${subject}`, externalId: res.id, threadId: res.threadId });
           sent++;
         }

@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/staff";
 import { Constants, type Enums } from "@/lib/database.types";
 import { beginOutreach } from "@/lib/outreach";
+import { OUTREACH_SOURCES, type OutreachSource } from "@/lib/format";
+
+const outreachSource = (form: FormData) => {
+  const v = String(form.get("outreach_source") ?? "");
+  return OUTREACH_SOURCES.some((o) => o.value === v) ? (v as OutreachSource) : null;
+};
 
 // Assigning a candidate to a job is the one human action that starts the workflow, and only when the
 // person picks "Assign + automate" (or later flips the switch on the job tab).
@@ -14,7 +20,7 @@ export async function assignToJob(form: FormData) {
   if (!candidateId || !jobId) return;
   const { data, error } = await supabase
     .from("candidate_jobs")
-    .insert({ candidate_id: candidateId, job_id: jobId, assigned_by: userId })
+    .insert({ candidate_id: candidateId, job_id: jobId, assigned_by: userId, outreach_source: outreachSource(form) })
     .select("id")
     .single();
   if (error && error.code !== "23505") throw new Error(error.message);
