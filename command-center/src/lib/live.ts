@@ -183,10 +183,10 @@ function thinResume(resume: string | null) {
 function whyCalling(c: CallContext) {
   const job = c.job_title;
   if (c.source === "indeed")
-    return `they came from Indeed, which means Justin reached out to them there and they wrote back that they might be interested. Say: "I reached out to you on Indeed in regard to the ${job} position, and I got your reply back that you might be interested."`;
+    return `they came from Indeed, which means Justin reached out to them there and they wrote back that they might be interested. Say: "Justin reached out to you on Indeed in regard to the ${job} position, and he got your reply back that you might be interested."`;
   if (c.source === "applied")
-    return `they applied to the job themselves on our website, so don't say we reached out to them. Say: "I saw you applied for the ${job} position on our website."`;
-  return `we don't know how they found us (Justin probably added them himself), so don't say we found them on Indeed or that they applied. Say: "I'm reaching out to you about the ${job} position you've been talking with Justin about."`;
+    return `they applied to the job themselves on our website, so don't say we reached out to them. Say: "Justin saw you applied for the ${job} position on our website."`;
+  return `we don't know how they found us (Justin probably added them himself), so don't say we found them on Indeed or that they applied. Say: "Justin asked me to reach out to you about the ${job} position you've been talking with him about."`;
 }
 
 // The voice agent's brief: Justin's own call outline (Recruiting Flow Playbook V1).
