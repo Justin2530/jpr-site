@@ -7,7 +7,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const API = "https://api.openai.com/v1";
 
 export const liveModel = () => process.env.OPENAI_LIVE_MODEL?.trim() || "gpt-live-1";
-export const liveVoice = () => process.env.OPENAI_LIVE_VOICE?.trim() || "ash";
+export const liveVoice = () => process.env.OPENAI_LIVE_VOICE?.trim() || "marin";
 
 export function liveSetup() {
   return {
