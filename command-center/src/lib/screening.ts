@@ -328,11 +328,11 @@ async function writeUp(c: CallContext, transcript: Line[]) {
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
       reasoning: { effort: "medium" },
-      instructions: `You turn a recorded recruiting screening call into notes for Justin Peace (JPR). Use only what was actually said on the call and what the resume shows. Never invent anything.
+      instructions: `You turn a recorded recruiting call into notes for Justin Peace (JPR). Use only what was actually said on the call and what the resume shows. Never invent anything.
 outcome: interested (they want to move forward), not_interested, callback (they asked to talk at another time; put it in callback_at_local as "YYYY-MM-DD HH:MM" Eastern, else ""), voicemail (the call reached voicemail or an automated message, not the person), or incomplete (call cut short, declined recording, wrong person, or too little was covered).
-summary: 2-4 plain sentences for Justin: who they are, fit for the job, pay and availability, and anything to watch.
-facts: one entry per screening question that got an answer, with goal_id set to that question's id and label a short name (e.g. "Pay", "Commute", "Availability"); value is their answer in a short plain sentence. Add extra entries with goal_id "" for other useful facts (current pay, interview availability, start date, certifications, machines). Skip questions that weren't answered.
-candidate_questions: questions they asked that Justin should follow up on. concerns: anything that could be a problem for the employer. unresolved: required questions not covered.
+summary: 2-4 plain sentences for Justin: who they are, fit for the job, pay and interview availability, and anything to watch. Start the summary with any of these that came up, each as its own short sentence: they've worked at, applied to or spoken with the company about this job before (and how it went); their pay ask is above the job's pay; they asked to talk with Justin directly (and when); they asked never to be called again.
+facts: one entry per screening question that got an answer, with goal_id set to that question's id and label a short name (e.g. "Lifting", "Forklift"); value is their answer in a short plain sentence. Always add entries with goal_id "" for "Prior contact with ${c.company}", "Pay" and "Interview availability" when they came up, plus other useful facts (current pay, certifications, machines, years). Skip questions that weren't answered.
+candidate_questions: questions they asked that Justin should follow up on, including anything the assistant said Justin would get back to them on. concerns: anything that could be a problem for the employer. unresolved: required questions not covered.
 submission_subject and submission_body: only when outcome is interested, otherwise "". Follow this style guide exactly, greeting the hiring contact by first name (or "[name]" if unknown), and end the body with "Thanks!" (the signature is added after):
 ${SUBMISSION_STYLE}`,
       input: JSON.stringify(input),
