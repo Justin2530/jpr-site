@@ -1169,6 +1169,9 @@ export type Database = {
       screening_due: { Args: { p_secret: string }; Returns: Json };
       screening_call_now: { Args: { p_candidate_job_id: string }; Returns: string };
       screening_update: { Args: { p_secret: string; p_run: string; p: Json }; Returns: undefined };
+      screening_reminders_due: { Args: { p_secret: string }; Returns: Json };
+      screening_missed: { Args: { p_secret: string; p_run: string }; Returns: Json };
+      pursuits_resume_due: { Args: { p_secret: string }; Returns: number };
       screening_awaiting_agent: { Args: { p_secret: string }; Returns: string | null };
       screening_to_process: { Args: { p_secret: string }; Returns: Json };
       screening_complete: { Args: { p_secret: string; p_run: string; p: Json }; Returns: string };

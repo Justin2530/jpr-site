@@ -24,6 +24,11 @@ export async function runScreening(db: Db, secret: string, origin: string) {
     }
   }
   try {
+    await sendReminders(db, secret);
+  } catch (e) {
+    console.error("Call reminders failed", e);
+  }
+  try {
     if (await processOne(db, secret)) out.processed++;
   } catch (e) {
     console.error("Screening notes failed", e);
@@ -55,15 +60,37 @@ async function dial(db: Db, secret: string, origin: string, c: CallContext) {
   await update(db, secret, c.run_id, { call_sid: call.sid });
 }
 
-// Voicemail, no answer, busy: one friendly text asking for a better time. The reply brain books it.
+// One hour before a call they booked: a reminder text (the database skips calls booked less than an
+// hour ahead, and anything outside 9am-9pm).
+async function sendReminders(db: Db, secret: string) {
+  const { data } = await db.rpc("screening_reminders_due", { p_secret: secret });
+  for (const c of (data ?? []) as unknown as (CallContext & { call_time: string })[]) {
+    const to = toE164(c.phone);
+    if (!to || c.sms_opted_out) continue;
+    const body = `Hi ${first(c.full_name)}, just a reminder that Justin's assistant at JPR will be calling you at ${c.call_time} today about the ${c.job_title} position. If that time doesn't work anymore, just reply with a better one.`;
+    try {
+      const msg = await twilioApi("Messages", { To: to, From: twilioNumber!, Body: body });
+      await update(db, secret, c.run_id, { log_text: { body, sid: msg.sid, phone: to } });
+    } catch (e) {
+      console.error("Reminder text failed", c.run_id, e);
+    }
+  }
+}
+
+// Voicemail, no answer, busy on a call they booked: one text asking for a better time (the reply brain
+// books it). With no reply in a day, the outreach schedule picks up where it left off.
 export async function missedCall(db: Db, secret: string, run: string, why: string) {
   const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
   const c = data as unknown as CallContext | null;
   const p: Record<string, unknown> = { status: "no_answer", outcome_note: why, ended: true };
   const to = toE164(c?.phone);
   // Outreach calls (days 3 and 12) don't send a text: the cadence's own next touch follows.
+  const { data: m } = c?.purpose === "outreach" ? { data: null } : await db.rpc("screening_missed", { p_secret: secret, p_run: run });
+  const missed = m as { booked: boolean; call_time?: string } | null;
   if (c && to && !c.sms_opted_out && c.purpose !== "outreach" && twilioReady()) {
-    const body = `Hi ${first(c.full_name)}, it's JPR. I tried calling for our call about the ${c.job_title} position but missed you. What's a better day and time to reach you?`;
+    const body = missed?.booked
+      ? `Hi ${first(c.full_name)}, Justin's assistant at JPR just tried you for our ${missed.call_time} call about the ${c.job_title} position. No worries, just reply with a better time and we'll call you then.`
+      : `Hi ${first(c.full_name)}, Justin's assistant at JPR just tried you about the ${c.job_title} position. No worries, just reply with a better time and we'll call you then.`;
     try {
       const msg = await twilioApi("Messages", { To: to, From: twilioNumber!, Body: body });
       p.log_text = { body, sid: msg.sid, phone: to };

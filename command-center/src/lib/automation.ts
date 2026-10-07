@@ -110,6 +110,9 @@ function fill(template: string, d: Due) {
 // One pass of the follow-up engine: send every text and email that's due, then check each mailbox.
 export async function runTick(db: SupabaseClient<Database>, origin: string) {
   const secret = automationSecret()!;
+  // A day after a missed booked call with no reply, the outreach schedule picks up where it stopped.
+  const { error: resumeError } = await db.rpc("pursuits_resume_due", { p_secret: secret });
+  if (resumeError) console.error("Resuming outreach failed", resumeError.message);
   const { data, error } = await db.rpc("automation_due", { p_secret: secret });
   if (error) throw new Error(error.message);
   const steps = (data ?? []) as unknown as Due[];
