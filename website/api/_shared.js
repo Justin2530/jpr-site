@@ -25,7 +25,7 @@ function page({ title, description, canonical, body, jsonld, css = "" }) {
 ${jsonld ? `<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>` : ""}</head>
 <body><header><div class="wrap"><a href="/"><img src="/img/logo-sm.webp" width="248" height="183" alt="JPR Recruitment Services"></a><nav aria-label="Main navigation"><a href="/jobs">Open Jobs</a><a href="/#employers">Employers</a><a href="/#contact">Contact</a></nav></div></header>
 <main class="wrap">${body}</main>
-<footer><div class="wrap">© ${new Date().getFullYear()} J-Peace Recruiting LLC · Direct-hire recruiting based in Punxsutawney, PA · <a href="tel:+18148454341">(814) 845-4341</a> · <a href="/privacy-policy">Privacy Policy</a> · <a href="/terms-and-conditions">Terms</a></div></footer></body></html>`;
+<footer><div class="wrap">© ${new Date().getFullYear()} J-Peace Recruiting LLC · Direct-hire recruiting based in Punxsutawney, PA · <a href="tel:+18148454341">(814) 845-4341</a> · <a href="/jobs">Open Jobs</a> · <a href="/blog">Blog</a> · <a href="/privacy-policy">Privacy Policy</a> · <a href="/terms-and-conditions">Terms</a></div></footer></body></html>`;
 }
 
 module.exports = { SITE, jobPostings, esc, page };
