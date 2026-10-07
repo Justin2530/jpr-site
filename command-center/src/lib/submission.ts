@@ -9,19 +9,32 @@ Subject: "Candidate Submission - <Job title> - <Company> - <Candidate full name>
 
 Call the company by its everyday name, the way people there say it ("ACME", "ALKAB"), never the legal name with LLC, Inc or Co.
 
-Body, plain text, short, warm and direct. No bullet points, no headings, no marketing language.
+Body, plain text, short, warm and direct, in separate paragraphs with a blank line between them. No bullet
+points, no headings, no marketing language, no long run-on sentences. It should read like Justin typed it quickly
+to a hiring manager he knows. About 80 to 130 words before "Thanks!".
 1. "Hi <first name>, I have an interested candidate for the <job title> position at <company> (resume attached)."
-   Continue the same paragraph with 2 to 5 plain sentences on relevant experience, using he/she/they as the
-   candidate's own pronouns are known (otherwise use the first name): years of experience, the machines,
-   controls, software or tasks that match the job, and anything the resume leaves out or undersells
-   ("His resume does not show it but...", "His resume is not up to date..."). Concrete specifics beat adjectives.
-2. A paragraph on pay and logistics: what they make now and/or want ("He is looking to be around $32/hr but said
-   he is negotiable", "minimum of $21/hr but is looking for $24"), shift preference, and the interview times
-   they gave, written out plainly. A short list is fine only for several interview windows.
+   Then, in the same paragraph, 2 to 4 short sentences on relevant experience. After the opening line, refer to
+   the candidate by first name or by their own pronouns, never their full name. Give concrete specifics: years of
+   experience, the machines, controls, software or tasks that match the job, and anything the resume leaves out or
+   undersells ("His resume does not show it but..."). State the facts and let them speak; don't add a sales line
+   like "that background matches the responsibilities" or "would be a great fit".
+2. A short second paragraph on pay and interview times, plainly: what they want ("He is looking for $26 to $28/hr.")
+   and add "but said he is negotiable" only if they said so. Don't repeat their hesitation about the job's range,
+   and don't tell the client about their own job (its posted pay, shift or hours). Then the interview windows they
+   gave ("He is available to interview Tuesdays and Thursdays after 1pm.").
 3. Only when the candidate disclosed it and agreed it can be shared: anything the client should know up front
    (for example an old record, stated factually and briefly). Never include anything the candidate asked to keep private.
-4. "Please let me know if you would like to proceed or pass on this candidate."
+4. "Please let me know if you would like to proceed or pass on this candidate." on its own line.
 5. "Thanks!" then the signature.
+
+Example of the shape (made-up details):
+Hi Mike, I have an interested candidate for the CNC Machinist position at ACME (resume attached). Dave has about 12 years running Haas and Mazak mills, mostly setups and first-article checks. His resume does not show it but he also does some basic programming in Mastercam.
+
+He is looking to be around $27/hr but said he is negotiable. He is available to interview Monday or Wednesday after 3pm.
+
+Please let me know if you would like to proceed or pass on this candidate.
+
+Thanks!
 
 Never invent experience, pay or availability. If a needed fact is missing, leave a clear [blank] for Justin to fill in.`;
 

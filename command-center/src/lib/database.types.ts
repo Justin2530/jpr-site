@@ -564,6 +564,7 @@ export type Database = {
         Row: {
           pilot_only: boolean;
           id: boolean;
+          ai_calls: boolean;
           automated_recruiting: boolean;
           eligible_after: string | null;
           eligible_after_v1: string | null;
@@ -573,6 +574,7 @@ export type Database = {
         Insert: {
           pilot_only?: boolean;
           id?: boolean;
+          ai_calls?: boolean;
           automated_recruiting?: boolean;
           eligible_after?: string | null;
           eligible_after_v1?: string | null;
@@ -1311,6 +1313,7 @@ export type Database = {
       automation_allowed: { Args: { p_cj: string }; Returns: boolean };
       set_candidate_automation: { Args: { p_candidate: string; p_on: boolean }; Returns: undefined };
       automation_pause_candidate: { Args: { p_secret: string; p_candidate: string; p_reason: string }; Returns: undefined };
+      set_ai_calls: { Args: { p_on: boolean }; Returns: undefined };
       set_pilot_only: { Args: { p_on: boolean }; Returns: undefined };
       client_followups_due: { Args: { p_secret: string }; Returns: Json };
       client_call_reminders: { Args: { p_secret: string }; Returns: number };

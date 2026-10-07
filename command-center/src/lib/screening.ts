@@ -69,10 +69,10 @@ async function dial(db: Db, secret: string, origin: string, c: CallContext) {
 // hour ahead, and anything outside 9am-9pm).
 async function sendReminders(db: Db, secret: string) {
   const { data } = await db.rpc("screening_reminders_due", { p_secret: secret });
-  for (const c of (data ?? []) as unknown as (CallContext & { call_time: string })[]) {
+  for (const c of (data ?? []) as unknown as (CallContext & { call_time: string; by_ai?: boolean })[]) {
     const to = toE164(c.phone);
     if (!to || c.sms_opted_out) continue;
-    const body = `Hi ${first(c.full_name)}, just a reminder that Justin's assistant at JPR will be calling you at ${c.call_time} today about the ${c.job_title} position. If that time doesn't work anymore, just reply with a better one.`;
+    const body = `Hi ${first(c.full_name)}, just a reminder that ${c.by_ai === false ? "Justin from JPR" : "Justin's assistant at JPR"} will be calling you at ${c.call_time} today about the ${c.job_title} position. If that time doesn't work anymore, just reply with a better one.`;
     try {
       const msg = await twilioApi("Messages", { To: to, From: twilioNumber!, Body: body });
       await update(db, secret, c.run_id, { log_text: { body, sid: msg.sid, phone: to } });

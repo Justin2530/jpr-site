@@ -8,7 +8,7 @@ import { gmailAccount } from "@/lib/gmail-account";
 import { headers } from "next/headers";
 import { automationSecret, registerAutomation } from "@/lib/automation";
 import { saveMyCell, setAutomatedRecruiting } from "./actions";
-import { setPilotOnly } from "../relay-actions";
+import { setAiCalls } from "../relay-actions";
 import { liveSetup } from "@/lib/live";
 import { webhookUrl } from "@/lib/twilio";
 import { ConnectButton } from "./connect-button";
@@ -81,7 +81,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const wired = ready && staff.role === "owner" ? await numberWired(registration) : false;
   const automation = Boolean(automationSecret());
-  const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after_v1, pilot_only").maybeSingle();
+  const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after_v1, ai_calls").maybeSingle();
   const autoOn = Boolean(auto?.automated_recruiting);
   const h = await headers();
   const origin = `https://${h.get("x-forwarded-host") ?? h.get("host")}`;
@@ -198,15 +198,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             you turns that candidate&apos;s automation off until you turn it back on.
           </p>
           <p className="text-sm text-muted">
-            <span className="text-ink">Pilot only: {auto?.pilot_only === false ? "off" : "on"}.</span>{" "}
-            {auto?.pilot_only === false
-              ? "Automation runs on every job."
-              : "Automation runs only on jobs marked as the pilot (the switch is on each job's page). Turn this off once the pilot looks right."}
+            <span className="text-ink">AI calls: {auto?.ai_calls ? "on" : "off"}.</span>{" "}
+            {auto?.ai_calls
+              ? "Outreach includes the day 3 and day 12 AI calls, and calls a candidate books are made by the AI assistant."
+              : "Outreach sends only texts and emails. When a candidate books a call, it lands in What needs me as a call for you to make at that time. Call now on a candidate still works."}
           </p>
           {staff.role === "owner" && (
-            <form action={setPilotOnly}>
-              <input type="hidden" name="on" value={auto?.pilot_only === false ? "true" : "false"} />
-              <SubmitButton className="btn-quiet">{auto?.pilot_only === false ? "Back to pilot only" : "Run on every job"}</SubmitButton>
+            <form action={setAiCalls}>
+              <input type="hidden" name="on" value={auto?.ai_calls ? "false" : "true"} />
+              <SubmitButton className={auto?.ai_calls ? "btn-quiet hover:text-rose" : "btn-quiet"}>
+                {auto?.ai_calls ? "Turn off AI calls" : "Turn on AI calls"}
+              </SubmitButton>
             </form>
           )}
         </Step>

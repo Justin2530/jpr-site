@@ -216,3 +216,12 @@ export async function setPilotOnly(form: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
 }
+
+// AI calls in automated recruiting: off means texts and emails only, and booked calls go to Justin.
+export async function setAiCalls(form: FormData) {
+  const { supabase, staff } = await requireStaff();
+  if (staff.role !== "owner") throw new Error("Only the owner can change this.");
+  const { error } = await supabase.rpc("set_ai_calls", { p_on: form.get("on") === "true" });
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+}
