@@ -190,8 +190,8 @@ function whyCalling(c: CallContext) {
 }
 
 // The voice agent's brief: Justin's own call outline (Recruiting Flow Playbook V1). Locked as screening
-// agent v1 (Justin approved it on 2026-10-07; copy in project files, recruiting/screening-agent-v1.md):
-// change the wording only with his sign-off.
+// agent v1, the approach Justin approved on 2026-10-07 (copy in project files, recruiting/screening-agent-v1.md);
+// each call still adapts to the job, the resume and the person. Change the approach only with his sign-off.
 export function callInstructions(c: CallContext) {
   const outreach = c.purpose === "outreach";
   const name = firstName(c.full_name);
