@@ -3,6 +3,7 @@
   "trailingSlash": false,
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/jobs", "destination": "/api/jobs" },
     { "source": "/jobs/:id", "destination": "/api/job?id=:id" }
   ],
   "headers": [
