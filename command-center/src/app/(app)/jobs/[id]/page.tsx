@@ -33,7 +33,7 @@ export default async function JobDetail({
       .select("id, stage, stage_changed_at, candidates(id, full_name, current_title, current_employer, phone)")
       .eq("job_id", id)
       .order("stage_changed_at", { ascending: false }),
-    supabase.from("screening_goals").select("*").eq("job_id", id).order("sort"),
+    supabase.from("screening_goals").select("*").eq("job_id", id).is("retired_at", null).order("sort"),
     supabase.from("companies").select("id, name").order("name"),
     supabase.from("contacts").select("id, full_name, company_id").order("full_name"),
     supabase.from("candidates").select("id, full_name, current_title, created_at").order("updated_at", { ascending: false }).limit(500),

@@ -67,7 +67,7 @@ export async function JobWorkspace({
   const [{ data: runs }, { data: facts }, { data: goals }, { data: subs }, { data: contacts }, { data: activity }] = await Promise.all([
     supabase.from("screening_runs").select("*").eq("candidate_job_id", cj.id).order("created_at", { ascending: false }),
     supabase.from("screening_facts").select("*").eq("candidate_job_id", cj.id).order("created_at").order("sort"),
-    supabase.from("screening_goals").select("id, prompt, required").eq("job_id", job.id).order("sort"),
+    supabase.from("screening_goals").select("id, prompt, required").eq("job_id", job.id).is("retired_at", null).order("sort"),
     supabase.from("submissions").select("*").eq("candidate_job_id", cj.id).order("created_at", { ascending: false }).limit(1),
     supabase.from("contacts").select("id, full_name, title, email").eq("company_id", job.company_id).order("full_name"),
     supabase

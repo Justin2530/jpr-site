@@ -983,6 +983,7 @@ export type Database = {
           job_id: string;
           prompt: string;
           required: boolean;
+          retired_at: string | null;
           sort: number;
         };
         Insert: {
@@ -991,6 +992,7 @@ export type Database = {
           job_id: string;
           prompt: string;
           required?: boolean;
+          retired_at?: string | null;
           sort?: number;
         };
         Update: Partial<Database["public"]["Tables"]["screening_goals"]["Row"]>;

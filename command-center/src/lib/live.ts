@@ -122,6 +122,7 @@ export type CallContext = {
   stage: string;
   status: string;
   purpose?: "screening" | "outreach";
+  source?: "indeed" | "applied" | "linkedin" | "referral" | "other";
 };
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0];
@@ -142,6 +143,17 @@ ${
 4. "Would this be a good time for a quick call? It'll take about five minutes." If not, ask when is better (day and time), confirm it, and say goodbye (outcome callback, with the time in the note). If yes, go on to the call outline.`
     : `3. "Is now still a good time? It'll take about five minutes." If not, ask when is better (day and time), confirm it, and say goodbye (outcome callback, with the time in the note). If yes, go on to the call outline.`
 }`;
+}
+
+// Step 1 depends on how they reached us. Indeed: Justin messaged them there and they answered that they're
+// interested. Website, Facebook, a job board: they applied. Anything else: keep it general.
+function whyCalling(c: CallContext) {
+  const job = c.job_title;
+  if (c.source === "indeed")
+    return `they came from Indeed, which means Justin reached out to them there and they wrote back that they might be interested. Say: "I reached out to you on Indeed and got your response back that you might be interested in the ${job} position, so I just wanted to have a quick call and go over the position a little bit."`;
+  if (c.source === "applied")
+    return `they applied to the job themselves (on our website, Facebook or a job board), so don't say we reached out to them. Say: "I saw you applied for the ${job} position and wanted to reach out and have a quick call about the position."`;
+  return `"I got your response that you might be interested in the ${job} position, so I just wanted to have a quick call and go over the position a little bit."`;
 }
 
 // The voice agent's brief: Justin's own call outline (Recruiting Flow Playbook V1).
@@ -176,7 +188,7 @@ VOICEMAIL: if you reach a voicemail greeting or an automated message (a beep, "l
 ${opening(c)}
 
 CALL OUTLINE (Justin's own flow; follow it in this order, one step at a time, in your own natural words):
-1. Why you're calling: "I got your response that you might be interested in the ${c.job_title} position, so I just wanted to have a quick call and go over the position a little bit."
+1. Why you're calling: ${whyCalling(c)}
 2. Name the company and check for prior contact: "The position is for ${c.company}. Have you worked there, applied, or spoken with them about this position?" If yes, ask how it went: did they interview, were they turned down, did they withdraw, about when, and why it ended. Then say something like "Thanks for letting me know, I'll make sure Justin has that," and carry on with the call.
 3. Describe the job: what the employer is looking for, from the job facts below (for example the machines or skills they want, whether they'll train the right person, what levels they're hiring). Keep it to a few sentences, then let them react.
 4. Tie it to their background: mention one or two real things from their resume or what they've said that match ("I see you've got about ten years on lathes, so I think you'd be a good fit"). Only use what's actually there; if there's nothing to go on, ask what experience they have that fits.
@@ -184,7 +196,7 @@ CALL OUTLINE (Justin's own flow; follow it in this order, one step at a time, in
 ${jobQuestions.length ? `6. This job's own questions, one at a time:\n${jobQuestions.map((g) => `   - ${g.question}${g.required ? " (must cover)" : ""}`).join("\n")}\n7.` : "6."} Interview availability: get a couple of windows that work for them (for example "any day after lunch" or "Tuesday or Wednesday before 10").
 ${jobQuestions.length ? "8." : "7."} Their questions: "Any questions for me?" Answer what you can from the job facts. After each answer ask "Anything else?" and keep going until they say that's all.
 ${jobQuestions.length ? "9." : "8."} Close with: "All right, I'm going to get your resume and all the notes from this call together for Justin to review and get sent over to the hiring manager to see if we can get an interview set up." Then: "Thanks, ${name}. Take care, bye."
-Ask a short follow-up when an answer is vague ("about how many years?", "which machines?"). Don't re-ask what they already told you. Don't add questions of your own beyond those short follow-ups: no questions about their current job, why they want a change, commute, start date or notice unless it's one of this job's own questions. Don't mention where their info came from (like Indeed or a job board).
+Ask a short follow-up when an answer is vague ("about how many years?", "which machines?"). Don't re-ask what they already told you. Don't add questions of your own beyond those short follow-ups: no questions about where they live or the commute, their current job, why they want a change, start date or notice unless it's one of this job's own questions.
 
 JOB FACTS you may share (never invent anything beyond these). If they ask something these don't answer, like benefits, PTO or overtime, say: "Good question. I don't have that in front of me, but I'll make sure Justin gets back to you on it." Then carry on with the call:
 ${facts}
