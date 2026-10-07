@@ -8,6 +8,7 @@ import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
 import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
 import { syncMailbox } from "@/lib/gmail-sync";
+import { runRelay } from "@/lib/relay";
 
 // Secret the database uses to call back into this app, derived from a server-only secret so it
 // never has to be typed, pasted or stored anywhere but here and in Supabase Vault.
@@ -214,6 +215,13 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Brain pass failed", e);
   }
+  // Submissions, interviews and offers: client follow-ups, the scheduling relay, reminders and check-ins.
+  let relay = 0;
+  try {
+    relay = await runRelay(db, secret, origin);
+  } catch (e) {
+    console.error("Relay pass failed", e);
+  }
   // Screening calls whose time has come, and write-ups of calls that just ended.
   let calls = { dialed: 0, processed: 0 };
   try {
@@ -228,7 +236,7 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Triage pass failed", e);
   }
-  return { sent, due: steps.length, logged, leads, brain, cleared, calls };
+  return { sent, due: steps.length, logged, leads, brain, relay, cleared, calls };
 }
 
 async function emailWebsiteLeads(db: SupabaseClient<Database>, secret: string, origin: string) {

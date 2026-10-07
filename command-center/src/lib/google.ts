@@ -228,3 +228,21 @@ export async function readGmail(token: string, id: string): Promise<GmailMessage
     text: plainText(m.payload ?? {}) || m.snippet || "",
   };
 }
+
+// The PDFs attached to one message (an offer letter), ready to attach to another email.
+export async function gmailPdfs(token: string, id: string): Promise<Attachment[]> {
+  type Att = Part & { filename?: string; body?: { data?: string; attachmentId?: string } };
+  const m = await gmailGet(token, `messages/${id}?format=full`);
+  const found: Att[] = [];
+  const walk = (p: Att) => {
+    if (p.filename && p.body?.attachmentId && (/pdf/i.test(p.mimeType ?? "") || /\.pdf$/i.test(p.filename))) found.push(p);
+    for (const c of (p.parts ?? []) as Att[]) walk(c);
+  };
+  walk(m.payload ?? {});
+  const out: Attachment[] = [];
+  for (const p of found.slice(0, 3)) {
+    const a = await gmailGet(token, `messages/${id}/attachments/${p.body!.attachmentId}`);
+    if (a.data) out.push({ filename: p.filename!, mimeType: "application/pdf", data: Buffer.from(a.data, "base64url") });
+  }
+  return out;
+}

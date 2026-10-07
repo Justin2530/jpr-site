@@ -12,6 +12,7 @@ import { ViewSwitcher } from "@/components/view-switcher";
 import { Constants } from "@/lib/database.types";
 import { JobFields } from "../job-fields";
 import { QuestionInput } from "@/components/screening-questions";
+import { setJobPilot } from "../../relay-actions";
 import { addGoal, deleteGoal, setJobStatus, toggleGoal, updateJob } from "../actions";
 import { assignToJob, moveCandidateJob, unassign } from "../../pipeline-actions";
 
@@ -73,6 +74,14 @@ export default async function JobDetail({
           </span>
         }
         action={
+          <div className="flex flex-wrap gap-2">
+          <form action={setJobPilot}>
+            <input type="hidden" name="id" value={job.id} />
+            <input type="hidden" name="on" value={job.automation_pilot ? "false" : "true"} />
+            <SubmitButton className={job.automation_pilot ? "btn" : "btn-quiet"} pendingText="…">
+              {job.automation_pilot ? "Pilot job: on" : "Make pilot job"}
+            </SubmitButton>
+          </form>
           <form action={setJobStatus} className="flex gap-2">
             <input type="hidden" name="id" value={job.id} />
             {job.status !== "open" && (
@@ -91,6 +100,7 @@ export default async function JobDetail({
               </>
             )}
           </form>
+          </div>
         }
       />
 

@@ -101,6 +101,9 @@ export type Database = {
       };
       activities: {
         Row: {
+          relay_status: string | null;
+          relay_note: string | null;
+          relay_claimed_at: string | null;
           actor_id: string | null;
           brain_claimed_at: string | null;
           brain_note: string | null;
@@ -125,6 +128,9 @@ export type Database = {
           summary: string;
         };
         Insert: {
+          relay_status?: string | null;
+          relay_note?: string | null;
+          relay_claimed_at?: string | null;
           actor_id?: string | null;
           brain_claimed_at?: string | null;
           brain_note?: string | null;
@@ -300,6 +306,8 @@ export type Database = {
       };
       candidates: {
         Row: {
+          automation_paused_at: string | null;
+          automation_paused_reason: string | null;
           city: string | null;
           contact_consent: boolean;
           contact_consent_at: string | null;
@@ -322,6 +330,8 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          automation_paused_at?: string | null;
+          automation_paused_reason?: string | null;
           city?: string | null;
           contact_consent?: boolean;
           contact_consent_at?: string | null;
@@ -552,6 +562,7 @@ export type Database = {
       };
       automation_settings: {
         Row: {
+          pilot_only: boolean;
           id: boolean;
           automated_recruiting: boolean;
           eligible_after: string | null;
@@ -560,6 +571,7 @@ export type Database = {
           changed_by: string | null;
         };
         Insert: {
+          pilot_only?: boolean;
           id?: boolean;
           automated_recruiting?: boolean;
           eligible_after?: string | null;
@@ -660,8 +672,51 @@ export type Database = {
           },
         ];
       };
+      interviews: {
+        Row: {
+          id: string;
+          candidate_job_id: string;
+          status: "proposing" | "confirmed" | "done" | "cancelled";
+          waiting_on: "candidate" | "client" | null;
+          client_times: string[];
+          details: string | null;
+          rounds: number;
+          scheduled_at: string | null;
+          confirmed_at: string | null;
+          reminder_sent_at: string | null;
+          checkin_sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          candidate_job_id: string;
+          status?: "proposing" | "confirmed" | "done" | "cancelled";
+          waiting_on?: "candidate" | "client" | null;
+          client_times?: string[];
+          details?: string | null;
+          rounds?: number;
+          scheduled_at?: string | null;
+          confirmed_at?: string | null;
+          reminder_sent_at?: string | null;
+          checkin_sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["interviews"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "interviews_candidate_job_id_fkey";
+            columns: ["candidate_job_id"];
+            isOneToOne: false;
+            referencedRelation: "candidate_jobs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       jobs: {
         Row: {
+          automation_pilot: boolean;
           candidate_description: string | null;
           company_id: string;
           compensation: string | null;
@@ -682,6 +737,7 @@ export type Database = {
           visibility: Database["public"]["Enums"]["job_visibility"];
         };
         Insert: {
+          automation_pilot?: boolean;
           candidate_description?: string | null;
           company_id: string;
           compensation?: string | null;
@@ -753,8 +809,53 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["markets"]["Row"]>;
         Relationships: [];
       };
+      offers: {
+        Row: {
+          id: string;
+          candidate_job_id: string;
+          status: "review" | "confirm_asked" | "ready" | "sent" | "countered" | "accepted" | "declined" | "withdrawn";
+          waiting_on: "justin" | "candidate" | "client" | null;
+          clear: boolean;
+          terms: string;
+          pay: string | null;
+          start_date: string | null;
+          source_message_id: string | null;
+          rounds: number;
+          sent_at: string | null;
+          decided_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          candidate_job_id: string;
+          status?: "review" | "confirm_asked" | "ready" | "sent" | "countered" | "accepted" | "declined" | "withdrawn";
+          waiting_on?: "justin" | "candidate" | "client" | null;
+          clear?: boolean;
+          terms?: string;
+          pay?: string | null;
+          start_date?: string | null;
+          source_message_id?: string | null;
+          rounds?: number;
+          sent_at?: string | null;
+          decided_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["offers"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "offers_candidate_job_id_fkey";
+            columns: ["candidate_job_id"];
+            isOneToOne: false;
+            referencedRelation: "candidate_jobs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       placements: {
         Row: {
+          start_text_sent_at: string | null;
           candidate_job_id: string;
           compensation: number | null;
           covered_by_subscription: boolean;
@@ -771,6 +872,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          start_text_sent_at?: string | null;
           candidate_job_id: string;
           compensation?: number | null;
           covered_by_subscription?: boolean;
@@ -792,6 +894,42 @@ export type Database = {
             foreignKeyName: "placements_candidate_job_id_fkey";
             columns: ["candidate_job_id"];
             isOneToOne: true;
+            referencedRelation: "candidate_jobs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      relay_messages: {
+        Row: {
+          id: string;
+          candidate_job_id: string;
+          offer_id: string | null;
+          to_party: "candidate" | "client";
+          subject: string | null;
+          body: string;
+          status: "awaiting" | "sent" | "cancelled";
+          decided_by: string | null;
+          decided_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          candidate_job_id: string;
+          offer_id?: string | null;
+          to_party: "candidate" | "client";
+          subject?: string | null;
+          body: string;
+          status?: "awaiting" | "sent" | "cancelled";
+          decided_by?: string | null;
+          decided_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["relay_messages"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "relay_messages_candidate_job_id_fkey";
+            columns: ["candidate_job_id"];
+            isOneToOne: false;
             referencedRelation: "candidate_jobs";
             referencedColumns: ["id"];
           },
@@ -916,6 +1054,7 @@ export type Database = {
       };
       screening_runs: {
         Row: {
+          by_hand: boolean;
           answered_by: string | null;
           call_outcome: string | null;
           call_sid: string | null;
@@ -943,6 +1082,7 @@ export type Database = {
           unresolved: string[];
         };
         Insert: {
+          by_hand?: boolean;
           answered_by?: string | null;
           call_outcome?: string | null;
           call_sid?: string | null;
@@ -982,6 +1122,9 @@ export type Database = {
       };
       submissions: {
         Row: {
+          client_replied_at: string | null;
+          client_followup_at: string | null;
+          client_call_reminder_at: string | null;
           body: string;
           candidate_job_id: string;
           created_at: string;
@@ -998,6 +1141,9 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          client_replied_at?: string | null;
+          client_followup_at?: string | null;
+          client_call_reminder_at?: string | null;
           body?: string;
           candidate_job_id: string;
           created_at?: string;
@@ -1158,6 +1304,17 @@ export type Database = {
       };
     };
     Functions: {
+      automation_allowed: { Args: { p_cj: string }; Returns: boolean };
+      set_candidate_automation: { Args: { p_candidate: string; p_on: boolean }; Returns: undefined };
+      automation_pause_candidate: { Args: { p_secret: string; p_candidate: string; p_reason: string }; Returns: undefined };
+      set_pilot_only: { Args: { p_on: boolean }; Returns: undefined };
+      client_followups_due: { Args: { p_secret: string }; Returns: Json };
+      client_call_reminders: { Args: { p_secret: string }; Returns: number };
+      relay_pending: { Args: { p_secret: string }; Returns: Json };
+      relay_log: { Args: { p_secret: string; p: Json }; Returns: string | null };
+      relay_apply: { Args: { p_secret: string; p_activity: string | null; p: Json }; Returns: string | null };
+      relay_scheduled: { Args: { p_secret: string }; Returns: Json };
+      relay_context_staff: { Args: { p_cj: string }; Returns: Json };
       can_access_market: { Args: { m: string }; Returns: boolean };
       is_owner: { Args: never; Returns: boolean };
       is_protected_employer: { Args: { employer: string }; Returns: boolean };

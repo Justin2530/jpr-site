@@ -7,6 +7,8 @@ import { SubmissionEditor } from "@/components/submission-editor";
 import { draftSubmission, emailName } from "@/lib/submission";
 import { gmailAccount } from "@/lib/gmail-account";
 import { callNow, setOutreach } from "@/app/(app)/pipeline-actions";
+import { setCandidateAutomation } from "@/app/(app)/relay-actions";
+import { OfferCard, RelayMessageCard } from "@/components/offer-card";
 import { liveReady } from "@/lib/live";
 import { automationState } from "@/lib/automation-state";
 import { SubmitButton } from "@/components/submit-button";
@@ -20,6 +22,16 @@ const SUBMISSION_STATE: Record<Database["public"]["Enums"]["submission_status"],
   sent: { text: "Sent", tone: "mint" },
   held: { text: "On hold", tone: "muted" },
   passed: { text: "Passed", tone: "rose" },
+};
+
+const OFFER_STATE: Record<string, { text: string; tone: Tone }> = {
+  review: { text: "Offer: waiting on you", tone: "amber" },
+  confirm_asked: { text: "Offer: asked client to confirm", tone: "cyan" },
+  ready: { text: "Offer: confirmed, waiting on you", tone: "amber" },
+  sent: { text: "Offer sent", tone: "cyan" },
+  countered: { text: "Counteroffer", tone: "amber" },
+  accepted: { text: "Accepted", tone: "mint" },
+  declined: { text: "Declined", tone: "rose" },
 };
 
 function clock(seconds: number) {
@@ -74,6 +86,13 @@ export async function JobWorkspace({
     .eq("candidate_job_id", cj.id)
     .order("started_at", { ascending: false });
   const automation = await automationState(supabase);
+  const [{ data: interviews }, { data: offers }, { data: waiting }] = await Promise.all([
+    supabase.from("interviews").select("*").eq("candidate_job_id", cj.id).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1),
+    supabase.from("offers").select("*").eq("candidate_job_id", cj.id).neq("status", "withdrawn").order("created_at", { ascending: false }).limit(1),
+    supabase.from("relay_messages").select("*").eq("candidate_job_id", cj.id).eq("status", "awaiting").order("created_at"),
+  ]);
+  const interview = interviews?.[0];
+  const offer = offers?.[0];
   const run = runs?.[0];
   const earlier = (runs ?? []).slice(1);
   const submission = subs?.[0];
@@ -133,6 +152,28 @@ export async function JobWorkspace({
         <Chip tone={STAGE_TONE[cj.stage]}>{STAGE_LABEL[cj.stage]}</Chip>
         <StageSelect id={cj.id} stage={cj.stage} />
       </div>
+
+      {candidate.automation_paused_at && automation.on && automation.eligible(candidate.created_at) && (
+        <div className="panel flex flex-wrap items-center gap-3 border-amber/40 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2 font-medium">
+              Automation for {candidate.full_name.split(" ")[0]} <Chip tone="amber">Off</Chip>
+            </p>
+            <p className="text-sm text-muted">
+              Turned off {timeAgo(candidate.automation_paused_at)}
+              {candidate.automation_paused_reason ? `: ${candidate.automation_paused_reason}` : ""}. Nothing automatic goes to them until you
+              turn it back on.
+            </p>
+          </div>
+          <form action={setCandidateAutomation}>
+            <input type="hidden" name="id" value={candidate.id} />
+            <input type="hidden" name="on" value="true" />
+            <SubmitButton className="btn" pendingText="Turning on…">
+              Turn back on
+            </SubmitButton>
+          </form>
+        </div>
+      )}
 
       {early && (
         <AutomationSwitch
@@ -200,6 +241,64 @@ export async function JobWorkspace({
           )}
         </Panel>
       </section>
+
+      {(interview || offer || (waiting ?? []).length > 0) && (
+        <Panel
+          title="Interview and offer"
+          action={offer ? <Chip tone={OFFER_STATE[offer.status]?.tone ?? "muted"}>{OFFER_STATE[offer.status]?.text ?? offer.status}</Chip> : null}
+        >
+          <div className="space-y-4">
+            {interview && (
+              <p className="text-sm">
+                <span className="font-medium">Interview: </span>
+                {interview.status === "proposing"
+                  ? interview.waiting_on === "client"
+                    ? "Waiting on the client for times."
+                    : interview.client_times.length
+                      ? `Offered ${interview.client_times.join(", ")} (Eastern). Waiting on ${candidate.full_name.split(" ")[0]} to pick one.`
+                      : `Waiting on ${candidate.full_name.split(" ")[0]}'s availability.`
+                  : interview.scheduled_at
+                    ? `${interview.status === "done" ? "Was" : "Set for"} ${new Date(interview.scheduled_at).toLocaleString("en-US", {
+                        timeZone: "America/New_York",
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}.${interview.checkin_sent_at ? " Check-in sent to the client." : ""}`
+                    : label(interview.status)}
+                {interview.details && <span className="text-muted"> {interview.details}</span>}
+              </p>
+            )}
+            {(waiting ?? []).map((m) => (
+              <RelayMessageCard
+                key={m.id}
+                id={m.id}
+                toLabel={m.to_party === "client" ? (job.companies?.short_name || job.companies?.name || "the client") : candidate.full_name}
+                body={m.body}
+              />
+            ))}
+            {offer &&
+              (["review", "ready", "confirm_asked"].includes(offer.status) ? (
+                <OfferCard
+                  offerId={offer.id}
+                  status={offer.status}
+                  clear={offer.clear}
+                  terms={offer.terms}
+                  startDate={offer.start_date}
+                  contactFirst={(people.find((p) => p.id === preselected[0])?.full_name ?? "the client").split(" ")[0]}
+                  hasLetter={Boolean(offer.source_message_id)}
+                />
+              ) : (
+                <div className="text-sm">
+                  <p className="label">Offer terms</p>
+                  <p className="whitespace-pre-wrap">{offer.terms || "None recorded."}</p>
+                  {offer.start_date && <p className="mt-1 text-muted">Start date {shortDate(offer.start_date)}</p>}
+                </div>
+              ))}
+          </div>
+        </Panel>
+      )}
 
       <Panel title="What we learned" action={missing.length > 0 && <Chip tone="amber">{missing.length} required still open</Chip>}>
         {(goals ?? []).length === 0 && extraFacts.length === 0 ? (
@@ -416,7 +515,7 @@ function Outreach({
       <ol className="space-y-1.5 text-sm">
         {steps.map((s) => (
           <li key={s.id} className="flex flex-wrap items-baseline gap-x-3">
-            <span className="w-12 font-mono text-xs uppercase text-faint">{s.channel === "sms" ? "Text" : "Email"}</span>
+            <span className="w-12 font-mono text-xs uppercase text-faint">{s.channel === "sms" ? "Text" : s.channel === "call" ? "Call" : s.channel === "close" ? "End" : "Email"}</span>
             <span className={s.status === "sent" ? "text-ink" : s.status === "failed" ? "text-rose" : "text-muted"}>
               {STEP_STATE[s.status] ?? s.status}{" "}
               {s.status === "sent" && s.sent_at ? when(s.sent_at) : s.status === "pending" ? when(s.due_at) : ""}

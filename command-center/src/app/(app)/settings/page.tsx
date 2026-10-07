@@ -8,9 +8,11 @@ import { gmailAccount } from "@/lib/gmail-account";
 import { headers } from "next/headers";
 import { automationSecret, registerAutomation } from "@/lib/automation";
 import { saveMyCell, setAutomatedRecruiting } from "./actions";
+import { setPilotOnly } from "../relay-actions";
 import { liveSetup } from "@/lib/live";
 import { webhookUrl } from "@/lib/twilio";
 import { ConnectButton } from "./connect-button";
+import { PasswordForm } from "./password-form";
 import { cookies } from "next/headers";
 import { AppearanceSettings, type Rain } from "@/components/theme";
 
@@ -79,7 +81,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const wired = ready && staff.role === "owner" ? await numberWired(registration) : false;
   const automation = Boolean(automationSecret());
-  const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after_v1").maybeSingle();
+  const { data: auto } = await supabase.from("automation_settings").select("automated_recruiting, eligible_after_v1, pilot_only").maybeSingle();
   const autoOn = Boolean(auto?.automated_recruiting);
   const h = await headers();
   const origin = `https://${h.get("x-forwarded-host") ?? h.get("host")}`;
@@ -91,6 +93,19 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader kicker="Business" title="Settings" />
+      <section className="panel mb-6 max-w-2xl">
+        <div className="border-b border-line px-4 py-3">
+          <h2 className="panel-title">Sign in</h2>
+        </div>
+        <div className="space-y-3 p-4">
+          <p className="text-sm text-muted">
+            Set a password to sign in with your email and password instead of waiting for a link. The Command Center lives at{" "}
+            <span className="text-ink">jpr-site-wellthree.vercel.app</span>. In Chrome, use the install button at the right end of the address bar
+            to keep it on your desktop, or Add to Home Screen on your phone.
+          </p>
+          <PasswordForm />
+        </div>
+      </section>
       <section className="panel mb-6 max-w-2xl">
         <div className="border-b border-line px-4 py-3">
           <h2 className="panel-title">Appearance</h2>
@@ -174,6 +189,24 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <SubmitButton className={autoOn ? "btn-quiet hover:text-rose" : "btn"}>
                 {autoOn ? "Turn off automated recruiting" : "Turn on automated recruiting"}
               </SubmitButton>
+            </form>
+          )}
+          <p className="text-sm text-muted">
+            After a submission goes out, it also follows up with a client who hasn&apos;t answered in 3 business days (then reminds you to
+            call), carries interview scheduling between the client and the candidate, texts the candidate a reminder the day before and
+            checks in with the client at 3pm the next business day. Offers and counteroffers always wait for your click. Anything it flags to
+            you turns that candidate&apos;s automation off until you turn it back on.
+          </p>
+          <p className="text-sm text-muted">
+            <span className="text-ink">Pilot only: {auto?.pilot_only === false ? "off" : "on"}.</span>{" "}
+            {auto?.pilot_only === false
+              ? "Automation runs on every job."
+              : "Automation runs only on jobs marked as the pilot (the switch is on each job's page). Turn this off once the pilot looks right."}
+          </p>
+          {staff.role === "owner" && (
+            <form action={setPilotOnly}>
+              <input type="hidden" name="on" value={auto?.pilot_only === false ? "true" : "false"} />
+              <SubmitButton className="btn-quiet">{auto?.pilot_only === false ? "Back to pilot only" : "Run on every job"}</SubmitButton>
             </form>
           )}
         </Step>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
-import { sendMagicLink, type LoginState } from "./actions";
+import { useActionState, useState } from "react";
+import { signIn, type LoginState } from "./actions";
 
 export function LoginForm({ initialError }: { initialError?: string }) {
-  const [state, action, pending] = useActionState<LoginState, FormData>(sendMagicLink, { error: initialError });
+  const [state, action, pending] = useActionState<LoginState, FormData>(signIn, { error: initialError });
+  const [password, setPassword] = useState("");
 
   if (state.sent) {
     return (
@@ -25,9 +26,24 @@ export function LoginForm({ initialError }: { initialError?: string }) {
         </label>
         <input id="email" name="email" type="email" autoComplete="email" required className="field" placeholder="you@jpeacerecruiting.com" />
       </div>
+      <div>
+        <label htmlFor="password" className="label">
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          className="field"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Leave blank to get a sign-in link"
+        />
+      </div>
       {state.error && <p className="text-sm text-rose">{state.error}</p>}
       <button type="submit" disabled={pending} className="btn w-full py-2.5">
-        {pending ? "Sending…" : "Send sign-in link"}
+        {pending ? (password ? "Signing in…" : "Sending…") : password ? "Sign in" : "Send sign-in link"}
       </button>
     </form>
   );

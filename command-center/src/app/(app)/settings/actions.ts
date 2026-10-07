@@ -59,3 +59,14 @@ export async function setAutomatedRecruiting(form: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
 }
+
+// A password, so signing in doesn't need an email link every time.
+export async function setMyPassword(_prev: { ok: boolean; message: string } | null, form: FormData) {
+  const { supabase } = await requireStaff();
+  const password = String(form.get("password") ?? "");
+  if (password.length < 8) return { ok: false, message: "Use at least 8 characters." };
+  if (password !== String(form.get("confirm") ?? "")) return { ok: false, message: "The two passwords don't match." };
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, message: "Saved. Next time, sign in with your email and this password." };
+}

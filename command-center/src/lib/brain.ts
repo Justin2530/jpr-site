@@ -18,6 +18,7 @@ type Pending = {
   email: string | null;
   phone: string | null;
   sms_opted_out: boolean;
+  candidate_id: string;
   candidate_job_id: string;
   job_title: string;
   company: string;
@@ -195,11 +196,18 @@ export async function runBrain(db: SupabaseClient<Database>, secret: string, ori
         (reply && !extra.reply_body) || open ? "needs_justin" : d.intent === "answer" ? "ask_time" : d.intent;
       const summary = open && !d.summary.includes(open) ? `${d.summary} · Asked: ${open}` : d.summary;
       await apply({ intent, call_at_local: d.call_at_local, summary });
+      // Anything flagged to Justin turns this candidate's automation off until he turns it back on.
+      if (intent === "needs_justin") await pauseCandidate(db, secret, p.candidate_id, summary);
       handled++;
     } catch (e) {
       console.error("Brain failed on", p.activity_id, e);
       await apply({ intent: "needs_justin", summary: "Couldn't read this reply automatically" });
+      await pauseCandidate(db, secret, p.candidate_id, "Couldn't read a reply automatically");
     }
   }
   return handled;
+}
+
+function pauseCandidate(db: SupabaseClient<Database>, secret: string, candidate: string, why: string) {
+  return db.rpc("automation_pause_candidate", { p_secret: secret, p_candidate: candidate, p_reason: why });
 }
