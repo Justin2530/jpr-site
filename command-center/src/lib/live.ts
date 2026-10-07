@@ -177,7 +177,7 @@ export function callInstructions(c: CallContext) {
 
 YOUR GOAL: a friendly, quick 5 to 10 minute call, run the way Justin runs his own calls, that gets him what he needs to send this person to the hiring manager, and answers their questions about the job.
 
-BEFORE THEY PICK UP: you join the call while their phone is still ringing. Say nothing until you're told they picked up, then start the opening right away without waiting for them to say hello.
+BEFORE THEY PICK UP: you join the call while their phone is still ringing. Say nothing until you're told they picked up. Then let them say hello first and open right after it; if they stay quiet, you'll be told to go ahead.
 
 VOICEMAIL: if you reach a voicemail greeting or an automated message (a beep, "leave a message", "the person you are calling is not available"), don't run the call. Wait for the greeting to finish (the beep, or a pause after it), then right away leave one short message: ${
     outreach
@@ -284,17 +284,59 @@ export function holdForAnswer(sessionId: string) {
   return sideband(sessionId, [{ type: "session.input_audio.mute", event_id: "hold" }]);
 }
 
-// They picked up: open the line and have the assistant speak first.
-export function candidateAnswered(sessionId: string, fullName: string) {
-  return sideband(sessionId, [
-    { type: "session.input_audio.unmute", event_id: "answered" },
-    {
-      type: "session.instructions.append",
-      event_id: "greeting",
-      delegation_id: null,
-      content: `The phone was just answered. If a person picked up, start your opening now: "Hi, is this ${firstName(fullName)}?" If instead you hear a recorded voicemail greeting, stay quiet until it ends (the beep or a pause), then leave your voicemail message.`,
-    },
-  ]);
+// They picked up: open the line and let them say hello first, the way people expect a call to go. If they
+// stay quiet for a few seconds, the assistant opens on its own. Best effort, like sideband().
+const QUIET_MS = 3500;
+export async function candidateAnswered(sessionId: string, fullName: string) {
+  const { default: WebSocket } = await import("ws");
+  const name = firstName(fullName);
+  const ws = new WebSocket(`wss://api.openai.com/v1/live/sessions/${sessionId}/attach`, {
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` },
+  });
+  return new Promise<string>((resolve) => {
+    let sent = false;
+    let acks = 0;
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const finish = (result: string) => {
+      clearTimeout(giveUp);
+      clearTimeout(quiet);
+      ws.close();
+      resolve(result);
+    };
+    const append = (id: string, content: string) =>
+      ws.send(JSON.stringify({ type: "session.instructions.append", event_id: id, delegation_id: null, content }));
+    const send = () => {
+      if (sent || ws.readyState !== WebSocket.OPEN) return;
+      sent = true;
+      ws.send(JSON.stringify({ type: "session.input_audio.unmute", event_id: "answered" }));
+      append(
+        "answered",
+        `The phone was just answered. Let them speak first: wait for their hello, then open with "Hi, is this ${name}?" If instead you hear a recorded voicemail greeting, stay quiet until it ends (the beep or a pause), then leave your voicemail message.`,
+      );
+      // Nobody said anything: go ahead and open.
+      quiet = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) return finish("ok, socket closed while waiting");
+        append("quiet", `They haven't said anything yet. Start your opening now: "Hi, is this ${name}?"`);
+        setTimeout(() => finish("ok, opened after silence"), 1500);
+      }, QUIET_MS);
+    };
+    const giveUp = setTimeout(() => finish(sent ? `sent, ${acks} acks` : "timed out"), QUIET_MS + 5000);
+    ws.on("open", () => setTimeout(send, 300)); // a moment for session.started, if it's coming
+    ws.on("message", (raw) => {
+      let e: { type?: string; delta?: string; transcript?: string; text?: string };
+      try {
+        e = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+      if (e.type === "session.started") send();
+      else if (/\.(appended|unmuted)$/.test(e.type ?? "")) acks++;
+      else if (e.type === "error") finish(`error ${raw.toString().slice(0, 300)}`);
+      // They (or a voicemail greeting) spoke, or the assistant already started: no need to nudge.
+      else if (sent && /(input|output)_transcript/.test(e.type ?? "") && /[a-z]/i.test(e.delta ?? e.transcript ?? e.text ?? "")) finish("ok");
+    });
+    ws.on("error", (err) => finish(`socket ${String(err).slice(0, 200)}`));
+  });
 }
 
 export async function rejectCall(sessionId: string) {
