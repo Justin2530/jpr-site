@@ -11,6 +11,7 @@ import { Board } from "@/components/board";
 import { ViewSwitcher } from "@/components/view-switcher";
 import { Constants } from "@/lib/database.types";
 import { JobFields } from "../job-fields";
+import { QuestionInput } from "@/components/screening-questions";
 import { addGoal, deleteGoal, setJobStatus, toggleGoal, updateJob } from "../actions";
 import { assignToJob, moveCandidateJob, unassign } from "../../pipeline-actions";
 
@@ -205,12 +206,12 @@ export default async function JobDetail({
             )}
           </Panel>
 
-          <Panel title="Screening goals">
+          <Panel title="Screening questions">
             <p className="-mt-1 mb-3 text-sm text-muted">
-              What the pre-submission call has to learn. <span className="text-amber">Required</span> goals must be answered before a
-              submission is drafted.
+              What the AI call asks about this job. Every call also covers pay, interview availability and whether they&apos;ve worked at
+              or applied to the company. <span className="text-amber">Required</span> ones must be answered before a submission is drafted.
             </p>
-            {(goals ?? []).length === 0 && <Empty>No goals yet.</Empty>}
+            {(goals ?? []).length === 0 && <Empty>No job-specific questions.</Empty>}
             <ul className="space-y-2">
               {(goals ?? []).map((g) => (
                 <li key={g.id} className="flex items-center gap-3 rounded-lg border border-line px-3 py-2">
@@ -226,7 +227,7 @@ export default async function JobDetail({
                   <form action={deleteGoal}>
                     <input type="hidden" name="id" value={g.id} />
                     <input type="hidden" name="job_id" value={job.id} />
-                    <button className="text-xs text-faint hover:text-rose" aria-label="Delete goal">
+                    <button className="text-xs text-faint hover:text-rose" aria-label="Delete question">
                       ✕
                     </button>
                   </form>
@@ -235,12 +236,7 @@ export default async function JobDetail({
             </ul>
             <form action={addGoal} className="mt-3 flex flex-wrap items-center gap-2">
               <input type="hidden" name="job_id" value={job.id} />
-              <input
-                name="prompt"
-                placeholder="Add something the call needs to find out…"
-                className="field flex-1"
-                aria-label="New screening goal"
-              />
+              <QuestionInput name="prompt" placeholder="Add a question the call should ask…" className="flex-1" label="New screening question" />
               <label className="flex items-center gap-1.5 text-sm text-muted">
                 <input type="checkbox" name="required" defaultChecked className="accent-cyan" /> Required
               </label>

@@ -7,15 +7,6 @@ import { num, text } from "@/lib/format";
 import { resolveCompany } from "@/lib/company";
 import type { Enums } from "@/lib/database.types";
 
-// Starting information goals for every new job; edit per job afterwards.
-const DEFAULT_GOALS: { prompt: string; required: boolean }[] = [
-  { prompt: "Pay expectations and whether this job's pay works", required: true },
-  { prompt: "Commute: where they live and whether the location works", required: true },
-  { prompt: "Availability: when they could start and schedule fit", required: true },
-  { prompt: "Interest in this role and why they'd move", required: true },
-  { prompt: "Current situation and notice needed at current job", required: false },
-];
-
 function jobFields(form: FormData) {
   return {
     title: text(form, "title")!,
@@ -34,6 +25,9 @@ function jobFields(form: FormData) {
 
 export async function createJob(form: FormData) {
   const { supabase, userId, markets } = await requireStaff();
+  // Every job needs its own screening questions, or an explicit "None".
+  const questions = form.getAll("question").map((q) => String(q).trim()).filter(Boolean);
+  if (!questions.length && form.get("no_questions") !== "on") throw new Error("Add a screening question, or tick None.");
   const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
   const { data, error } = await supabase
     .from("jobs")
@@ -41,7 +35,12 @@ export async function createJob(form: FormData) {
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  await supabase.from("screening_goals").insert(DEFAULT_GOALS.map((g, i) => ({ ...g, job_id: data.id, sort: i })));
+  if (questions.length) {
+    const { error: qError } = await supabase
+      .from("screening_goals")
+      .insert(questions.map((prompt, i) => ({ prompt, required: true, job_id: data.id, sort: i })));
+    if (qError) throw new Error(qError.message);
+  }
   redirect(`/jobs/${data.id}`);
 }
 
