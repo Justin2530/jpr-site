@@ -285,7 +285,10 @@ async function transcribe(wav: Buffer): Promise<Line[]> {
     let prevEnd = 0;
     for (const s of segments) {
       const text = s.text.trim();
-      if (!text || (s.no_speech_prob ?? 0) > 0.6) continue;
+      // Whisper's own rule for a hallucinated line: likely silence AND low confidence. Short real answers
+      // ("No.") often score high on no_speech alone.
+      if (!text || ((s.no_speech_prob ?? 0) > 0.6 && (s.avg_logprob ?? 0) < -1))
+        continue;
       // A segment's own start time is rough (often snapped to the previous segment's end), which put
       // replies ahead of the questions they answered. The first word's time is where speech starts.
       const first = words.find(
@@ -304,28 +307,42 @@ async function transcribe(wav: Buffer): Promise<Line[]> {
 }
 
 // Each channel is mostly silence while the other person talks, and over a whole call the transcriber
-// dropped everything after the first minute or two. Short pieces, cut where the channel is quietest
+// dropped everything after the first minute or two. Short pieces, cut in a pause
 // near every 30 s, keep it from losing the end of the call. Times are shifted back to the whole call.
 async function whisperInPieces(x: Float32Array, rate: number) {
+  // Cut in the middle of the longest pause near each 30 s mark, so a cut never lands inside a sentence
+  // (a line split across two pieces was dropped by the transcriber).
   const frame = Math.round(rate * 0.02);
+  const rms = new Float32Array(Math.floor(x.length / frame));
+  for (let f = 0; f < rms.length; f++) {
+    let sum = 0;
+    for (let j = f * frame; j < (f + 1) * frame; j++) sum += x[j] * x[j];
+    rms[f] = Math.sqrt(sum / frame);
+  }
+  const sorted = Array.from(rms).sort((a, b) => a - b);
+  const quiet = Math.max(
+    0.02,
+    (sorted[Math.floor(sorted.length * 0.5)] ?? 0) * 4,
+  );
   const cuts = [0];
   for (
     let target = 30 * rate;
-    target < x.length - 5 * rate;
+    target < x.length - 10 * rate;
     target += 30 * rate
   ) {
-    let best = target;
-    let bestSum = Infinity;
-    for (
-      let at = target - 3 * rate;
-      at + frame <= target + 3 * rate;
-      at += frame
-    ) {
-      let sum = 0;
-      for (let j = at; j < at + frame; j++) sum += x[j] * x[j];
-      if (sum < bestSum) [best, bestSum] = [at, sum];
+    const from = Math.max(
+      Math.floor(cuts[cuts.length - 1] / frame) + 1,
+      Math.floor((target - 8 * rate) / frame),
+    );
+    const to = Math.min(rms.length, Math.floor((target + 8 * rate) / frame));
+    let best = -1;
+    let bestLen = 0;
+    for (let f = from, run = 0; f < to; f++) {
+      run = rms[f] < quiet ? run + 1 : 0;
+      if (run > bestLen) [best, bestLen] = [f - Math.floor(run / 2), run];
     }
-    cuts.push(best);
+    // No pause at all near the mark (a long monologue): wait for the next mark.
+    if (bestLen >= 10) cuts.push(best * frame);
   }
   cuts.push(x.length);
   const pieces = await Promise.all(
