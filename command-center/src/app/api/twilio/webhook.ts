@@ -13,7 +13,10 @@ export async function readTwilio(request: Request) {
   const url = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") ?? url.host;
   const signed = `https://${host}${url.pathname}${url.search}`;
-  if (!validTwilioSignature(signed, params, request.headers.get("x-twilio-signature"))) return null;
+  if (!validTwilioSignature(signed, params, request.headers.get("x-twilio-signature"))) {
+    console.warn("Twilio signature didn't match", url.pathname, host);
+    return null;
+  }
   return params;
 }
 

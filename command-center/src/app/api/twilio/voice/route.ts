@@ -36,6 +36,7 @@ export async function POST(request: Request) {
 
   // The forwarded call ended: hang up if Justin talked to them, otherwise take a message.
   if (url.searchParams.get("step") === "after") {
+    console.info("Business call ended", p.CallSid, { bridged: p.DialBridged, status: p.DialCallStatus });
     return twiml(p.DialBridged === "true" ? "<Hangup/>" : voicemail(origin, missed));
   }
 

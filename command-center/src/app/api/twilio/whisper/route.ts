@@ -9,7 +9,10 @@ export async function POST(request: Request) {
   const p = await readTwilio(request);
   if (!p) return new Response("Forbidden", { status: 403 });
   const url = new URL(request.url);
-  if (url.searchParams.get("step") === "accept") return xml(p.Digits === "1" ? "" : "<Hangup/>");
+  if (url.searchParams.get("step") === "accept") {
+    console.info("Business call: Justin pressed", JSON.stringify(p.Digits ?? null), p.CallSid);
+    return xml(p.Digits === "1" ? "" : "<Hangup/>");
+  }
   const from = url.searchParams.get("from") ?? "";
   const { data: name } = await webhookDb().rpc("twilio_caller_name", {
     p_secret: process.env.TWILIO_WEBHOOK_SECRET ?? "",
