@@ -1,7 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
-import { toE164, twilioApi, twilioGet, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
-import { callRecording, liveReady, runSig, sipUri, type CallContext } from "@/lib/live";
+import {
+  toE164,
+  twilioApi,
+  twilioGet,
+  twilioNumber,
+  twilioReady,
+  webhookUrl,
+} from "@/lib/twilio";
+import {
+  callRecording,
+  liveReady,
+  runSig,
+  sipUri,
+  type CallContext,
+} from "@/lib/live";
 import { SIGNATURE, SUBMISSION_STYLE } from "@/lib/submission";
 
 // The screening-call engine: dial calls whose time has come, text people we missed, and turn finished
@@ -20,7 +33,12 @@ export async function runScreening(db: Db, secret: string, origin: string) {
       out.dialed++;
     } catch (e) {
       console.error("Screening dial failed", c.run_id, e);
-      await update(db, secret, c.run_id, { status: "failed", process_note: e instanceof Error ? e.message.slice(0, 300) : "dial failed", ended: true });
+      await update(db, secret, c.run_id, {
+        status: "failed",
+        process_note:
+          e instanceof Error ? e.message.slice(0, 300) : "dial failed",
+        ended: true,
+      });
     }
   }
   try {
@@ -41,14 +59,27 @@ export async function runScreening(db: Db, secret: string, origin: string) {
   return out;
 }
 
-export function update(db: Db, secret: string, run: string, p: Record<string, unknown>) {
-  return db.rpc("screening_update", { p_secret: secret, p_run: run, p: p as Json });
+export function update(
+  db: Db,
+  secret: string,
+  run: string,
+  p: Record<string, unknown>,
+) {
+  return db.rpc("screening_update", {
+    p_secret: secret,
+    p_run: run,
+    p: p as Json,
+  });
 }
 
 async function dial(db: Db, secret: string, origin: string, c: CallContext) {
   const to = toE164(c.phone);
   if (!to) {
-    await update(db, secret, c.run_id, { status: "failed", process_note: "No phone number on file", ended: true });
+    await update(db, secret, c.run_id, {
+      status: "failed",
+      process_note: "No phone number on file",
+      ended: true,
+    });
     return;
   }
   // The AI assistant is called first and then dials the candidate (see /api/screening/answer), so
@@ -68,14 +99,25 @@ async function dial(db: Db, secret: string, origin: string, c: CallContext) {
 // One hour before a call they booked: a reminder text (the database skips calls booked less than an
 // hour ahead, and anything outside 9am-9pm).
 async function sendReminders(db: Db, secret: string) {
-  const { data } = await db.rpc("screening_reminders_due", { p_secret: secret });
-  for (const c of (data ?? []) as unknown as (CallContext & { call_time: string; by_ai?: boolean })[]) {
+  const { data } = await db.rpc("screening_reminders_due", {
+    p_secret: secret,
+  });
+  for (const c of (data ?? []) as unknown as (CallContext & {
+    call_time: string;
+    by_ai?: boolean;
+  })[]) {
     const to = toE164(c.phone);
     if (!to || c.sms_opted_out) continue;
     const body = `Hi ${first(c.full_name)}, just a reminder that ${c.by_ai === false ? "Justin from JPR" : "Justin's assistant at JPR"} will be calling you at ${c.call_time} today about the ${c.job_title} position. If that time doesn't work anymore, just reply with a better one.`;
     try {
-      const msg = await twilioApi("Messages", { To: to, From: twilioNumber!, Body: body });
-      await update(db, secret, c.run_id, { log_text: { body, sid: msg.sid, phone: to } });
+      const msg = await twilioApi("Messages", {
+        To: to,
+        From: twilioNumber!,
+        Body: body,
+      });
+      await update(db, secret, c.run_id, {
+        log_text: { body, sid: msg.sid, phone: to },
+      });
     } catch (e) {
       console.error("Reminder text failed", c.run_id, e);
     }
@@ -84,20 +126,45 @@ async function sendReminders(db: Db, secret: string) {
 
 // Voicemail, no answer, busy on a call they booked: one text asking for a better time (the reply brain
 // books it). With no reply in a day, the outreach schedule picks up where it left off.
-export async function missedCall(db: Db, secret: string, run: string, why: string) {
-  const { data } = await db.rpc("screening_get", { p_secret: secret, p_run: run });
+export async function missedCall(
+  db: Db,
+  secret: string,
+  run: string,
+  why: string,
+) {
+  const { data } = await db.rpc("screening_get", {
+    p_secret: secret,
+    p_run: run,
+  });
   const c = data as unknown as CallContext | null;
-  const p: Record<string, unknown> = { status: "no_answer", outcome_note: why, ended: true };
+  const p: Record<string, unknown> = {
+    status: "no_answer",
+    outcome_note: why,
+    ended: true,
+  };
   const to = toE164(c?.phone);
   // Outreach calls (days 3 and 12) don't send a text: the cadence's own next touch follows.
-  const { data: m } = c?.purpose === "outreach" ? { data: null } : await db.rpc("screening_missed", { p_secret: secret, p_run: run });
+  const { data: m } =
+    c?.purpose === "outreach"
+      ? { data: null }
+      : await db.rpc("screening_missed", { p_secret: secret, p_run: run });
   const missed = m as { booked: boolean; call_time?: string } | null;
-  if (c && to && !c.sms_opted_out && c.purpose !== "outreach" && twilioReady()) {
+  if (
+    c &&
+    to &&
+    !c.sms_opted_out &&
+    c.purpose !== "outreach" &&
+    twilioReady()
+  ) {
     const body = missed?.booked
       ? `Hi ${first(c.full_name)}, Justin's assistant at JPR just tried you for our ${missed.call_time} call about the ${c.job_title} position. No worries, just reply with a better time and we'll call you then.`
       : `Hi ${first(c.full_name)}, Justin's assistant at JPR just tried you about the ${c.job_title} position. No worries, just reply with a better time and we'll call you then.`;
     try {
-      const msg = await twilioApi("Messages", { To: to, From: twilioNumber!, Body: body });
+      const msg = await twilioApi("Messages", {
+        To: to,
+        From: twilioNumber!,
+        Body: body,
+      });
       p.log_text = { body, sid: msg.sid, phone: to };
     } catch (e) {
       console.error("Missed-call text failed", run, e);
@@ -108,7 +175,13 @@ export async function missedCall(db: Db, secret: string, run: string, why: strin
 
 // ---------- After the call ----------
 
-type Segment = { start: number; end: number; text: string; no_speech_prob?: number; avg_logprob?: number };
+type Segment = {
+  start: number;
+  end: number;
+  text: string;
+  no_speech_prob?: number;
+  avg_logprob?: number;
+};
 type Word = { word: string; start: number; end: number };
 type Line = { speaker: "agent" | "candidate"; text: string; at: number };
 
@@ -117,19 +190,34 @@ type Line = { speaker: "agent" | "candidate"; text: string; at: number };
 // Twilio has it about 20 minutes after the call; until then it answers "not found" and we try later.
 async function saveCallQuality(db: Db, secret: string) {
   const { data } = await db.rpc("screening_quality_due", { p_secret: secret });
-  for (const r of (data ?? []) as { run_id: string; call_sid: string; ended_at: string }[]) {
-    const kids = (await twilioApi("Calls", { ParentCallSid: r.call_sid }, "GET")) as { calls?: { sid: string }[] };
+  for (const r of (data ?? []) as {
+    run_id: string;
+    call_sid: string;
+    ended_at: string;
+  }[]) {
+    const kids = (await twilioApi(
+      "Calls",
+      { ParentCallSid: r.call_sid },
+      "GET",
+    )) as { calls?: { sid: string }[] };
     const legs: Record<string, unknown> = {};
     let missing = false;
     for (const leg of [r.call_sid, ...(kids.calls ?? []).map((k) => k.sid)]) {
-      legs[leg] = await twilioGet(`https://insights.twilio.com/v1/Voice/${leg}/Summary`).catch((e) => {
+      legs[leg] = await twilioGet(
+        `https://insights.twilio.com/v1/Voice/${leg}/Summary`,
+      ).catch((e) => {
         missing = true;
         return { error: String(e) };
       });
     }
     // Keep retrying a missing report for a couple of hours, then save what there is.
-    if (missing && Date.now() - new Date(r.ended_at).getTime() < 2 * 3600_000) continue;
-    await db.rpc("screening_quality_save", { p_secret: secret, p_run: r.run_id, p: legs as Json });
+    if (missing && Date.now() - new Date(r.ended_at).getTime() < 2 * 3600_000)
+      continue;
+    await db.rpc("screening_quality_save", {
+      p_secret: secret,
+      p_run: r.run_id,
+      p: legs as Json,
+    });
   }
 }
 
@@ -139,12 +227,19 @@ async function processOne(db: Db, secret: string) {
   if (!c) return false;
   const run = c.run_id;
   try {
-    const wav = c.live_session_id ? await callRecording(c.live_session_id) : null;
+    const wav = c.live_session_id
+      ? await callRecording(c.live_session_id)
+      : null;
     if (!wav) {
       // The recording can take a little while to be ready. Give it 15 minutes, then file what we have.
-      const waited = c.ended_at ? Date.now() - new Date(c.ended_at).getTime() : 0;
+      const waited = c.ended_at
+        ? Date.now() - new Date(c.ended_at).getTime()
+        : 0;
       if (waited < 15 * 60_000) {
-        await update(db, secret, run, { process_state: "pending", process_note: "Waiting for the recording" });
+        await update(db, secret, run, {
+          process_state: "pending",
+          process_note: "Waiting for the recording",
+        });
         return false;
       }
     }
@@ -165,7 +260,11 @@ async function processOne(db: Db, secret: string) {
     return true;
   } catch (e) {
     console.error("Screening write-up failed", run, e);
-    await update(db, secret, run, { process_state: "failed", process_note: e instanceof Error ? e.message.slice(0, 300) : "write-up failed" });
+    await update(db, secret, run, {
+      process_state: "failed",
+      process_note:
+        e instanceof Error ? e.message.slice(0, 300) : "write-up failed",
+    });
     return false;
   }
 }
@@ -174,10 +273,12 @@ async function processOne(db: Db, secret: string) {
 // fits the transcription limit, and transcribe both with timestamps.
 async function transcribe(wav: Buffer): Promise<Line[]> {
   const audio = readWav(wav);
-  const channels = audio.channels.length === 2 ? audio.channels : [audio.channels[0]];
-  const speakers: Line["speaker"][] = channels.length === 2 ? ["candidate", "agent"] : ["candidate"];
+  const channels =
+    audio.channels.length === 2 ? audio.channels : [audio.channels[0]];
+  const speakers: Line["speaker"][] =
+    channels.length === 2 ? ["candidate", "agent"] : ["candidate"];
   const pcm = channels.map((ch) => downsample(ch, audio.rate, 8000));
-  const parts = await Promise.all(pcm.map((x) => whisper(toWav(x, 8000))));
+  const parts = await Promise.all(pcm.map((x) => whisperInPieces(x, 8000)));
   const lines: Line[] = [];
   parts.forEach(({ segments, words }, i) => {
     const onset = speechOnset(pcm[i], 8000);
@@ -187,13 +288,72 @@ async function transcribe(wav: Buffer): Promise<Line[]> {
       if (!text || (s.no_speech_prob ?? 0) > 0.6) continue;
       // A segment's own start time is rough (often snapped to the previous segment's end), which put
       // replies ahead of the questions they answered. The first word's time is where speech starts.
-      const first = words.find((w) => w.start >= s.start - 0.05 && w.start < s.end);
-      lines.push({ speaker: speakers[i], text, at: Math.round(onset(first?.start ?? s.start, prevEnd) * 10) / 10 });
+      const first = words.find(
+        (w) => w.start >= s.start - 0.05 && w.start < s.end,
+      );
+      lines.push({
+        speaker: speakers[i],
+        text,
+        at: Math.round(onset(first?.start ?? s.start, prevEnd) * 10) / 10,
+      });
       prevEnd = s.end;
     }
   });
   // Same instant: the assistant's line goes first, since it opens and the candidate answers.
   return lines.sort((a, b) => a.at - b.at || (a.speaker === "agent" ? -1 : 1));
+}
+
+// Each channel is mostly silence while the other person talks, and over a whole call the transcriber
+// dropped everything after the first minute or two. Short pieces, cut where the channel is quietest
+// near every 30 s, keep it from losing the end of the call. Times are shifted back to the whole call.
+async function whisperInPieces(x: Float32Array, rate: number) {
+  const frame = Math.round(rate * 0.02);
+  const cuts = [0];
+  for (
+    let target = 30 * rate;
+    target < x.length - 5 * rate;
+    target += 30 * rate
+  ) {
+    let best = target;
+    let bestSum = Infinity;
+    for (
+      let at = target - 3 * rate;
+      at + frame <= target + 3 * rate;
+      at += frame
+    ) {
+      let sum = 0;
+      for (let j = at; j < at + frame; j++) sum += x[j] * x[j];
+      if (sum < bestSum) [best, bestSum] = [at, sum];
+    }
+    cuts.push(best);
+  }
+  cuts.push(x.length);
+  const pieces = await Promise.all(
+    cuts.slice(0, -1).map(async (from, i) => {
+      const piece = x.subarray(from, cuts[i + 1]);
+      // A silent piece has nothing to transcribe (and the transcriber invents words for silence).
+      if (!piece.some((v) => Math.abs(v) > 0.02))
+        return { segments: [], words: [] };
+      const out = await whisper(toWav(piece, rate));
+      const shift = from / rate;
+      return {
+        segments: out.segments.map((sg) => ({
+          ...sg,
+          start: sg.start + shift,
+          end: sg.end + shift,
+        })),
+        words: out.words.map((w) => ({
+          ...w,
+          start: w.start + shift,
+          end: w.end + shift,
+        })),
+      };
+    }),
+  );
+  return {
+    segments: pieces.flatMap((p) => p.segments),
+    words: pieces.flatMap((p) => p.words),
+  };
 }
 
 // The transcriber's times can be off by a second or two. Each speaker has their own channel, so the
@@ -214,33 +374,57 @@ export function speechOnset(x: Float32Array, rate: number) {
   return (t: number, notBefore = 0) => {
     const from = Math.max(0, Math.floor(Math.max(t - 1.5, notBefore) / 0.02));
     const to = Math.min(rms.length, Math.ceil((t + 1.5) / 0.02));
-    for (let f = from; f < to; f++) if (rms[f] > loud) return (f * frame) / rate;
+    for (let f = from; f < to; f++)
+      if (rms[f] > loud) return (f * frame) / rate;
     return t;
   };
 }
 
 export function readWav(buf: Buffer) {
-  if (buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WAVE") throw new Error("Recording isn't a WAV file");
+  if (
+    buf.toString("ascii", 0, 4) !== "RIFF" ||
+    buf.toString("ascii", 8, 12) !== "WAVE"
+  )
+    throw new Error("Recording isn't a WAV file");
   let pos = 12;
-  let fmt: { format: number; channels: number; rate: number; bits: number } | null = null;
+  let fmt: {
+    format: number;
+    channels: number;
+    rate: number;
+    bits: number;
+  } | null = null;
   let data: Buffer | null = null;
   while (pos + 8 <= buf.length) {
     const id = buf.toString("ascii", pos, pos + 4);
     let size = buf.readUInt32LE(pos + 4);
-    if (id === "data" && (size === 0 || size === 0xffffffff || pos + 8 + size > buf.length)) size = buf.length - pos - 8;
+    if (
+      id === "data" &&
+      (size === 0 || size === 0xffffffff || pos + 8 + size > buf.length)
+    )
+      size = buf.length - pos - 8;
     if (id === "fmt ") {
-      fmt = { format: buf.readUInt16LE(pos + 8), channels: buf.readUInt16LE(pos + 10), rate: buf.readUInt32LE(pos + 12), bits: buf.readUInt16LE(pos + 22) };
+      fmt = {
+        format: buf.readUInt16LE(pos + 8),
+        channels: buf.readUInt16LE(pos + 10),
+        rate: buf.readUInt32LE(pos + 12),
+        bits: buf.readUInt16LE(pos + 22),
+      };
     } else if (id === "data") {
       data = buf.subarray(pos + 8, pos + 8 + size);
     }
     pos += 8 + size + (size % 2);
   }
   if (!fmt || !data) throw new Error("Recording is missing audio");
-  if (fmt.bits !== 16) throw new Error(`Recording is ${fmt.bits}-bit audio; expected 16-bit`);
+  if (fmt.bits !== 16)
+    throw new Error(`Recording is ${fmt.bits}-bit audio; expected 16-bit`);
   const frames = Math.floor(data.length / (2 * fmt.channels));
-  const channels = Array.from({ length: fmt.channels }, () => new Float32Array(frames));
+  const channels = Array.from(
+    { length: fmt.channels },
+    () => new Float32Array(frames),
+  );
   for (let f = 0; f < frames; f++)
-    for (let ch = 0; ch < fmt.channels; ch++) channels[ch][f] = data.readInt16LE((f * fmt.channels + ch) * 2) / 32768;
+    for (let ch = 0; ch < fmt.channels; ch++)
+      channels[ch][f] = data.readInt16LE((f * fmt.channels + ch) * 2) / 32768;
   return { rate: fmt.rate, channels };
 }
 
@@ -273,13 +457,23 @@ export function toWav(x: Float32Array, rate: number) {
   buf.writeUInt16LE(16, 34);
   buf.write("data", 36, "ascii");
   buf.writeUInt32LE(x.length * 2, 40);
-  for (let i = 0; i < x.length; i++) buf.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(x[i] * 32767))), 44 + i * 2);
+  for (let i = 0; i < x.length; i++)
+    buf.writeInt16LE(
+      Math.max(-32768, Math.min(32767, Math.round(x[i] * 32767))),
+      44 + i * 2,
+    );
   return buf;
 }
 
-async function whisper(wav: Buffer): Promise<{ segments: Segment[]; words: Word[] }> {
+async function whisper(
+  wav: Buffer,
+): Promise<{ segments: Segment[]; words: Word[] }> {
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(wav)], { type: "audio/wav" }), "call.wav");
+  form.append(
+    "file",
+    new Blob([new Uint8Array(wav)], { type: "audio/wav" }),
+    "call.wav",
+  );
   form.append("model", "whisper-1");
   form.append("response_format", "verbose_json");
   form.append("timestamp_granularities[]", "segment");
@@ -295,16 +489,31 @@ async function whisper(wav: Buffer): Promise<{ segments: Segment[]; words: Word[
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}` },
     body: form,
   });
-  if (!res.ok) throw new Error(`Transcription failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok)
+    throw new Error(
+      `Transcription failed (${res.status}): ${(await res.text()).slice(0, 300)}`,
+    );
   const out = await res.json();
-  return { segments: (out.segments ?? []) as Segment[], words: (out.words ?? []) as Word[] };
+  return {
+    segments: (out.segments ?? []) as Segment[],
+    words: (out.words ?? []) as Word[],
+  };
 }
 
 const NOTES_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    outcome: { type: "string", enum: ["interested", "not_interested", "callback", "voicemail", "incomplete"] },
+    outcome: {
+      type: "string",
+      enum: [
+        "interested",
+        "not_interested",
+        "callback",
+        "voicemail",
+        "incomplete",
+      ],
+    },
     callback_at_local: { type: "string" },
     summary: { type: "string" },
     facts: {
@@ -312,7 +521,11 @@ const NOTES_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        properties: { goal_id: { type: "string" }, label: { type: "string" }, value: { type: "string" } },
+        properties: {
+          goal_id: { type: "string" },
+          label: { type: "string" },
+          value: { type: "string" },
+        },
         required: ["goal_id", "label", "value"],
       },
     },
@@ -338,19 +551,46 @@ const NOTES_SCHEMA = {
 // One pass over the transcript: what they said against each screening question, what to watch for,
 // and (when they're interested) the submission email in Justin's style.
 async function writeUp(c: CallContext, transcript: Line[]) {
-  const said = transcript.map((l) => `[${l.speaker === "agent" ? "JPR assistant" : first(c.full_name)}] ${l.text}`).join("\n");
+  const said = transcript
+    .map(
+      (l) =>
+        `[${l.speaker === "agent" ? "JPR assistant" : first(c.full_name)}] ${l.text}`,
+    )
+    .join("\n");
   const input = {
-    now_eastern: new Date().toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "full", timeStyle: "short" }),
-    candidate: { name: c.full_name, current_title: c.current_title, current_employer: c.current_employer, city: c.city, state: c.state },
+    now_eastern: new Date().toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      dateStyle: "full",
+      timeStyle: "short",
+    }),
+    candidate: {
+      name: c.full_name,
+      current_title: c.current_title,
+      current_employer: c.current_employer,
+      city: c.city,
+      state: c.state,
+    },
     resume_excerpt: c.resume?.slice(0, 6000) ?? null,
-    job: { title: c.job_title, company: c.company, location: c.location, pay: c.compensation, schedule: c.schedule },
-    hiring_contact_first_name: c.hiring_contact ? first(c.hiring_contact) : null,
+    job: {
+      title: c.job_title,
+      company: c.company,
+      location: c.location,
+      pay: c.compensation,
+      schedule: c.schedule,
+    },
+    hiring_contact_first_name: c.hiring_contact
+      ? first(c.hiring_contact)
+      : null,
     screening_questions: c.goals,
-    transcript: said || "(no transcript: the recording was unavailable or empty)",
+    transcript:
+      said || "(no transcript: the recording was unavailable or empty)",
   };
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
       reasoning: { effort: "medium" },
@@ -362,13 +602,25 @@ candidate_questions: questions they asked that Justin should follow up on, inclu
 submission_subject and submission_body: only when outcome is interested, otherwise "". Follow this style guide exactly, greeting the hiring contact by first name (or "[name]" if unknown), and end the body with "Thanks!" (the signature is added after):
 ${SUBMISSION_STYLE}`,
       input: JSON.stringify(input),
-      text: { format: { type: "json_schema", name: "screening_notes", schema: NOTES_SCHEMA, strict: true } },
+      text: {
+        format: {
+          type: "json_schema",
+          name: "screening_notes",
+          schema: NOTES_SCHEMA,
+          strict: true,
+        },
+      },
     }),
   });
-  if (!res.ok) throw new Error(`Notes failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok)
+    throw new Error(
+      `Notes failed (${res.status}): ${(await res.text()).slice(0, 300)}`,
+    );
   const data = await res.json();
   const text = (data.output ?? [])
-    .flatMap((o: { content?: { type: string; text?: string }[] }) => o.content ?? [])
+    .flatMap(
+      (o: { content?: { type: string; text?: string }[] }) => o.content ?? [],
+    )
     .find((x: { type: string }) => x.type === "output_text")?.text;
   const n = JSON.parse(text);
   const body = n.submission_body?.trim();
@@ -380,6 +632,8 @@ ${SUBMISSION_STYLE}`,
     candidate_questions: n.candidate_questions,
     concerns: n.concerns,
     unresolved: n.unresolved,
-    submission: body ? { subject: n.submission_subject, body: `${body}\n\n${SIGNATURE}` } : null,
+    submission: body
+      ? { subject: n.submission_subject, body: `${body}\n\n${SIGNATURE}` }
+      : null,
   };
 }
