@@ -1060,6 +1060,7 @@ export type Database = {
           answered_by: string | null;
           call_outcome: string | null;
           call_sid: string | null;
+          call_quality: Json | null;
           dial_started_at: string | null;
           live_session_id: string | null;
           outcome_note: string | null;
@@ -1088,6 +1089,7 @@ export type Database = {
           answered_by?: string | null;
           call_outcome?: string | null;
           call_sid?: string | null;
+          call_quality?: Json | null;
           dial_started_at?: string | null;
           live_session_id?: string | null;
           outcome_note?: string | null;
@@ -1328,6 +1330,8 @@ export type Database = {
       screening_due: { Args: { p_secret: string }; Returns: Json };
       screening_call_now: { Args: { p_candidate_job_id: string }; Returns: string };
       screening_update: { Args: { p_secret: string; p_run: string; p: Json }; Returns: undefined };
+      screening_quality_due: { Args: { p_secret: string }; Returns: Json };
+      screening_quality_save: { Args: { p_secret: string; p_run: string; p: Json }; Returns: undefined };
       screening_reminders_due: { Args: { p_secret: string }; Returns: Json };
       screening_missed: { Args: { p_secret: string; p_run: string }; Returns: Json };
       pursuits_resume_due: { Args: { p_secret: string }; Returns: number };

@@ -33,6 +33,11 @@ export async function runScreening(db: Db, secret: string, origin: string) {
   } catch (e) {
     console.error("Screening notes failed", e);
   }
+  try {
+    await saveCallQuality(db, secret);
+  } catch (e) {
+    console.error("Call quality check failed", e);
+  }
   return out;
 }
 
@@ -107,18 +112,24 @@ type Segment = { start: number; end: number; text: string; no_speech_prob?: numb
 type Word = { word: string; start: number; end: number };
 type Line = { speaker: "agent" | "candidate"; text: string; at: number };
 
-// Twilio's view of both legs (the AI's and the candidate's): its quality tags flag one-way audio or
-// silence, which is how a call can sound dead on the phone while the assistant is talking. Logs only.
-async function logCallQuality(run: string, callSid: string) {
-  try {
-    const kids = (await twilioApi("Calls", { ParentCallSid: callSid }, "GET")) as { calls?: { sid: string }[] };
-    const legs = [callSid, ...(kids.calls ?? []).map((k) => k.sid)];
-    for (const leg of legs) {
-      const summary = await twilioGet(`https://insights.twilio.com/v1/Voice/${leg}/Summary`).catch((e) => ({ error: String(e) }));
-      console.info("Call quality", run, leg, JSON.stringify(summary).slice(0, 3000));
+// Twilio's quality report on both legs of a finished call (the AI's and the candidate's). Its tags flag
+// silence and one-way audio, which is how a call can sound dead on the phone while the assistant talks.
+// Twilio has it about 20 minutes after the call; until then it answers "not found" and we try later.
+async function saveCallQuality(db: Db, secret: string) {
+  const { data } = await db.rpc("screening_quality_due", { p_secret: secret });
+  for (const r of (data ?? []) as { run_id: string; call_sid: string; ended_at: string }[]) {
+    const kids = (await twilioApi("Calls", { ParentCallSid: r.call_sid }, "GET")) as { calls?: { sid: string }[] };
+    const legs: Record<string, unknown> = {};
+    let missing = false;
+    for (const leg of [r.call_sid, ...(kids.calls ?? []).map((k) => k.sid)]) {
+      legs[leg] = await twilioGet(`https://insights.twilio.com/v1/Voice/${leg}/Summary`).catch((e) => {
+        missing = true;
+        return { error: String(e) };
+      });
     }
-  } catch (e) {
-    console.info("Call quality unavailable", run, String(e));
+    // Keep retrying a missing report for a couple of hours, then save what there is.
+    if (missing && Date.now() - new Date(r.ended_at).getTime() < 2 * 3600_000) continue;
+    await db.rpc("screening_quality_save", { p_secret: secret, p_run: r.run_id, p: legs as Json });
   }
 }
 
@@ -137,7 +148,6 @@ async function processOne(db: Db, secret: string) {
         return false;
       }
     }
-    if (c.call_sid) await logCallQuality(run, c.call_sid);
     const transcript = wav ? await transcribe(wav) : [];
     const notes = await writeUp(c, transcript);
     if (notes.outcome === "voicemail") {
