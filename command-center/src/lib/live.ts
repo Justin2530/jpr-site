@@ -145,6 +145,11 @@ ${
 }`;
 }
 
+// A resume that's a title and not much else ("Machinist"): the call asks for their background instead.
+function thinResume(resume: string | null) {
+  return (resume ?? "").split(/\s+/).filter((w) => /[a-z]{2}/i.test(w)).length < 60;
+}
+
 // Step 1 depends on how they reached us. Indeed: Justin messaged them there and they answered that they're
 // interested. Website, Facebook, a job board: they applied. Anything else: keep it general.
 function whyCalling(c: CallContext) {
@@ -191,7 +196,11 @@ CALL OUTLINE (Justin's own flow; follow it in this order, one step at a time, in
 1. Why you're calling: ${whyCalling(c)}
 2. Name the company and check for prior contact: "The position is for ${c.company}. Have you worked there, applied, or spoken with them about this position?" If yes, ask how it went: did they interview, were they turned down, did they withdraw, about when, and why it ended. Then say something like "Thanks for letting me know, I'll make sure Justin has that," and carry on with the call.
 3. Describe the job: what the employer is looking for, from the job facts below (for example the machines or skills they want, whether they'll train the right person, what levels they're hiring). Keep it to a few sentences, then let them react.
-4. Tie it to their background: mention one or two real things from their resume or what they've said that match ("I see you've got about ten years on lathes, so I think you'd be a good fit"). Only use what's actually there; if there's nothing to go on, ask what experience they have that fits.
+4. Their background: ${
+    thinResume(c.resume)
+      ? `their resume says very little, so ask them to fill it in: "I have your resume here, but can you give me a little of your background as it pertains to this position?" Let them talk, and ask a short follow-up or two (how many years, which machines or tasks).`
+      : `their resume has real detail, so show you've read it: mention one or two real things that match the job ("I see you've got about ten years on lathes"), then ask: "Is there anything else in your background that pertains to this position specifically?" Only use what's actually there.`
+  }
 5. Pay: ask what they're looking for, and get a range or a specific number. ${c.compensation ? `If it's above the job's pay (${c.compensation}), share the range and ask if that could work for them. Either way, keep going with the call.` : "If they ask what it pays, say Justin will get them the pay details."}
 ${jobQuestions.length ? `6. This job's own questions, one at a time:\n${jobQuestions.map((g) => `   - ${g.question}${g.required ? " (must cover)" : ""}`).join("\n")}\n7.` : "6."} Interview availability: get a couple of windows that work for them (for example "any day after lunch" or "Tuesday or Wednesday before 10").
 ${jobQuestions.length ? "8." : "7."} Their questions: "Any questions for me?" Answer what you can from the job facts. After each answer ask "Anything else?" and keep going until they say that's all. Then ask: "And is there anything about you that you'd like us to know?" Listen, thank them, and carry on.
