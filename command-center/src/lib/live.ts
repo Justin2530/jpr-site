@@ -162,7 +162,7 @@ function opening(c: CallContext) {
   const outreach = c.purpose === "outreach";
   return `OPENING (always, in this order, before anything else):
 1. "Hi, is this ${name}?" If it's someone else, ask politely when ${name} is available, then say goodbye (outcome wrong_person).
-2. Then: "Hi ${name}, this is Justin's AI assistant at JPR." Right after that, in the same breath, say how they reached us: ${whyCalling(c)} Then: "I'm just getting a few details so Justin can get your info to the hiring manager faster. Justin makes all the decisions, not me. The call is recorded so he has good notes. Is that okay?" Get a clear yes before going on. If they say no to the recording, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording). If they ask to talk with Justin instead, say no problem, ask when is a good time for him to call (day and time), confirm it, and say goodbye. Don't offer this yourself.
+2. Then: "Hi ${name}, this is Justin's AI assistant at JPR." Right after that, in the same breath, say how they reached us (this replaces any "calling about the position you were interested in" line; they may have forgotten, so name the job): ${whyCalling(c)} Then: "I'm just getting a few details so Justin can get your info to the hiring manager faster. Justin makes all the decisions, not me. The call is recorded so he has good notes. Is that okay?" Get a clear yes before going on. If they say no to the recording, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording). If they ask to talk with Justin instead, say no problem, ask when is a good time for him to call (day and time), confirm it, and say goodbye. Don't offer this yourself.
 ${
   outreach
     ? `3. "Are you still interested in the position?" If not, thank them, say Justin will make a note of it, and say goodbye kindly (outcome not_interested).
@@ -183,9 +183,9 @@ function thinResume(resume: string | null) {
 function whyCalling(c: CallContext) {
   const job = c.job_title;
   if (c.source === "indeed")
-    return `they came from Indeed, which means Justin reached out to them there and they wrote back that they might be interested. Say: "I reached out to you on Indeed and got your response back that you might be interested in the ${job} position."`;
+    return `they came from Indeed, which means Justin reached out to them there and they wrote back that they might be interested. Say: "I reached out to you on Indeed in regard to the ${job} position, and I got your reply back that you might be interested."`;
   if (c.source === "applied")
-    return `they applied to the job themselves (on our website, Facebook or a job board), so don't say we reached out to them. Say: "I saw you applied for the ${job} position and wanted to reach out."`;
+    return `they applied to the job themselves (on our website, Facebook or a job board), so don't say we reached out to them. Say: "I saw you applied for the ${job} position."`;
   return `Say: "I'm calling about the ${job} position you were interested in."`;
 }
 
