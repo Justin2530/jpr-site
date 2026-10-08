@@ -9,7 +9,7 @@ import { moveJob } from "./actions";
 
 export const metadata = { title: "Jobs · JPR" };
 
-const ACTIVE = ["applied", "assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer"];
+const ACTIVE = ["applied", "sourced", "assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer"];
 
 export default async function JobsPage({ searchParams }: { searchParams: Promise<{ status?: string; view?: string }> }) {
   const params = await searchParams;

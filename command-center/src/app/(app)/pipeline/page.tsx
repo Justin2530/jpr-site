@@ -10,9 +10,11 @@ import { moveCandidateJob } from "../pipeline-actions";
 
 export const metadata = { title: "Pipeline · JPR" };
 
-const MAIN: Enums<"pipeline_stage">[] = ["applied", "assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer", "placed"];
+const MAIN: Enums<"pipeline_stage">[] = ["applied", "sourced", "assigned", "contacting", "conversation", "ready_to_submit", "submitted", "interviewing", "offer", "placed"];
 const CLOSED: Enums<"pipeline_stage">[] = ["on_hold", "passed", "withdrawn", "couldnt_contact"];
 const STALE_DAYS = 7;
+// Applied and Sourced wait for Justin's assign, so they never carry an Auto/Manual tag.
+const WAITING: Enums<"pipeline_stage">[] = ["applied", "sourced"];
 
 export default async function PipelinePage({
   searchParams,
@@ -23,7 +25,7 @@ export default async function PipelinePage({
   const showClosed = closed === "1";
   const { supabase } = await requireStaff();
 
-  const [{ data: rows, error }, { data: jobs }] = await Promise.all([
+  const [{ data: rows, error }, { data: jobs }, { data: settings }, { data: pursuits }, { data: runs }] = await Promise.all([
     (() => {
       let q = supabase
         .from("candidate_jobs")
@@ -35,7 +37,18 @@ export default async function PipelinePage({
       return q;
     })(),
     supabase.from("jobs").select("id, title, companies(name)").eq("status", "open").order("title"),
+    supabase.from("automation_settings").select("automated_recruiting, ai_calls").maybeSingle(),
+    supabase.from("pursuits").select("candidate_job_id").eq("status", "active").is("paused_at", null),
+    supabase.from("screening_runs").select("candidate_job_id").eq("status", "scheduled"),
   ]);
+
+  // Auto: the system is working this person right now (outreach running, or an AI call booked) and the
+  // master switch lets it. Everyone else past Sourced is Manual: nothing goes out unless Justin sends it.
+  const working = new Set<string>();
+  if (settings?.automated_recruiting) for (const p of pursuits ?? []) working.add(p.candidate_job_id);
+  if (settings?.ai_calls) for (const r of runs ?? []) working.add(r.candidate_job_id);
+  const mode = (r: { id: string; stage: Enums<"pipeline_stage"> }) =>
+    WAITING.includes(r.stage) || CLOSED.includes(r.stage) || r.stage === "placed" ? null : working.has(r.id) ? "Auto" : "Manual";
   if (error) throw new Error(error.message);
 
   // Keep the Placed column to recent wins unless closed items are shown.
@@ -50,6 +63,8 @@ export default async function PipelinePage({
     href: `/candidates/${r.candidates?.id}?job=${r.id}`,
     sub: job ? r.candidates?.current_title ?? undefined : `${r.jobs?.title} · ${r.jobs?.companies?.name}`,
     meta: `${timeAgo(r.stage_changed_at)} in stage`,
+    badge: mode(r) ?? undefined,
+    badgeTone: mode(r) === "Manual" ? "muted" : "cyan",
     flag: r.stage !== "placed" && daysSince(r.stage_changed_at) >= STALE_DAYS,
   }));
 
@@ -58,7 +73,7 @@ export default async function PipelinePage({
       <PageHeader
         kicker="Recruiting"
         title="Pipeline"
-        sub={`Every candidate in every job. A red dot means no movement in ${STALE_DAYS}+ days.`}
+        sub={`Every candidate in every job. Auto means the system is reaching out to them; Manual means only you are. A red dot means no movement in ${STALE_DAYS}+ days.`}
         action={
           <ViewSwitcher
             basePath="/pipeline"
@@ -102,7 +117,7 @@ export default async function PipelinePage({
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left">
-                  {["Candidate", "Job", "Company", "Stage", "In stage", ""].map((h) => (
+                  {["Candidate", "Job", "Company", "Stage", "Mode", "In stage", ""].map((h) => (
                     <th key={h} className="panel-title px-4 py-2.5 font-normal">
                       {h}
                     </th>
@@ -127,6 +142,9 @@ export default async function PipelinePage({
                       <td className="px-4 py-2.5 text-muted">{r.jobs?.companies?.name}</td>
                       <td className="px-4 py-2.5">
                         <Chip tone={STAGE_TONE[r.stage]}>{STAGE_LABEL[r.stage]}</Chip>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {mode(r) && <Chip tone={mode(r) === "Auto" ? "cyan" : "muted"}>{mode(r)}</Chip>}
                       </td>
                       <td className={`px-4 py-2.5 font-mono text-xs ${daysSince(r.stage_changed_at) >= STALE_DAYS && r.stage !== "placed" ? "text-rose" : "text-faint"}`}>
                         {timeAgo(r.stage_changed_at)}

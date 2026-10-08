@@ -13,6 +13,7 @@ export type BoardCard = {
   sub?: string;
   meta?: string;
   badge?: string;
+  badgeTone?: Tone;
   flag?: boolean;
 };
 
@@ -100,7 +101,7 @@ export function Board({
                         ))}
                       </select>
                     </div>
-                    {c.badge && <p className="readout mt-1 text-xs text-cyan">{c.badge}</p>}
+                    {c.badge && <p className={`readout mt-1 text-xs ${c.badgeTone === "muted" ? "text-muted" : "text-cyan"}`}>{c.badge}</p>}
                   </article>
                 ))}
               </div>

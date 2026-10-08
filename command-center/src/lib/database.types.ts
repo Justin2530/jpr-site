@@ -1471,6 +1471,7 @@ export type Database = {
       job_visibility: "private" | "public" | "confidential";
       pipeline_stage:
         | "applied"
+        | "sourced"
         | "assigned"
         | "contacting"
         | "conversation"
@@ -1517,6 +1518,7 @@ export const Constants = {
       job_visibility: ["private", "public", "confidential"],
       pipeline_stage: [
         "applied",
+        "sourced",
         "assigned",
         "contacting",
         "conversation",

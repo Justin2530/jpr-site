@@ -2,6 +2,7 @@ import type { Enums } from "@/lib/database.types";
 
 export const STAGE_LABEL: Record<Enums<"pipeline_stage">, string> = {
   applied: "Applied",
+  sourced: "Sourced",
   assigned: "Assigned",
   contacting: "Contacting",
   conversation: "In conversation",
@@ -18,6 +19,7 @@ export const STAGE_LABEL: Record<Enums<"pipeline_stage">, string> = {
 
 export const STAGE_TONE: Record<Enums<"pipeline_stage">, Tone> = {
   applied: "muted",
+  sourced: "muted",
   assigned: "cyan",
   contacting: "cyan",
   conversation: "cyan",

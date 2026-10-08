@@ -121,7 +121,7 @@ export async function JobWorkspace({
     ],
     notes: [],
   });
-  const early = ["applied", "assigned", "contacting", "conversation"].includes(cj.stage);
+  const early = ["applied", "sourced", "assigned", "contacting", "conversation"].includes(cj.stage);
   // A dial that never reached the assistant a few minutes in is stuck; Call now replaces it.
   const stuck =
     run?.status === "in_progress" &&
