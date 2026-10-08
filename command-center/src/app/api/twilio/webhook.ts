@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
-import { validTwilioSignature } from "@/lib/twilio";
+import { escapeXml, validTwilioSignature, webhookUrl } from "@/lib/twilio";
 
 // Reads a Twilio webhook and proves it came from Twilio. Returns null (and the caller answers 403) if not.
 export async function readTwilio(request: Request) {
@@ -13,7 +13,13 @@ export async function readTwilio(request: Request) {
   const url = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") ?? url.host;
   const signed = `https://${host}${url.pathname}${url.search}`;
-  if (!validTwilioSignature(signed, params, request.headers.get("x-twilio-signature"))) {
+  if (
+    !validTwilioSignature(
+      signed,
+      params,
+      request.headers.get("x-twilio-signature"),
+    )
+  ) {
     console.warn("Twilio signature didn't match", url.pathname, host);
     return null;
   }
@@ -23,9 +29,30 @@ export async function readTwilio(request: Request) {
 // No user session here: the database only lets this key call the two narrow Twilio functions,
 // and each of those checks the webhook secret.
 export function webhookDb() {
-  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
-    auth: { persistSession: false },
-  });
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      auth: { persistSession: false },
+    },
+  );
 }
 
-export const EMPTY_TWIML = new Response("<Response/>", { headers: { "Content-Type": "text/xml" } });
+export const EMPTY_TWIML = new Response("<Response/>", {
+  headers: { "Content-Type": "text/xml" },
+});
+
+export const twiml = (body: string) =>
+  new Response(`<Response>${body}</Response>`, {
+    headers: { "Content-Type": "text/xml" },
+  });
+
+// JPR's own voicemail, so callers never land in Justin's personal one. The recording is transcribed into the Command Center.
+export function voicemailTwiml(origin: string, greeting: string) {
+  const done = escapeXml(webhookUrl(origin, "/api/twilio/voicemail"));
+  return (
+    `<Say>${greeting}</Say>` +
+    `<Record maxLength="120" timeout="5" playBeep="true" trim="trim-silence" action="${done}" recordingStatusCallback="${done}" recordingStatusCallbackEvent="completed"/>` +
+    `<Hangup/>`
+  );
+}

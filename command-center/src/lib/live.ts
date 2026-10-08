@@ -26,7 +26,10 @@ export function liveReady() {
 // which call it is; it's signed, because SIP headers are only as trustworthy as whoever sent them.
 // secure=true makes Twilio encrypt the audio (SRTP), which GPT-Live requires.
 export function sipUri(runId: string) {
-  return `sip:${process.env.OPENAI_PROJECT_ID!.trim()}@sip.api.openai.com;transport=tls;secure=true?X-JPR-Run=${runId}.${runSig(runId)}`;
+  return sipUriWith("X-JPR-Run", `${runId}.${runSig(runId)}`);
+}
+export function sipUriWith(header: string, value: string) {
+  return `sip:${process.env.OPENAI_PROJECT_ID!.trim()}@sip.api.openai.com;transport=tls;secure=true?${header}=${value}`;
 }
 
 export function runSig(runId: string) {
@@ -148,6 +151,8 @@ export type CallContext = {
   stage: string;
   status: string;
   purpose?: "screening" | "outreach";
+  // They called JPR's line and the answering agent put them through (set by the webhook, not the database).
+  inbound?: boolean;
   source?: "indeed" | "applied" | "linkedin" | "referral" | "other";
 };
 
@@ -156,18 +161,23 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0];
 // Justin's locked call opening (Recruiting Flow Playbook V1), used on every AI call: who's calling,
 // how they reached us, that Justin decides, and the recording. Outreach calls
 // (days 3 and 12 of the cadence) reach people who haven't replied lately, so they also check the person
-// is still interested; booked calls check it's still a good time.
+// is still interested; booked calls check it's still a good time. When they called us, it opens by
+// thanking them for calling.
 function opening(c: CallContext) {
   const name = firstName(c.full_name);
   const outreach = c.purpose === "outreach";
+  const first = c.inbound
+    ? `1. "Thanks for calling JPR, this is the AI assistant. Is this ${name}?" Then stop and wait for their answer. If it's someone else, ask how you can help, take their name, number and what it's about, say Justin will get back to them, and say goodbye (outcome wrong_person, with their message in the note).
+2. Then: "Hi ${name}." Right after that,`
+    : `1. "Hi, is this ${name}?" Then stop and wait for their answer before saying anything else. If it's someone else, ask politely when ${name} is available, then say goodbye (outcome wrong_person).
+2. Then: "Hi ${name}, this is the AI assistant at JPR." Right after that,`;
   return `OPENING (always, in this order, before anything else):
-1. "Hi, is this ${name}?" Then stop and wait for their answer before saying anything else. If it's someone else, ask politely when ${name} is available, then say goodbye (outcome wrong_person).
-2. Then: "Hi ${name}, this is the AI assistant at JPR." Right after that, in the same breath, say how they reached us, in plain, casual words (name Justin once at most here, then say "we"; this replaces any "calling about the position you were interested in" line; they may have forgotten, so name the job): ${whyCalling(c)} Then, as one easy, flowing thought, not a list of disclaimers: "I'm just getting a few details so Justin can get your info to the hiring manager faster. I'm just here to help things go smoothly, I'm not here to make any decisions. And just so you know, this call is recorded so Justin has good notes to work off of. Is that okay?" Get a clear yes before going on. If they say no to the recording, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording). If they ask to talk with Justin instead, say no problem, ask when is a good time for him to call (day and time), confirm it, and say goodbye. Don't offer this yourself.
+${first} in the same breath, say how they reached us, in plain, casual words (name Justin once at most here, then say "we"; this replaces any "calling about the position you were interested in" line; they may have forgotten, so name the job): ${whyCalling(c)} Then, as one easy, flowing thought, not a list of disclaimers: "I'm just getting a few details so Justin can get your info to the hiring manager faster. I'm just here to help things go smoothly, I'm not here to make any decisions. And just so you know, this call is recorded so Justin has good notes to work off of. Is that okay?" Get a clear yes before going on. If they say no to the recording, say no problem, Justin will give them a call himself, and say goodbye (outcome declined_recording). If they ask to talk with Justin instead, say no problem, ask when is a good time for him to call (day and time), confirm it, and say goodbye. Don't offer this yourself.
 ${
   outreach
     ? `3. "Are you still interested in the position?" If not, thank them, say Justin will make a note of it, and say goodbye kindly (outcome not_interested).
 4. "Would this be a good time for a quick call? It'll take about five minutes." If not, ask when is better (day and time), confirm it, and say goodbye (outcome callback, with the time in the note). If yes, go on to the call outline.`
-    : `3. "Is now still a good time? It'll take about five minutes." If not, ask when is better (day and time), confirm it, and say goodbye (outcome callback, with the time in the note). If yes, go on to the call outline.`
+    : `3. "${c.inbound ? "Do you have a few minutes to go over it now?" : "Is now still a good time?"} It'll take about five minutes." If not, ask when is better (day and time), confirm it, and say goodbye (outcome callback, with the time in the note). If yes, go on to the call outline.`
 }`;
 }
 
@@ -213,19 +223,23 @@ export function callInstructions(c: CallContext) {
     dateStyle: "full",
     timeStyle: "short",
   });
-  return `You are Justin's AI assistant at JPR, a recruiting firm in Punxsutawney, PA. Justin owns it and makes every decision; you gather details for him. You are on a phone call with ${c.full_name}, who ${outreach ? `showed interest in the ${c.job_title} job but hasn't replied to our messages since` : `agreed to a short call about the ${c.job_title} job`}. It is ${now} Eastern.
+  // Calls we place join while their phone rings and can reach voicemail; a call they made to us can't.
+  const beforeCall = c.inbound
+    ? `THEY CALLED US: they're already on the line, put through to you when they called JPR. Say nothing until you're told to start, then greet them right away.\n\n`
+    : `BEFORE THEY PICK UP: you join the call while their phone is still ringing. Say nothing until you're told they picked up. Then let them say hello first and open right after it; if they stay quiet, you'll be told to go ahead.
+
+VOICEMAIL: if you reach a voicemail greeting or an automated message (a beep, "leave a message", "the person you are calling is not available"), don't run the call. Wait for the greeting to finish (the beep, or a pause after it), then right away leave one short message: ${
+        outreach
+          ? `"Hi ${name}, this is the AI assistant at JPR. I was just giving you a call about the ${c.job_title} position that you were interested in. If you're still interested, let me know a good time for a call. If you're not interested, shoot me a text or an email and let me know. Thanks. Bye."`
+          : `"Hi ${name}, this is the AI assistant at JPR, calling for our call about the ${c.job_title} position. Sorry I missed you. I'll send you a text so we can find a better time. Thanks, bye."`
+      } Then say nothing more. If you started your opening and then realize it's a recording, stop, wait for the beep, and leave the message.
+
+`;
+  return `You are Justin's AI assistant at JPR, a recruiting firm in Punxsutawney, PA. Justin owns it and makes every decision; you gather details for him. You are on a phone call with ${c.full_name}, who ${c.inbound ? `just called JPR's line, and we've been reaching out to them about the ${c.job_title} job` : outreach ? `showed interest in the ${c.job_title} job but hasn't replied to our messages since` : `agreed to a short call about the ${c.job_title} job`}. It is ${now} Eastern.
 
 YOUR GOAL: a relaxed, friendly 5 to 10 minute call, run the way Justin runs his own calls, that gets him what he needs to send this person to the hiring manager, and answers their questions about the job.
 
-BEFORE THEY PICK UP: you join the call while their phone is still ringing. Say nothing until you're told they picked up. Then let them say hello first and open right after it; if they stay quiet, you'll be told to go ahead.
-
-VOICEMAIL: if you reach a voicemail greeting or an automated message (a beep, "leave a message", "the person you are calling is not available"), don't run the call. Wait for the greeting to finish (the beep, or a pause after it), then right away leave one short message: ${
-    outreach
-      ? `"Hi ${name}, this is the AI assistant at JPR. I was just giving you a call about the ${c.job_title} position that you were interested in. If you're still interested, let me know a good time for a call. If you're not interested, shoot me a text or an email and let me know. Thanks. Bye."`
-      : `"Hi ${name}, this is the AI assistant at JPR, calling for our call about the ${c.job_title} position. Sorry I missed you. I'll send you a text so we can find a better time. Thanks, bye."`
-  } Then say nothing more. If you started your opening and then realize it's a recording, stop, wait for the beep, and leave the message.
-
-${opening(c)}
+${beforeCall}${opening(c)}
 
 CALL OUTLINE (Justin's own flow; follow it in this order, one step at a time, in your own natural words):
 1. Name the company and check for prior contact: "The position is for ${c.company}. Have you worked there, applied, or spoken with them about this position?" If yes, ask how it went: did they interview, were they turned down, did they withdraw, about when, and why it ended. Then say something like "Thanks for letting me know, I'll make sure Justin has that," and carry on with the call.
@@ -276,14 +290,56 @@ ENDING THE CALL: never rush to end it. Only close once the outline is done (or t
 // stays on the call over the sideband and hangs up once it's over.
 // Accept once: a rejected accept ends OpenAI's side of the call, so there's no second try.
 export async function acceptCall(sessionId: string, c: CallContext) {
+  return acceptLive(sessionId, callInstructions(c));
+}
+export async function acceptLive(sessionId: string, instructions: string) {
   return openai(`/live/sessions/${sessionId}/accept`, {
     session: {
       type: "live",
       model: liveModel(),
-      instructions: callInstructions(c),
+      instructions,
       audio: { output: { voice: liveVoice() } },
       store: true,
     },
+  });
+}
+
+// One more instruction for a call in progress, over the sideband (e.g. "they're on, greet them now").
+// Waits a moment first so the call's audio is flowing. Best effort: returns what happened.
+export async function tellCall(
+  sessionId: string,
+  content: string,
+  delayMs = 0,
+) {
+  if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+  const { default: WebSocket } = await import("ws");
+  const ws = new WebSocket(
+    `wss://api.openai.com/v1/live/sessions/${sessionId}/attach`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}`,
+      },
+    },
+  );
+  return new Promise<string>((resolve) => {
+    const finish = (result: string) => {
+      clearTimeout(giveUp);
+      ws.close();
+      resolve(result);
+    };
+    const giveUp = setTimeout(() => finish("timed out"), 8000);
+    ws.on("open", () => {
+      ws.send(
+        JSON.stringify({
+          type: "session.instructions.append",
+          event_id: "tell",
+          delegation_id: null,
+          content,
+        }),
+      );
+      setTimeout(() => finish("ok"), 1500);
+    });
+    ws.on("error", (err) => finish(`socket ${String(err).slice(0, 200)}`));
   });
 }
 

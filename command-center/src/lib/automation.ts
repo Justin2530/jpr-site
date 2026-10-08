@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { runBrain } from "@/lib/brain";
 import { runTriage } from "@/lib/triage";
+import { processReception } from "@/lib/reception";
 import { runScreening } from "@/lib/screening";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
@@ -229,6 +230,13 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Screening pass failed", e);
   }
+  // Calls the answering agent took: a summary and a "call back" task for Justin.
+  let reception = false;
+  try {
+    reception = await processReception(db, secret);
+  } catch (e) {
+    console.error("Reception pass failed", e);
+  }
   // Then everything else that came in: only what needs Justin stays on What needs me.
   let cleared = 0;
   try {
@@ -236,7 +244,7 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Triage pass failed", e);
   }
-  return { sent, due: steps.length, logged, leads, brain, relay, cleared, calls };
+  return { sent, due: steps.length, logged, leads, brain, relay, cleared, calls, reception };
 }
 
 async function emailWebsiteLeads(db: SupabaseClient<Database>, secret: string, origin: string) {

@@ -9,11 +9,16 @@ import WebSocket from "ws";
 // and the caller starts the next one if the call is still going.
 
 const API = "https://api.openai.com/v1";
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://iobrwlgubowkxyjtxeib.supabase.co";
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_xy4ZXbWgeeAP8D0xqhk17w_MFtgUXMy";
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??
+  "https://iobrwlgubowkxyjtxeib.supabase.co";
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  "sb_publishable_xy4ZXbWgeeAP8D0xqhk17w_MFtgUXMy";
 const GOODBYE = /\b(bye|goodbye|take care|have a (good|great|nice))\b/i;
 // What a candidate says back to a goodbye; it doesn't mean the conversation is still going.
-const SIGN_OFF = /\b(bye|goodbye|take care|you too|thanks|thank you|have a|alright|all right|ok|okay|sounds good)\b/i;
+const SIGN_OFF =
+  /\b(bye|goodbye|take care|you too|thanks|thank you|have a|alright|all right|ok|okay|sounds good)\b/i;
 const AFTER_GOODBYE_MS = 4_000; // quiet time after the goodbye before hanging up
 const DEAD_AIR_MS = 45_000; // nobody has said anything for this long
 const MAX_CALL_MS = 16 * 60_000; // Twilio cuts calls at 15 minutes anyway
@@ -27,16 +32,24 @@ export type WatchOptions = {
   budgetMs: number; // how long this slice may run
   slice: number;
   log?: (msg: string, data?: Record<string, unknown>) => void;
+  // Where diagnostics go (default: the screening run's watch_note) and what to say to a hand-off.
+  report?: (note: Record<string, unknown>) => Promise<void>;
+  handoffReply?: string;
 };
 export type WatchResult = { done: boolean; reason: string };
 
 // Pull any spoken text out of a transcript event, whatever the field is called.
 function textOf(e: Record<string, unknown>) {
-  for (const k of ["delta", "transcript", "text"]) if (typeof e[k] === "string") return e[k] as string;
+  for (const k of ["delta", "transcript", "text"])
+    if (typeof e[k] === "string") return e[k] as string;
   return "";
 }
 
-export async function reportWatch(runId: string, sessionId: string, note: Record<string, unknown>) {
+export async function reportWatch(
+  runId: string,
+  sessionId: string,
+  note: Record<string, unknown>,
+) {
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/rpc/screening_watch_report`, {
       method: "POST",
@@ -63,8 +76,10 @@ export async function watchCall({
   budgetMs,
   slice,
   log = () => {},
+  report = (note: Record<string, unknown>) =>
+    reportWatch(runId, sessionId, note),
+  handoffReply = HANDOFF_REPLY,
 }: WatchOptions): Promise<WatchResult> {
-  const report = (note: Record<string, unknown>) => reportWatch(runId, sessionId, note);
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) {
     await report({ watcher: "no OPENAI_API_KEY" });
@@ -75,14 +90,19 @@ export async function watchCall({
   // Attach, retrying briefly; a refusal's body says why (wrong project, unknown session...).
   const attach = () =>
     new Promise<WebSocket>((resolve, reject) => {
-      const socket = new WebSocket(`wss://api.openai.com/v1/live/sessions/${sessionId}/attach`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
+      const socket = new WebSocket(
+        `wss://api.openai.com/v1/live/sessions/${sessionId}/attach`,
+        {
+          headers: { Authorization: `Bearer ${key}` },
+        },
+      );
       socket.once("open", () => resolve(socket));
       socket.once("unexpected-response", (_req, res) => {
         let body = "";
         res.on("data", (c: Buffer) => (body += c.toString()));
-        res.on("end", () => reject(new Error(`${res.statusCode} ${body.slice(0, 400)}`)));
+        res.on("end", () =>
+          reject(new Error(`${res.statusCode} ${body.slice(0, 400)}`)),
+        );
       });
       socket.once("error", reject);
     });
@@ -122,17 +142,22 @@ export async function watchCall({
       method: "POST",
       headers: { Authorization: `Bearer ${key}` },
     });
-    hangupResult = res.ok ? "ok" : `${res.status} ${(await res.text()).slice(0, 300)}`;
-    if (!res.ok && res.status !== 404) log("Hangup failed", { result: hangupResult });
+    hangupResult = res.ok
+      ? "ok"
+      : `${res.status} ${(await res.text()).slice(0, 300)}`;
+    if (!res.ok && res.status !== 404)
+      log("Hangup failed", { result: hangupResult });
     sock.close();
   };
 
   await new Promise<void>((resolve) => {
     const timer = setInterval(() => {
       const now = Date.now();
-      if (goodbyeAt && now - lastActivity > AFTER_GOODBYE_MS) void hangup("assistant said goodbye");
+      if (goodbyeAt && now - lastActivity > AFTER_GOODBYE_MS)
+        void hangup("assistant said goodbye");
       else if (now - lastActivity > DEAD_AIR_MS) void hangup("dead air");
-      else if (now - callStartedAt > MAX_CALL_MS) void hangup("call ran too long");
+      else if (now - callStartedAt > MAX_CALL_MS)
+        void hangup("call ran too long");
       else if (now > sliceEnd) {
         reason = "slice over";
         sock.close();
@@ -165,7 +190,8 @@ export async function watchCall({
       const type = String(e.type ?? "unknown");
       // Count every kind and keep one sample of each, to learn the event stream on real calls.
       seen.set(type, (seen.get(type) ?? 0) + 1);
-      if (!samples[type] && !/audio/.test(type)) samples[type] = JSON.stringify(e).slice(0, 400);
+      if (!samples[type] && !/audio/.test(type))
+        samples[type] = JSON.stringify(e).slice(0, 400);
 
       if (type === "session.closed" || type === "error") {
         if (type === "error") log("OpenAI error", { e });
@@ -183,7 +209,7 @@ export async function watchCall({
             JSON.stringify({
               type: "session.thinking.append",
               delegation_id: d.id,
-              content: HANDOFF_REPLY,
+              content: handoffReply,
             }),
           );
         }

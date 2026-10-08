@@ -560,11 +560,41 @@ export type Database = {
         Update: { data?: Json; name?: string; taken_at?: string };
         Relationships: [];
       };
+      reception_calls: {
+        Row: {
+          id: string;
+          call_sid: string | null;
+          from_number: string | null;
+          candidate_id: string | null;
+          contact_id: string | null;
+          market_id: string | null;
+          context: Json;
+          status: string;
+          live_session_id: string | null;
+          started_at: string | null;
+          ended_at: string | null;
+          duration_seconds: number | null;
+          process_state: string | null;
+          process_attempts: number;
+          process_claimed_at: string | null;
+          process_note: string | null;
+          transcript: Json | null;
+          notes: Json | null;
+          summary: string | null;
+          watch_note: Json | null;
+          action_item_id: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["reception_calls"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["reception_calls"]["Row"]>;
+        Relationships: [];
+      };
       automation_settings: {
         Row: {
           pilot_only: boolean;
           id: boolean;
           ai_calls: boolean;
+          ai_receptionist: boolean;
           automated_recruiting: boolean;
           eligible_after: string | null;
           eligible_after_v1: string | null;
@@ -575,6 +605,7 @@ export type Database = {
           pilot_only?: boolean;
           id?: boolean;
           ai_calls?: boolean;
+          ai_receptionist?: boolean;
           automated_recruiting?: boolean;
           eligible_after?: string | null;
           eligible_after_v1?: string | null;
@@ -1063,6 +1094,7 @@ export type Database = {
           call_outcome: string | null;
           call_sid: string | null;
           call_quality: Json | null;
+          inbound: boolean;
           dial_started_at: string | null;
           live_session_id: string | null;
           outcome_note: string | null;
@@ -1092,6 +1124,7 @@ export type Database = {
           call_outcome?: string | null;
           call_sid?: string | null;
           call_quality?: Json | null;
+          inbound?: boolean;
           dial_started_at?: string | null;
           live_session_id?: string | null;
           outcome_note?: string | null;
@@ -1314,6 +1347,16 @@ export type Database = {
       set_candidate_automation: { Args: { p_candidate: string; p_on: boolean }; Returns: undefined };
       automation_pause_candidate: { Args: { p_secret: string; p_candidate: string; p_reason: string }; Returns: undefined };
       set_ai_calls: { Args: { p_on: boolean }; Returns: undefined };
+      set_ai_receptionist: { Args: { p_on: boolean }; Returns: undefined };
+      reception_route: { Args: { p_secret: string; p_from: string }; Returns: Json };
+      reception_start_screening: { Args: { p_secret: string; p_cj: string; p_sid: string }; Returns: string };
+      screening_run_inbound: { Args: { p_secret: string; p_run: string }; Returns: boolean };
+      reception_open: { Args: { p_secret: string; p_sid: string; p_from: string }; Returns: Json };
+      reception_get: { Args: { p_secret: string; p_id: string }; Returns: Json };
+      reception_update: { Args: { p_secret: string; p_id: string; p: Json }; Returns: undefined };
+      reception_watch_report: { Args: { p_id: string; p_session: string; p_note: Json }; Returns: boolean };
+      reception_to_process: { Args: { p_secret: string }; Returns: Json };
+      reception_complete: { Args: { p_secret: string; p_id: string; p: Json }; Returns: undefined };
       set_pilot_only: { Args: { p_on: boolean }; Returns: undefined };
       client_followups_due: { Args: { p_secret: string }; Returns: Json };
       client_call_reminders: { Args: { p_secret: string }; Returns: number };

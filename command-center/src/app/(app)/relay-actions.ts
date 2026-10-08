@@ -3,8 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/staff";
 import { automationSecret } from "@/lib/automation";
-import { accessToken, gmailPdfs, googleReady, openToken, type Attachment } from "@/lib/google";
-import { emailClient, firstName, messageCandidate, relayLogger, type RelayCtx } from "@/lib/relay";
+import {
+  accessToken,
+  gmailPdfs,
+  googleReady,
+  openToken,
+  type Attachment,
+} from "@/lib/google";
+import {
+  emailClient,
+  firstName,
+  messageCandidate,
+  relayLogger,
+  type RelayCtx,
+} from "@/lib/relay";
 import { headers } from "next/headers";
 
 // Justin's clicks on offers and counteroffers. Each sends from his own Gmail, logs on the candidate's
@@ -16,10 +28,18 @@ async function setup(cjId: string) {
   const { supabase, userId } = await requireStaff();
   const secret = automationSecret();
   if (!secret) throw new Error("Automation isn't set up on this deployment.");
-  const { data: ctx, error } = await supabase.rpc("relay_context_staff", { p_cj: cjId });
-  if (error || !ctx) throw new Error(error?.message ?? "Couldn't load this candidate.");
-  const { data: account } = await supabase.from("google_accounts").select("email, token_enc").eq("staff_id", userId).maybeSingle();
-  if (!account || !googleReady()) throw new Error("Connect your Gmail in Settings first.");
+  const { data: ctx, error } = await supabase.rpc("relay_context_staff", {
+    p_cj: cjId,
+  });
+  if (error || !ctx)
+    throw new Error(error?.message ?? "Couldn't load this candidate.");
+  const { data: account } = await supabase
+    .from("google_accounts")
+    .select("email, token_enc")
+    .eq("staff_id", userId)
+    .maybeSingle();
+  if (!account || !googleReady())
+    throw new Error("Connect your Gmail in Settings first.");
   const h = await headers();
   const origin = `https://${h.get("x-forwarded-host") ?? h.get("host")}`;
   return {
@@ -32,8 +52,15 @@ async function setup(cjId: string) {
   };
 }
 
-async function finish(supabase: Awaited<ReturnType<typeof setup>>["supabase"], ctx: RelayCtx, kinds: string[]) {
-  await supabase.rpc("set_candidate_automation", { p_candidate: ctx.candidate_id, p_on: true });
+async function finish(
+  supabase: Awaited<ReturnType<typeof setup>>["supabase"],
+  ctx: RelayCtx,
+  kinds: string[],
+) {
+  await supabase.rpc("set_candidate_automation", {
+    p_candidate: ctx.candidate_id,
+    p_on: true,
+  });
   await supabase
     .from("action_items")
     .update({ status: "done", resolved_at: new Date().toISOString() })
@@ -44,9 +71,16 @@ async function finish(supabase: Awaited<ReturnType<typeof setup>>["supabase"], c
   revalidatePath("/");
 }
 
-const fail = (e: unknown): RelayResult => ({ ok: false, message: e instanceof Error ? e.message : "Something went wrong." });
+const fail = (e: unknown): RelayResult => ({
+  ok: false,
+  message: e instanceof Error ? e.message : "Something went wrong.",
+});
 
-export async function saveOffer(input: { offerId: string; terms: string; startDate: string }): Promise<RelayResult> {
+export async function saveOffer(input: {
+  offerId: string;
+  terms: string;
+  startDate: string;
+}): Promise<RelayResult> {
   const { supabase } = await requireStaff();
   const { data, error } = await supabase
     .from("offers")
@@ -60,19 +94,33 @@ export async function saveOffer(input: { offerId: string; terms: string; startDa
 }
 
 // Send offer: the exact terms go to the candidate by text and email, with any offer PDF the client sent.
-export async function sendOffer(input: { offerId: string; terms: string; startDate: string }): Promise<RelayResult> {
+export async function sendOffer(input: {
+  offerId: string;
+  terms: string;
+  startDate: string;
+}): Promise<RelayResult> {
   try {
     const { supabase } = await requireStaff();
-    const { data: offer } = await supabase.from("offers").select("*").eq("id", input.offerId).single();
+    const { data: offer } = await supabase
+      .from("offers")
+      .select("*")
+      .eq("id", input.offerId)
+      .single();
     if (!offer) return { ok: false, message: "That offer is gone." };
-    if (!["review", "ready", "confirm_asked"].includes(offer.status)) return { ok: false, message: "This offer was already sent." };
+    if (!["review", "ready", "confirm_asked"].includes(offer.status))
+      return { ok: false, message: "This offer was already sent." };
     const terms = input.terms.trim();
     if (!terms) return { ok: false, message: "Add the terms first." };
-    const { ctx, sender, log, origin, userId } = await setup(offer.candidate_job_id);
+    const { ctx, sender, log, origin, userId } = await setup(
+      offer.candidate_job_id,
+    );
     let attachments: Attachment[] = [];
     if (offer.source_message_id) {
       try {
-        attachments = await gmailPdfs(await accessToken(openToken(sender.token)), offer.source_message_id);
+        attachments = await gmailPdfs(
+          await accessToken(openToken(sender.token)),
+          offer.source_message_id,
+        );
       } catch (e) {
         console.error("Couldn't fetch the offer PDF", e);
       }
@@ -96,7 +144,11 @@ export async function sendOffer(input: { offerId: string; terms: string; startDa
         },
       },
     );
-    if (!sent) return { ok: false, message: `${first} has no phone or email I can use.` };
+    if (!sent)
+      return {
+        ok: false,
+        message: `${first} has no phone or email I can use.`,
+      };
     await supabase
       .from("offers")
       .update({
@@ -109,18 +161,28 @@ export async function sendOffer(input: { offerId: string; terms: string; startDa
       })
       .eq("id", offer.id);
     await finish(supabase, ctx, ["offer"]);
-    return { ok: true, message: `Sent to ${first}${attachments.length ? " with the offer letter" : ""}.` };
+    return {
+      ok: true,
+      message: `Sent to ${first}${attachments.length ? " with the offer letter" : ""}.`,
+    };
   } catch (e) {
     return fail(e);
   }
 }
 
 // Ask the client to confirm before the offer goes to the candidate. Their yes brings the card back.
-export async function askClientToConfirm(offerId: string): Promise<RelayResult> {
+export async function askClientToConfirm(
+  offerId: string,
+): Promise<RelayResult> {
   try {
     const { supabase } = await requireStaff();
-    const { data: offer } = await supabase.from("offers").select("*").eq("id", offerId).single();
-    if (!offer || !["review", "ready"].includes(offer.status)) return { ok: false, message: "This offer can't be confirmed now." };
+    const { data: offer } = await supabase
+      .from("offers")
+      .select("*")
+      .eq("id", offerId)
+      .single();
+    if (!offer || !["review", "ready"].includes(offer.status))
+      return { ok: false, message: "This offer can't be confirmed now." };
     const { ctx, sender, log } = await setup(offer.candidate_job_id);
     await emailClient(
       ctx,
@@ -129,9 +191,15 @@ export async function askClientToConfirm(offerId: string): Promise<RelayResult> 
       `Asked ${ctx.contact_name ?? ctx.company} to confirm ${ctx.full_name}'s offer`,
       sender,
     );
-    await supabase.from("offers").update({ status: "confirm_asked", waiting_on: "client" }).eq("id", offer.id);
+    await supabase
+      .from("offers")
+      .update({ status: "confirm_asked", waiting_on: "client" })
+      .eq("id", offer.id);
     await finish(supabase, ctx, ["offer"]);
-    return { ok: true, message: `Asked ${firstName(ctx.contact_name)} to confirm.` };
+    return {
+      ok: true,
+      message: `Asked ${firstName(ctx.contact_name)} to confirm.`,
+    };
   } catch (e) {
     return fail(e);
   }
@@ -146,31 +214,65 @@ export async function dropOffer(offerId: string): Promise<RelayResult> {
     .select("candidate_job_id, candidate_jobs(candidate_id)")
     .single();
   if (error) return { ok: false, message: error.message };
-  await supabase.from("relay_messages").update({ status: "cancelled" }).eq("offer_id", offerId).eq("status", "awaiting");
+  await supabase
+    .from("relay_messages")
+    .update({ status: "cancelled" })
+    .eq("offer_id", offerId)
+    .eq("status", "awaiting");
   revalidatePath(`/candidates/${data.candidate_jobs?.candidate_id}`);
   return { ok: true, message: "Dropped. Nothing was sent." };
 }
 
 // A counteroffer message, word for word, after Justin's click.
-export async function sendRelayMessage(input: { id: string; body: string }): Promise<RelayResult> {
+export async function sendRelayMessage(input: {
+  id: string;
+  body: string;
+}): Promise<RelayResult> {
   try {
     const { supabase, userId } = await requireStaff();
-    const { data: m } = await supabase.from("relay_messages").select("*").eq("id", input.id).single();
-    if (!m || m.status !== "awaiting") return { ok: false, message: "This message was already handled." };
+    const { data: m } = await supabase
+      .from("relay_messages")
+      .select("*")
+      .eq("id", input.id)
+      .single();
+    if (!m || m.status !== "awaiting")
+      return { ok: false, message: "This message was already handled." };
     const body = input.body.trim();
     if (!body) return { ok: false, message: "The message is empty." };
     const { ctx, sender, log, origin } = await setup(m.candidate_job_id);
     if (m.to_party === "client") {
-      await emailClient(ctx, log, body, `Counteroffer from ${ctx.full_name} to ${ctx.contact_name ?? ctx.company}`, sender);
+      await emailClient(
+        ctx,
+        log,
+        body,
+        `Counteroffer from ${ctx.full_name} to ${ctx.contact_name ?? ctx.company}`,
+        sender,
+      );
     } else {
-      const sent = await messageCandidate(ctx, log, origin, body, { summary: `${ctx.company}'s answer to ${ctx.full_name}`, sender });
-      if (!sent) return { ok: false, message: `${firstName(ctx.full_name)} has no phone or email I can use.` };
+      const sent = await messageCandidate(ctx, log, origin, body, {
+        summary: `${ctx.company}'s answer to ${ctx.full_name}`,
+        sender,
+      });
+      if (!sent)
+        return {
+          ok: false,
+          message: `${firstName(ctx.full_name)} has no phone or email I can use.`,
+        };
     }
     await supabase
       .from("relay_messages")
-      .update({ status: "sent", body, decided_by: userId, decided_at: new Date().toISOString() })
+      .update({
+        status: "sent",
+        body,
+        decided_by: userId,
+        decided_at: new Date().toISOString(),
+      })
       .eq("id", m.id);
-    if (m.offer_id) await supabase.from("offers").update({ waiting_on: m.to_party }).eq("id", m.offer_id);
+    if (m.offer_id)
+      await supabase
+        .from("offers")
+        .update({ waiting_on: m.to_party })
+        .eq("id", m.offer_id);
     await finish(supabase, ctx, ["offer"]);
     return { ok: true, message: "Sent." };
   } catch (e) {
@@ -182,7 +284,11 @@ export async function cancelRelayMessage(id: string): Promise<RelayResult> {
   const { supabase, userId } = await requireStaff();
   const { data, error } = await supabase
     .from("relay_messages")
-    .update({ status: "cancelled", decided_by: userId, decided_at: new Date().toISOString() })
+    .update({
+      status: "cancelled",
+      decided_by: userId,
+      decided_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .select("candidate_jobs(candidate_id)")
     .single();
@@ -195,7 +301,10 @@ export async function cancelRelayMessage(id: string): Promise<RelayResult> {
 export async function setCandidateAutomation(form: FormData) {
   const { supabase } = await requireStaff();
   const id = String(form.get("id") ?? "");
-  const { error } = await supabase.rpc("set_candidate_automation", { p_candidate: id, p_on: form.get("on") === "true" });
+  const { error } = await supabase.rpc("set_candidate_automation", {
+    p_candidate: id,
+    p_on: form.get("on") === "true",
+  });
   if (error) throw new Error(error.message);
   revalidatePath(`/candidates/${id}`);
 }
@@ -204,24 +313,44 @@ export async function setCandidateAutomation(form: FormData) {
 export async function setJobPilot(form: FormData) {
   const { supabase } = await requireStaff();
   const id = String(form.get("id") ?? "");
-  const { error } = await supabase.from("jobs").update({ automation_pilot: form.get("on") === "true" }).eq("id", id);
+  const { error } = await supabase
+    .from("jobs")
+    .update({ automation_pilot: form.get("on") === "true" })
+    .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/jobs/${id}`);
 }
 
 export async function setPilotOnly(form: FormData) {
   const { supabase, staff } = await requireStaff();
-  if (staff.role !== "owner") throw new Error("Only the owner can change this.");
-  const { error } = await supabase.rpc("set_pilot_only", { p_on: form.get("on") === "true" });
+  if (staff.role !== "owner")
+    throw new Error("Only the owner can change this.");
+  const { error } = await supabase.rpc("set_pilot_only", {
+    p_on: form.get("on") === "true",
+  });
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
 }
 
 // AI calls in automated recruiting: off means texts and emails only, and booked calls go to Justin.
+export async function setAiReceptionist(form: FormData) {
+  const { supabase, staff } = await requireStaff();
+  if (staff.role !== "owner")
+    throw new Error("Only the owner can change this.");
+  const { error } = await supabase.rpc("set_ai_receptionist", {
+    p_on: form.get("on") === "true",
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+}
+
 export async function setAiCalls(form: FormData) {
   const { supabase, staff } = await requireStaff();
-  if (staff.role !== "owner") throw new Error("Only the owner can change this.");
-  const { error } = await supabase.rpc("set_ai_calls", { p_on: form.get("on") === "true" });
+  if (staff.role !== "owner")
+    throw new Error("Only the owner can change this.");
+  const { error } = await supabase.rpc("set_ai_calls", {
+    p_on: form.get("on") === "true",
+  });
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
 }

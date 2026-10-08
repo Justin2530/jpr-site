@@ -183,7 +183,7 @@ type Segment = {
   avg_logprob?: number;
 };
 type Word = { word: string; start: number; end: number };
-type Line = { speaker: "agent" | "candidate"; text: string; at: number };
+export type Line = { speaker: "agent" | "candidate"; text: string; at: number };
 
 // Twilio's quality report on both legs of a finished call (the AI's and the candidate's). Its tags flag
 // silence and one-way audio, which is how a call can sound dead on the phone while the assistant talks.
@@ -271,7 +271,7 @@ async function processOne(db: Db, secret: string) {
 
 // Split the stereo recording into the two speakers, shrink each to phone quality (8 kHz mono) so it
 // fits the transcription limit, and transcribe both with timestamps.
-async function transcribe(wav: Buffer): Promise<Line[]> {
+export async function transcribe(wav: Buffer): Promise<Line[]> {
   const audio = readWav(wav);
   const channels =
     audio.channels.length === 2 ? audio.channels : [audio.channels[0]];
