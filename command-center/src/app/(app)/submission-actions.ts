@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/staff";
 import type { Enums } from "@/lib/database.types";
 import { accessToken, googleReady, openToken, sendGmail, type Attachment } from "@/lib/google";
+import { indeedResume } from "@/lib/indeed-resume";
 
 type Decision = "save" | "send" | "hold" | "pass";
 
@@ -51,6 +52,14 @@ export async function decideSubmission(input: {
             data: Buffer.from(await file.arrayBuffer()),
           });
           attached = resume.file_name;
+        }
+      }
+      if (!attached && link?.candidate_id) {
+        const { data: cand } = await supabase.from("candidates").select("full_name, notes").eq("id", link.candidate_id).single();
+        const file = cand && (await indeedResume(supabase, link.candidate_id, cand.full_name, cand.notes, userId));
+        if (file) {
+          attachments.push(file);
+          attached = file.filename;
         }
       }
       try {

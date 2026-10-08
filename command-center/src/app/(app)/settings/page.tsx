@@ -9,6 +9,7 @@ import { headers } from "next/headers";
 import { automationSecret, registerAutomation } from "@/lib/automation";
 import { saveMyCell, setAutomatedRecruiting } from "./actions";
 import { setAiCalls, setAiReceptionist } from "../relay-actions";
+import { setInboxAgent, setInboxAutoReply } from "../inbox-actions";
 import { liveSetup } from "@/lib/live";
 import { webhookUrl } from "@/lib/twilio";
 import { ConnectButton } from "./connect-button";
@@ -137,7 +138,7 @@ export default async function SettingsPage({
   const { data: auto } = await supabase
     .from("automation_settings")
     .select(
-      "automated_recruiting, eligible_after_v1, ai_calls, ai_receptionist",
+      "automated_recruiting, eligible_after_v1, ai_calls, ai_receptionist, inbox_agent_since, inbox_auto_reply",
     )
     .maybeSingle();
   const autoOn = Boolean(auto?.automated_recruiting);
@@ -346,6 +347,36 @@ export default async function SettingsPage({
                   : "Turn on the answering agent"}
               </SubmitButton>
             </form>
+          )}
+          <p className="text-sm text-muted">
+            <span className="text-ink">
+              Third eye: {auto?.inbox_agent_since ? "on" : "off"}
+              {auto?.inbox_agent_since
+                ? `, answers ${auto.inbox_auto_reply ? "automatically" : "wait for your OK"}`
+                : ""}
+              .
+            </span>{" "}
+            {auto?.inbox_agent_since
+              ? "It reads every new email in your Gmail, adds potential candidates (Indeed first) on the job they're asking about, and answers their questions from that job's facts. It never starts outreach, texts or calls: that's still your Yes, automate."
+              : "When on, it reads new email for potential candidates, adds them, and answers their questions about the job."}
+          </p>
+          {staff.role === "owner" && (
+            <div className="flex flex-wrap gap-2">
+              <form action={setInboxAgent}>
+                <input type="hidden" name="on" value={auto?.inbox_agent_since ? "false" : "true"} />
+                <SubmitButton className={auto?.inbox_agent_since ? "btn-quiet hover:text-rose" : "btn-quiet"}>
+                  {auto?.inbox_agent_since ? "Turn off the third eye" : "Turn on the third eye"}
+                </SubmitButton>
+              </form>
+              {auto?.inbox_agent_since && (
+                <form action={setInboxAutoReply}>
+                  <input type="hidden" name="on" value={auto.inbox_auto_reply ? "false" : "true"} />
+                  <SubmitButton className="btn-quiet">
+                    {auto.inbox_auto_reply ? "Hold its answers for my OK" : "Let it answer on its own"}
+                  </SubmitButton>
+                </form>
+              )}
+            </div>
           )}
         </Step>
         <Step done={liveOk} title="AI screening calls">

@@ -589,9 +589,33 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["reception_calls"]["Row"]>;
         Relationships: [];
       };
+      inbox_drafts: {
+        Row: {
+          id: string;
+          candidate_id: string;
+          candidate_job_id: string | null;
+          action_item_id: string | null;
+          staff_id: string | null;
+          gmail_id: string | null;
+          to_address: string;
+          thread_id: string | null;
+          subject: string;
+          body: string;
+          status: string;
+          sent_message_id: string | null;
+          decided_by: string | null;
+          decided_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["inbox_drafts"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["inbox_drafts"]["Row"]>;
+        Relationships: [];
+      };
       automation_settings: {
         Row: {
           pilot_only: boolean;
+          inbox_agent_since: string | null;
+          inbox_auto_reply: boolean;
           id: boolean;
           ai_calls: boolean;
           ai_receptionist: boolean;
@@ -606,6 +630,8 @@ export type Database = {
           id?: boolean;
           ai_calls?: boolean;
           ai_receptionist?: boolean;
+          inbox_agent_since?: string | null;
+          inbox_auto_reply?: boolean;
           automated_recruiting?: boolean;
           eligible_after?: string | null;
           eligible_after_v1?: string | null;
@@ -1348,6 +1374,17 @@ export type Database = {
       automation_pause_candidate: { Args: { p_secret: string; p_candidate: string; p_reason: string }; Returns: undefined };
       set_ai_calls: { Args: { p_on: boolean }; Returns: undefined };
       set_ai_receptionist: { Args: { p_on: boolean }; Returns: undefined };
+      set_inbox_agent: { Args: { p_on: boolean }; Returns: undefined };
+      set_inbox_auto_reply: { Args: { p_on: boolean }; Returns: undefined };
+      inbox_context: { Args: { p_secret: string }; Returns: Json };
+      inbox_seen: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
+      inbox_sender: { Args: { p_secret: string; p_from: string }; Returns: Json };
+      inbox_file: { Args: { p_secret: string; p: Json }; Returns: Json };
+      inbox_draft_sent: {
+        Args: { p_secret: string; p_draft: string; p_message_id: string; p_thread: string; p_body: string; p_staff: string | null };
+        Returns: undefined;
+      };
+      inbox_draft_skip: { Args: { p_draft: string }; Returns: undefined };
       reception_route: { Args: { p_secret: string; p_from: string }; Returns: Json };
       reception_start_screening: { Args: { p_secret: string; p_cj: string; p_sid: string }; Returns: string };
       screening_run_inbound: { Args: { p_secret: string; p_run: string }; Returns: boolean };

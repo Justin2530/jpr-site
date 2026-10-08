@@ -149,6 +149,8 @@ export type GmailMessage = {
   subject: string;
   date: Date;
   text: string;
+  // Newsletters and other mass mail (an unsubscribe header, a bulk/list precedence or an auto-submitted flag).
+  bulk: boolean;
 };
 
 async function gmailGet(token: string, path: string) {
@@ -226,6 +228,7 @@ export async function readGmail(token: string, id: string): Promise<GmailMessage
     subject: h("subject"),
     date: new Date(Number(m.internalDate) || Date.now()),
     text: plainText(m.payload ?? {}) || m.snippet || "",
+    bulk: Boolean(h("list-unsubscribe") || /bulk|list|junk/i.test(h("precedence")) || /auto-/i.test(h("auto-submitted"))),
   };
 }
 

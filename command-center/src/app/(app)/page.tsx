@@ -6,6 +6,7 @@ import { ShieldIcon } from "@/components/icons";
 import { timeAgo, type Tone } from "@/lib/format";
 import type { Tables } from "@/lib/database.types";
 import { addTask, clearSampleData, resolveTask } from "./actions";
+import { InboxDraft } from "@/components/inbox-draft";
 
 const KIND: Record<string, { label: string; tone: Tone }> = {
   protected_client: { label: "Client protection", tone: "rose" },
@@ -21,6 +22,7 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
   reply: { label: "Reply", tone: "amber" },
   website_lead: { label: "Website", tone: "cyan" },
   offer: { label: "Offer", tone: "amber" },
+  inbox: { label: "Inbox", tone: "cyan" },
 };
 
 function hrefFor(item: Tables<"needs_me">) {
@@ -50,7 +52,7 @@ export default async function Home() {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const soon = new Date(new Date().getTime() - 2 * 3600_000).toISOString();
 
-  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent, samples, upcoming] = await Promise.all([
+  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent, samples, upcoming, drafts] = await Promise.all([
     supabase.from("needs_me").select("*").order("priority").order("since", { ascending: true }).limit(50),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "open"),
     supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).not("stage", "in", CLOSED_STAGES),
@@ -70,7 +72,9 @@ export default async function Home() {
       .gte("scheduled_for", soon)
       .order("scheduled_for")
       .limit(8),
+    supabase.from("inbox_drafts").select("id, action_item_id, body").eq("status", "awaiting"),
   ]);
+  const draftFor = new Map((drafts.data ?? []).map((d) => [d.action_item_id, d]));
 
   const items = needs.data ?? [];
   const first = (staff.full_name ?? staff.email).split(/[\s@]/)[0];
@@ -148,7 +152,10 @@ export default async function Home() {
                         )}
                         <Chip tone={k.tone}>{k.label}</Chip>
                       </div>
-                      {item.detail && <p className="mt-0.5 text-sm text-muted">{item.detail}</p>}
+                      {item.detail && <p className="mt-0.5 whitespace-pre-line text-sm text-muted">{item.detail}</p>}
+                      {taskId && draftFor.has(taskId) && (
+                        <InboxDraft id={draftFor.get(taskId)!.id} body={draftFor.get(taskId)!.body} />
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="font-mono text-[11px] text-faint">{timeAgo(item.since)}</span>
