@@ -184,17 +184,30 @@ export async function JobWorkspace({
           ended={(pursuits ?? []).some((p) => p.purpose === "screening" && p.status !== "active")}
         />
       )}
-      {!early && automation.on && job.automation_pilot && (
+      {/* Past screening: the switch covers interview scheduling and client follow-ups for this candidate. */}
+      {!early && automation.on && job.automation_pilot && !candidate.automation_paused_at && (
         <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 font-medium">
-              Automated recruiting <Chip tone="muted">Off</Chip>
+              Automated recruiting <Chip tone={automation.eligible(candidate.created_at) ? "cyan" : "muted"}>
+                {automation.eligible(candidate.created_at) ? "On" : "Off"}
+              </Chip>
             </p>
             <p className="text-sm text-muted">
-              Automatic texts and emails only run before the screening call. {candidate.full_name.split(" ")[0]} is past that, so nothing
-              automatic goes to them.
+              {automation.eligible(candidate.created_at)
+                ? `After you send a submission, it follows up with the client and works out interview times with ${candidate.full_name.split(" ")[0]}. Offers always wait for you.`
+                : "Stays manual. This candidate was in the system before automated recruiting was first turned on."}
             </p>
           </div>
+          {automation.eligible(candidate.created_at) && (
+            <form action={setCandidateAutomation}>
+              <input type="hidden" name="id" value={candidate.id} />
+              <input type="hidden" name="on" value="false" />
+              <SubmitButton className="btn-quiet hover:text-rose" pendingText="Turning off…">
+                Turn off
+              </SubmitButton>
+            </form>
+          )}
         </div>
       )}
 
