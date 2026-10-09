@@ -9,6 +9,7 @@ type Payload = {
   title: string;
   text: string;
   file: { name: string; type: string; buf: ArrayBuffer } | null;
+  links?: string[];
 };
 
 const FIELDS = [
@@ -28,6 +29,7 @@ export function CaptureForm({ jobs }: { jobs: { id: string; label: string }[] })
   const [file, setFile] = useState<File | null>(null);
   const [read, setRead] = useState<CaptureRead | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [done, setDone] = useState<{ ok: boolean; message: string; id?: string } | null>(null);
   const got = useRef(false);
   const picker = useRef<HTMLInputElement>(null);
@@ -35,11 +37,14 @@ export function CaptureForm({ jobs }: { jobs: { id: string; label: string }[] })
   // Reads the page text plus the resume (the grabbed one, or one added by hand).
   const readNow = (p: Payload, f: File | null) => {
     setBusy(true);
+    setFailed(false);
     const form = new FormData();
     form.set("page", p.text);
+    if (p.links?.length) form.set("links", p.links.join("\n"));
     if (f) form.set("resume", f);
     readCapture(form)
       .then(setRead)
+      .catch(() => setFailed(true))
       .finally(() => setBusy(false));
   };
 
@@ -115,6 +120,7 @@ export function CaptureForm({ jobs }: { jobs: { id: string; label: string }[] })
           {file ? "Use a different file" : "Add the resume by hand"}
         </button>
         {busy && !read && <p className="text-faint">Reading…</p>}
+        {failed && <p className="text-xs text-amber">Couldn&apos;t read the details. Fill them in below, or add the resume and it reads again.</p>}
         {read && <p className="text-xs text-faint">Details read from the {read.readFrom === "resume" ? "resume" : "Indeed page"}. Check them below.</p>}
       </div>
 

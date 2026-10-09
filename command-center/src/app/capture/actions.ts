@@ -20,6 +20,9 @@ const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "").sl
 export async function readCapture(form: FormData): Promise<CaptureRead> {
   const { supabase } = await requireStaff();
   const page = String(form.get("page") ?? "").slice(0, 30000);
+  // What the bookmark saw that might be the resume, so a missed download can be tuned to Indeed's page.
+  const links = String(form.get("links") ?? "");
+  if (links) console.log("Send to JPR links", links.slice(0, 4000));
   const file = form.get("resume");
   let body = "";
   if (file instanceof File && file.size > 0 && file.size <= MAX_RESUME) {

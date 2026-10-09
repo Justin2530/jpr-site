@@ -124,8 +124,11 @@ export async function parseWithAI(text: string): Promise<ParsedResume | null> {
         "phone: formatted (814) 555-1234. state: two-letter US code. current_title and current_employer: their most recent job. " +
         "notes: 2-3 short plain sentences for a recruiter: years of experience, main skills, machines, certifications, and anything notable.",
       input: text.slice(0, 30000),
+      reasoning: { effort: "low" },
       text: { format: { type: "json_schema", name: "resume", schema: SCHEMA, strict: true } },
     }),
+    // Past this the pattern pass alone fills the form, so nobody sits on "Reading…".
+    signal: AbortSignal.timeout(45000),
   });
   if (!res.ok) {
     console.error("Resume AI failed", res.status, (await res.text()).slice(0, 300));
