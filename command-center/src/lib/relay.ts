@@ -63,7 +63,10 @@ type Pending = RelayCtx & {
   history: { at: string; kind: string; direction: string | null; who: string; text: string | null }[];
 };
 
-type Scheduled = RelayCtx & { step: "interview_reminder" | "interview_checkin" | "start_text"; interview?: Interview };
+type Scheduled = RelayCtx & {
+  step: "interview_reminder" | "interview_checkin" | "start_text" | "interview_chase" | "interview_flag";
+  interview?: Interview;
+};
 
 export const firstName = (name: string | null | undefined) => name?.trim().split(/\s+/)[0] || "there";
 
@@ -588,6 +591,36 @@ export async function runRelay(db: Db, secret: string, origin: string) {
           `Hi ${firstName(s.contact_name)}, how did the interview with ${first} go? Let me know if you'd like to move forward or pass. Thanks.`,
           `Interview check-in to ${s.contact_name ?? s.company} on ${s.full_name}`,
         );
+      } else if (s.step === "interview_chase" && s.interview) {
+        // No answer on the interview times after 4 hours: one more text, and an email as well.
+        const times = s.interview.client_times.map(sayLocal);
+        const ask = times.length
+          ? `${s.company} would like to set up an interview with you: ${times.join(", or ")}. Does one of those work for you?`
+          : `${s.company} would like to set up an interview with you. What days and times work for you this week?`;
+        await messageCandidate(s, log, origin, `Hi ${first}, just checking in. ${ask}`, {
+          summary: `Interview times follow-up to ${s.full_name}`,
+          both: true,
+        });
+      } else if (s.step === "interview_flag") {
+        // Still nothing the next day: Justin calls them, and the client hears it's being confirmed.
+        await emailClient(
+          s,
+          log,
+          `Hi ${firstName(s.contact_name)}, just a quick update: I'm still confirming a time with ${first} and will get back to you shortly. Thanks!`,
+          `"Still confirming" note to ${s.contact_name ?? s.company} on ${s.full_name}`,
+        );
+        await db.rpc("relay_apply", {
+          p_secret: secret,
+          p_activity: null,
+          p: {
+            candidate_job_id: s.candidate_job_id,
+            item: {
+              kind: "task",
+              title: `Call ${s.full_name}: no answer on interview times with ${s.company}`,
+              detail: "They were texted and emailed the times and haven't replied. The client was told you're still confirming.",
+            },
+          } as Json,
+        });
       } else if (s.step === "start_text") {
         const to = toE164(s.phone);
         if (to && !s.sms_opted_out && twilioReady()) {
