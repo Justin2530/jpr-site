@@ -25,11 +25,11 @@ export default async function PipelinePage({
   const showClosed = closed === "1";
   const { supabase } = await requireStaff();
 
-  const [{ data: rows, error }, { data: jobs }, { data: settings }, { data: pursuits }, { data: runs }] = await Promise.all([
+  const [{ data: rows, error }, { data: jobs }, { data: settings }] = await Promise.all([
     (() => {
       let q = supabase
         .from("candidate_jobs")
-        .select("id, stage, stage_changed_at, candidates(id, full_name, current_title), jobs(id, title, companies(name))")
+        .select("id, stage, stage_changed_at, automate, candidates(id, full_name, current_title), jobs(id, title, automation_pilot, companies(name))")
         .order("stage_changed_at", { ascending: false })
         .limit(1000);
       if (job) q = q.eq("job_id", job);
@@ -37,18 +37,17 @@ export default async function PipelinePage({
       return q;
     })(),
     supabase.from("jobs").select("id, title, companies(name)").eq("status", "open").order("title"),
-    supabase.from("automation_settings").select("automated_recruiting, ai_calls").maybeSingle(),
-    supabase.from("pursuits").select("candidate_job_id").eq("status", "active").is("paused_at", null),
-    supabase.from("screening_runs").select("candidate_job_id").eq("status", "scheduled"),
+    supabase.from("automation_settings").select("automated_recruiting").maybeSingle(),
   ]);
 
-  // Auto: the system is working this person right now (outreach running, or an AI call booked) and the
-  // master switch lets it. Everyone else past Sourced is Manual: nothing goes out unless Justin sends it.
-  const working = new Set<string>();
-  if (settings?.automated_recruiting) for (const p of pursuits ?? []) working.add(p.candidate_job_id);
-  if (settings?.ai_calls) for (const r of runs ?? []) working.add(r.candidate_job_id);
-  const mode = (r: { id: string; stage: Enums<"pipeline_stage"> }) =>
-    WAITING.includes(r.stage) || CLOSED.includes(r.stage) || r.stage === "placed" ? null : working.has(r.id) ? "Auto" : "Manual";
+  // Auto: all three Automated recruiting switches are on (Settings, the job, this candidate on the job).
+  // Everyone else past Sourced is Manual: nothing goes out unless Justin sends it.
+  const mode = (r: { stage: Enums<"pipeline_stage">; automate: boolean; jobs: { automation_pilot: boolean } | null }) =>
+    WAITING.includes(r.stage) || CLOSED.includes(r.stage) || r.stage === "placed"
+      ? null
+      : settings?.automated_recruiting && r.jobs?.automation_pilot && r.automate
+        ? "Auto"
+        : "Manual";
   if (error) throw new Error(error.message);
 
   // Keep the Placed column to recent wins unless closed items are shown.
@@ -73,7 +72,7 @@ export default async function PipelinePage({
       <PageHeader
         kicker="Recruiting"
         title="Pipeline"
-        sub={`Every candidate in every job. Auto means the system is reaching out to them; Manual means only you are. A red dot means no movement in ${STALE_DAYS}+ days.`}
+        sub={`Every candidate in every job. Auto means all three automated recruiting switches are on for them; Manual means only you reach out. A red dot means no movement in ${STALE_DAYS}+ days.`}
         action={
           <ViewSwitcher
             basePath="/pipeline"

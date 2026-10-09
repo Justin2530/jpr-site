@@ -56,7 +56,7 @@ export async function JobWorkspace({
   const { data: cj } = await supabase
     .from("candidate_jobs")
     .select(
-      "id, stage, stage_changed_at, assigned_at, jobs(id, title, company_id, hiring_contact_id, automation_pilot, location, compensation, schedule, companies(id, name, short_name))",
+      "id, stage, stage_changed_at, assigned_at, automate, jobs(id, title, company_id, hiring_contact_id, automation_pilot, location, compensation, schedule, companies(id, name, short_name))",
     )
     .eq("id", cjId)
     .eq("candidate_id", candidate.id)
@@ -175,41 +175,17 @@ export async function JobWorkspace({
         </div>
       )}
 
-      {/* The candidate's switch shows only once the master and this job's switch are both on. */}
-      {early && automation.on && job.automation_pilot && (
-        <AutomationSwitch
-          cjId={cj.id}
-          live={(pursuits ?? []).find((p) => p.purpose === "screening" && p.status === "active") ?? null}
-          eligible={automation.eligible(candidate.created_at)}
-          ended={(pursuits ?? []).some((p) => p.purpose === "screening" && p.status !== "active")}
-        />
-      )}
-      {/* Past screening: the switch covers interview scheduling and client follow-ups for this candidate. */}
-      {!early && automation.on && job.automation_pilot && !candidate.automation_paused_at && (
-        <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 font-medium">
-              Automated recruiting <Chip tone={automation.eligible(candidate.created_at) ? "cyan" : "muted"}>
-                {automation.eligible(candidate.created_at) ? "On" : "Off"}
-              </Chip>
-            </p>
-            <p className="text-sm text-muted">
-              {automation.eligible(candidate.created_at)
-                ? `After you send a submission, it follows up with the client and works out interview times with ${candidate.full_name.split(" ")[0]}. Offers always wait for you.`
-                : "Stays manual. This candidate was in the system before automated recruiting was first turned on."}
-            </p>
-          </div>
-          {automation.eligible(candidate.created_at) && (
-            <form action={setCandidateAutomation}>
-              <input type="hidden" name="id" value={candidate.id} />
-              <input type="hidden" name="on" value="false" />
-              <SubmitButton className="btn-quiet hover:text-rose" pendingText="Turning off…">
-                Turn off
-              </SubmitButton>
-            </form>
-          )}
-        </div>
-      )}
+      {/* Always shown, at every stage; it can only be turned on while the master and this job's switch are on. */}
+      <AutomationSwitch
+        cjId={cj.id}
+        on={cj.automate}
+        masterOn={automation.on}
+        jobOn={job.automation_pilot}
+        eligible={automation.eligible(candidate.created_at)}
+        early={early}
+        paused={Boolean((pursuits ?? []).find((p) => p.purpose === "screening" && p.status === "active")?.paused_at)}
+        firstName={candidate.full_name.split(" ")[0]}
+      />
 
       {(pursuits ?? []).map((p) => (
         <Outreach key={p.id} pursuit={p} />
@@ -554,46 +530,66 @@ function Outreach({
   );
 }
 
-// The candidate's Automated recruiting switch for this job, shown only while the master and the job's switch
-// are on: on texts and emails them on the schedule until they reply, off pauses it where it is.
+// The candidate's Automated recruiting switch for this job. Always shown; Turn on only works while the
+// master switch in Settings and this job's switch are on, and the reason shows when it can't.
+// Before screening it texts, emails and calls them on the schedule; after, it follows up with the client
+// and works out interview times. Offers always wait for Justin.
 function AutomationSwitch({
   cjId,
-  live,
+  on,
+  masterOn,
+  jobOn,
   eligible,
-  ended,
+  early,
+  paused,
+  firstName,
 }: {
   cjId: string;
-  live: { paused_at: string | null } | null;
+  on: boolean;
+  masterOn: boolean;
+  jobOn: boolean;
   eligible: boolean;
-  ended: boolean;
+  early: boolean;
+  paused: boolean;
+  firstName: string;
 }) {
-  const on = Boolean(live && !live.paused_at);
-  const note = !eligible
-    ? "Stays manual. This candidate was in the system before automated recruiting was first turned on."
+  const blocked = !masterOn
+    ? "Turn on automated recruiting in Settings first."
+    : !jobOn
+      ? "Turn on automated recruiting for this job first."
+      : !eligible
+        ? "Stays manual. This candidate was in the system before automated recruiting was first turned on."
+        : null;
+  const running = on && !blocked;
+  const what = early
+    ? `texts, emails and calls ${firstName} on the schedule until they reply`
+    : `follows up with the client and works out interview times with ${firstName}. Offers always wait for you`;
+  const note = running
+    ? paused
+      ? "On, but paused where it was. It picks back up on its own."
+      : `On: it ${what}.`
     : on
-      ? "Texting and emailing them on the schedule until they reply. Turning it off pauses it where it is."
-      : live
-        ? "Paused. Turning it back on picks up where it left off."
-        : ended
-          ? "The last round ended. Turning it on starts the schedule over."
-          : "Turn it on to text and email them on the schedule until they reply.";
+      ? `On for ${firstName}, but nothing runs yet. ${blocked}`
+      : (blocked ?? `Off. Turn it on and it ${what}.`);
   return (
     <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 font-medium">
-          Automated recruiting <Chip tone={on ? "cyan" : "muted"}>{on ? "On" : "Off"}</Chip>
+          Automated recruiting <Chip tone={running ? "cyan" : "muted"}>{on ? "On" : "Off"}</Chip>
         </p>
         <p className="text-sm text-muted">{note}</p>
       </div>
-      {eligible && (
-        <form action={setOutreach}>
-          <input type="hidden" name="id" value={cjId} />
-          <input type="hidden" name="on" value={on ? "false" : "true"} />
-          <SubmitButton className={on ? "btn-quiet hover:text-rose" : "btn"} pendingText={on ? "Turning off…" : "Turning on…"}>
-            {on ? "Turn off" : "Turn on"}
-          </SubmitButton>
-        </form>
-      )}
+      <form action={setOutreach}>
+        <input type="hidden" name="id" value={cjId} />
+        <input type="hidden" name="on" value={on ? "false" : "true"} />
+        <SubmitButton
+          className={on ? "btn-quiet hover:text-rose" : "btn"}
+          pendingText={on ? "Turning off…" : "Turning on…"}
+          disabled={!on && Boolean(blocked)}
+        >
+          {on ? "Turn off" : "Turn on"}
+        </SubmitButton>
+      </form>
     </div>
   );
 }

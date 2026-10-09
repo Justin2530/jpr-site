@@ -248,19 +248,23 @@ export default async function JobDetail({
         </div>
 
         <div className="space-y-6">
-          {/* The job's switch shows only while the master switch in Settings is on. */}
-          {automation.on && (
-            <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-2 font-medium">
-                  Automated recruiting <Chip tone={job.automation_pilot ? "cyan" : "muted"}>{job.automation_pilot ? "On" : "Off"}</Chip>
-                </p>
-                <p className="text-sm text-muted">
-                  {job.automation_pilot
-                    ? "On for this job. Each candidate still needs their own switch on. Turning this off pauses everyone here."
-                    : "Off for this job, so nobody on it is contacted automatically."}
-                </p>
-              </div>
+          {/* Always shown; it can only be turned on while the master switch in Settings is on. */}
+          <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-2 font-medium">
+                Automated recruiting <Chip tone={job.automation_pilot ? "cyan" : "muted"}>{job.automation_pilot ? "On" : "Off"}</Chip>
+              </p>
+              <p className="text-sm text-muted">
+                {job.automation_pilot && automation.on
+                  ? "On for this job. Each candidate still needs their own switch on. Turning this off pauses everyone here."
+                  : job.automation_pilot
+                    ? "On for this job, but nothing runs while automated recruiting is off in Settings."
+                    : automation.on
+                      ? "Off for this job, so nobody on it is contacted automatically."
+                      : "Off. Turn on automated recruiting in Settings first."}
+              </p>
+            </div>
+            {job.automation_pilot || automation.on ? (
               <form action={setJobAutomation}>
                 <input type="hidden" name="id" value={job.id} />
                 <input type="hidden" name="on" value={job.automation_pilot ? "false" : "true"} />
@@ -271,8 +275,12 @@ export default async function JobDetail({
                   {job.automation_pilot ? "Turn off" : "Turn on"}
                 </SubmitButton>
               </form>
-            </div>
-          )}
+            ) : (
+              <Link href="/settings" className="btn-quiet shrink-0">
+                Settings
+              </Link>
+            )}
+          </div>
           <Panel title="Details">
             <dl>
               <Row label="Hiring contact">
