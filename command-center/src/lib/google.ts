@@ -14,6 +14,9 @@ export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
 ];
 
+// The Command Center address registered as the redirect in Google Cloud (JPR Command Center web client).
+export const GOOGLE_HOST = "jpr-site-tau.vercel.app";
+
 export function googleReady() {
   return Boolean(clientId && clientSecret);
 }

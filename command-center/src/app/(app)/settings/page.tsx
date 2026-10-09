@@ -74,6 +74,7 @@ const GMAIL_STATUS: Record<string, { ok: boolean; text: string }> = {
     text: "Google didn't say which mailbox this is. Press Connect Gmail again.",
   },
   nokeys: { ok: false, text: "The Google keys aren't in Vercel yet." },
+  here: { ok: true, text: "Press Reconnect Gmail again on this page. Google only accepts connecting from this address." },
   savefailed: {
     ok: false,
     text: "Connected, but saving failed. Press Connect Gmail again.",
