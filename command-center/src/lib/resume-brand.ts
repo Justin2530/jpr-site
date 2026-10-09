@@ -203,7 +203,7 @@ export async function renderResume(r: BrandedResume) {
   const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
   const logo = await doc.embedPng(Buffer.from(JPR_LOGO_PNG, "base64"));
   doc.setTitle(`${r.name} - Resume`);
-  doc.setAuthor("JPR Recruitment Services");
+  doc.setAuthor("JPR (J. Peace Recruiting)");
 
   let page: PDFPage = doc.addPage([W, H]);
   let y = H - M;
@@ -297,7 +297,7 @@ export async function renderResume(r: BrandedResume) {
   // Footer on every page.
   const pages = doc.getPages();
   pages.forEach((p, i) => {
-    const foot = `Presented by JPR Recruitment Services  ·  jpeacerecruiting.com${pages.length > 1 ? `  ·  Page ${i + 1} of ${pages.length}` : ""}`;
+    const foot = `Presented by JPR (J. Peace Recruiting)  ·  jpeacerecruiting.com${pages.length > 1 ? `  ·  Page ${i + 1} of ${pages.length}` : ""}`;
     const fw = regular.widthOfTextAtSize(foot, 8);
     p.drawRectangle({ x: M, y: M + 10, width: W - 2 * M, height: 0.75, color: RULE });
     p.drawText(foot, { x: (W - fw) / 2, y: M - 2, size: 8, font: regular, color: GRAY });
