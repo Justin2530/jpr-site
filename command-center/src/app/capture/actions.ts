@@ -63,9 +63,25 @@ export async function readCapture(form: FormData): Promise<CaptureRead> {
   if (!match) match = await sameName(supabase, fields.full_name);
 
   // The job: an open job whose title shows up on the Indeed page (the conversation names it).
-  const { data: jobs } = await supabase.from("jobs").select("id, title").eq("status", "open");
-  const lower = page.toLowerCase();
-  const job = (jobs ?? []).filter((j) => lower.includes(j.title.toLowerCase())).sort((a, b) => b.title.length - a.title.length)[0];
+  // Titles are compared as plain words, without the parenthetical ("Machinist/CNC Machinist (2nd Shift)" shows on
+  // Indeed as "Acme Machine - Machinist / CNC Machinist"), and the client's name on the page decides between jobs
+  // with similar titles. A job they're already on wins.
+  const { data: jobs } = await supabase.from("jobs").select("id, title, companies(name, short_name)").eq("status", "open");
+  const plain = (t: string) => ` ${t.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const words = plain(page);
+  let onJobs: string[] = [];
+  if (match) {
+    const { data } = await supabase.from("candidate_jobs").select("job_id").eq("candidate_id", match.id);
+    onJobs = (data ?? []).map((r) => r.job_id);
+  }
+  const job = (jobs ?? [])
+    .filter((j) => plain(j.title).trim() && words.includes(plain(j.title)))
+    .map((j) => {
+      const co = [j.companies?.short_name, j.companies?.name?.split(/\s+/)[0]].filter((n): n is string => Boolean(n && n.length > 2));
+      const coHit = co.some((n) => words.includes(plain(n)));
+      return { j, score: (onJobs.includes(j.id) ? 4 : 0) + (coHit ? 2 : 0) + plain(j.title).length / 100 };
+    })
+    .sort((a, b) => b.score - a.score)[0]?.j;
   return { fields, match, jobId: job?.id ?? null, readFrom: body ? "resume" : "page" };
 }
 
