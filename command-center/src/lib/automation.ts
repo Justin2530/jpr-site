@@ -82,24 +82,6 @@ export function opener(source: Due["source"], jobTitle: string, location: string
   }
 }
 
-// Pay, schedule and a couple of points from what candidates can be told about the job.
-export function jobDetails(d: Pick<Due, "compensation" | "schedule" | "job_summary">) {
-  const lines: string[] = [];
-  if (d.compensation?.trim()) lines.push(`Pay: ${d.compensation.trim()}`);
-  if (d.schedule?.trim()) lines.push(`Schedule: ${d.schedule.trim()}`);
-  const summary = d.job_summary?.trim() ?? "";
-  const bullets = summary
-    .split(/\n/)
-    .map((l) => l.trim())
-    .filter((l) => /^[-*\u2022]\s+/.test(l))
-    .map((l) => l.replace(/^[-*\u2022]\s+/, ""));
-  const points = bullets.length
-    ? bullets
-    : (summary.replace(/\s+/g, " ").match(/[^.!?]+[.!?]/g) ?? []).map((x) => x.trim()).filter((x) => x.length > 20);
-  lines.push(...points.slice(0, 2));
-  return lines.length ? `A few details on the job:\n${lines.map((l) => `- ${l}`).join("\n")}\n\n` : "";
-}
-
 function fill(template: string, d: Due) {
   return template
     .replaceAll("{first_name}", d.full_name.trim().split(/\s+/)[0] ?? "there")
@@ -107,7 +89,8 @@ function fill(template: string, d: Due) {
     .replaceAll("{near_town}", nearTown(d.location))
     .replaceAll("{in_location}", d.location ? ` in ${d.location}` : "")
     .replaceAll("{opener}", opener(d.source, d.job_title, d.location))
-    .replaceAll("{job_details}", jobDetails(d))
+    // Justin 2026-10-09: no "A few details on the job" list in the first email.
+    .replaceAll("{job_details}", "")
     .replaceAll("{signature}", SIGNATURE);
 }
 
