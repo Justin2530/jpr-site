@@ -42,14 +42,15 @@ export async function saveResume(supabase: SupabaseClient<Database>, candidateId
 // The JPR version of one resume: the same words laid out with JPR's logo and colors, checked word for word
 // against the original and saved as its own file next to it (the original is never touched). The check
 // result goes on the new file so anything lost or added is visible before it goes to a client.
-export async function makeJprResume(supabase: SupabaseClient<Database>, userId: string, resumeId: string) {
+export async function makeJprResume(supabase: SupabaseClient<Database>, userId: string, resumeId: string, fresh = false) {
   const { data: r } = await supabase.from("resumes").select("*").eq("id", resumeId).single();
   if (!r?.storage_path) return { ok: false, message: "That file isn't stored." };
   if (r.branded_from) return { ok: false, message: "That's already a JPR version." };
   const { data: blob } = await supabase.storage.from("resumes").download(r.storage_path);
   if (!blob) return { ok: false, message: "Couldn't open the original file." };
   const file = new File([blob], r.file_name, { type: r.mime_type ?? blob.type });
-  let text = r.text_content ?? "";
+  // fresh (a redo) reads the file again instead of trusting text saved from an earlier reading.
+  let text = fresh ? "" : (r.text_content ?? "");
   if (!text.trim()) {
     try {
       text = (await resumeText(file)) || "";
@@ -64,7 +65,7 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
       readFromPicture = text.trim().length >= 80;
       if (readFromPicture) await supabase.from("resumes").update({ text_content: text }).eq("id", r.id);
     } catch (e) {
-      console.error("JPR resume: reading the picture failed", e);
+      return { ok: false, message: `Couldn't read the picture: ${e instanceof Error ? e.message : e}. Try Redo, or add a resume file.` };
     }
   }
   if (text.trim().length < 80) return { ok: false, message: "This file has no readable text (it may be a scanned image), so there's nothing to lay out." };

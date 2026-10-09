@@ -158,9 +158,17 @@ export async function uploadResume(form: FormData) {
 }
 
 // "Make JPR version" on a resume already on file.
-export async function makeJprVersion(resumeId: string, candidateId: string) {
+// redoOf: a JPR version to replace. It's removed first, then the original is read fresh and laid out again.
+export async function makeJprVersion(resumeId: string, candidateId: string, redoOf?: string) {
   const { supabase, userId } = await requireStaff();
-  const r = await makeJprResume(supabase, userId, resumeId);
+  if (redoOf) {
+    const { data: old } = await supabase.from("resumes").select("id, storage_path, branded_from").eq("id", redoOf).single();
+    if (old?.branded_from !== resumeId) return { ok: false, message: "That isn't this resume's JPR version." };
+    if (old.storage_path) await supabase.storage.from("resumes").remove([old.storage_path]);
+    const { error } = await supabase.from("resumes").delete().eq("id", old.id);
+    if (error) return { ok: false, message: error.message };
+  }
+  const r = await makeJprResume(supabase, userId, resumeId, Boolean(redoOf));
   revalidatePath(`/candidates/${candidateId}`);
   return r;
 }

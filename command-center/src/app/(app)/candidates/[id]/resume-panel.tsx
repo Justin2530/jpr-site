@@ -50,6 +50,7 @@ export function ResumePanel({ candidateId, resumes }: { candidateId: string; res
                   {!r.branded_from && /\.(pdf|docx?)$/i.test(r.file_name) && !resumes.some((x) => x.branded_from === r.id) && (
                     <JprButton resumeId={r.id} candidateId={candidateId} />
                   )}
+                  {r.branded_from && <JprButton resumeId={r.branded_from} candidateId={candidateId} redoOf={r.id} />}
                   {!r.viewUrl && r.text_content && (
                     <details className="mt-1">
                       <summary className="cursor-pointer text-xs text-cyan">View text</summary>
