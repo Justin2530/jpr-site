@@ -104,14 +104,7 @@ export async function saveCapture(form: FormData): Promise<{ ok: boolean; messag
     current_employer: text(form, "current_employer"),
   };
   let id = text(form, "match_id");
-  if (id) {
-    const { data: c } = await supabase.from("candidates").select("*").eq("id", id).single();
-    if (!c) return { ok: false, message: "That candidate is gone." };
-    const fill = Object.fromEntries(
-      Object.entries(fields).filter(([k, v]) => v && !c[k as keyof typeof c]),
-    ) as Partial<typeof fields>;
-    if (Object.keys(fill).length) await supabase.from("candidates").update(fill).eq("id", id);
-  } else {
+  if (!id) {
     // Same email or phone as someone on file (a second press, or a box left unticked): use that person.
     const phone = digits(fields.phone);
     const ors = [fields.email && `email.ilike.${fields.email}`, phone.length === 10 && `phone.ilike.%${phone.slice(-4)}`].filter(Boolean);
@@ -120,7 +113,18 @@ export async function saveCapture(form: FormData): Promise<{ ok: boolean; messag
       id = (data ?? []).find((c) => (fields.email && c.email?.toLowerCase() === fields.email) || (phone.length === 10 && digits(c.phone) === phone))?.id ?? null;
     }
   }
-  if (!id) {
+  let updated = false;
+  if (id) {
+    // Already on file: the newest details win (a new phone, email, town or job), the name they're on file
+    // under stays, and the resume below is added as their latest.
+    const { data: c } = await supabase.from("candidates").select("*").eq("id", id).single();
+    if (!c) return { ok: false, message: "That candidate is gone." };
+    const fresh = Object.fromEntries(
+      Object.entries(fields).filter(([k, v]) => v && (k !== "full_name" || !c.full_name) && v !== c[k as keyof typeof c]),
+    ) as Partial<typeof fields>;
+    if (Object.keys(fresh).length) await supabase.from("candidates").update(fresh).eq("id", id);
+    updated = true;
+  } else {
     const { data, error } = await supabase
       .from("candidates")
       .insert({
@@ -151,7 +155,7 @@ export async function saveCapture(form: FormData): Promise<{ ok: boolean; messag
   revalidatePath(`/candidates/${id}`);
   revalidatePath("/candidates");
   revalidatePath("/pipeline");
-  return { ok: true, message: `${name} is in the Command Center.`, id };
+  return { ok: true, message: updated ? `${name} was already on file. Updated with the new details${form.get("resume") instanceof File && (form.get("resume") as File).size ? " and resume" : ""}.` : `${name} is in the Command Center.`, id };
 }
 
 type OpenJob = { id: string; title: string; company: string; location: string | null; schedule: string | null };

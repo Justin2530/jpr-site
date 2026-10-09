@@ -130,7 +130,7 @@ export function CaptureForm({ jobs }: { jobs: { id: string; label: string }[] })
         <div className="panel border-amber/40 p-3 text-sm">
           <label className="flex items-center gap-2">
             <input type="checkbox" name="match_id" value={read.match.id} defaultChecked className="accent-cyan" />
-            Already in the system as <strong>{read.match.full_name}</strong>. Add this to them instead of a new person.
+            Already in the system as <strong>{read.match.full_name}</strong>. Update them with these details and this resume.
           </label>
         </div>
       )}
