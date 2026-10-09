@@ -16,9 +16,9 @@ export function DeleteFile({ resumeId, candidateId, name, hasJpr }: { resumeId: 
         if (!confirm(`Delete ${name}?${hasJpr ? " Its JPR version goes too." : ""}`)) return;
         start(() => deleteResume(resumeId, candidateId));
       }}
-      className="shrink-0 px-1 text-faint hover:text-amber disabled:opacity-50"
+      className="btn-quiet text-xs text-amber hover:border-amber/60 disabled:opacity-50"
     >
-      {pending ? "…" : "✕"}
+      {pending ? "Deleting…" : "Delete"}
     </button>
   );
 }

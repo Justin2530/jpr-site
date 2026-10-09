@@ -65,22 +65,24 @@ export function ResumePanel({ candidateId, resumes }: { candidateId: string; res
                     </details>
                   )}
                 </div>
-                {r.viewUrl && (
-                  <a href={r.viewUrl} target="_blank" rel="noreferrer" className="btn-quiet shrink-0 text-xs">
-                    Open
-                  </a>
-                )}
-                {r.downloadUrl && (
-                  <a href={r.downloadUrl} className="btn-quiet shrink-0 text-xs">
-                    Download
-                  </a>
-                )}
-                <DeleteFile
-                  resumeId={r.id}
-                  candidateId={candidateId}
-                  name={r.file_name}
-                  hasJpr={resumes.some((x) => x.branded_from === r.id)}
-                />
+                <div className="flex shrink-0 flex-col items-stretch gap-1.5">
+                  {r.viewUrl && (
+                    <a href={r.viewUrl} target="_blank" rel="noreferrer" className="btn-quiet text-center text-xs">
+                      Open
+                    </a>
+                  )}
+                  {r.downloadUrl && (
+                    <a href={r.downloadUrl} className="btn-quiet text-center text-xs">
+                      Download
+                    </a>
+                  )}
+                  <DeleteFile
+                    resumeId={r.id}
+                    candidateId={candidateId}
+                    name={r.file_name}
+                    hasJpr={resumes.some((x) => x.branded_from === r.id)}
+                  />
+                </div>
               </li>
             );
           })}
