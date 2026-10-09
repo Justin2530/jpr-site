@@ -1404,6 +1404,9 @@ export type Database = {
       inbox_label_due: { Args: { p_secret: string; p_staff: string }; Returns: { thread_id: string; want: string }[] };
       inbox_label_done: { Args: { p_secret: string; p_staff: string; p_thread: string; p_state: string }; Returns: undefined };
       inbox_label_backlog: { Args: { p_secret: string }; Returns: string[] };
+      inbox_label_known: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
+      label_backfill_get: { Args: { p_secret: string; p_staff: string }; Returns: Json };
+      label_backfill_set: { Args: { p_secret: string; p_staff: string; p_from: string }; Returns: undefined };
       release_candidates: { Args: { p_ids: string[] }; Returns: undefined };
       inbox_sender: { Args: { p_secret: string; p_from: string }; Returns: Json };
       inbox_file: { Args: { p_secret: string; p: Json }; Returns: Json };

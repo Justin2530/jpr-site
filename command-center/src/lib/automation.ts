@@ -8,7 +8,7 @@ import type { Database } from "@/lib/database.types";
 import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
 import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
-import { backfillMailbox, labelMailbox, syncMailbox } from "@/lib/gmail-sync";
+import { backfillMailbox, labelBackfill, labelMailbox, syncMailbox } from "@/lib/gmail-sync";
 import { sendPushes } from "@/lib/push";
 import { runRelay } from "@/lib/relay";
 
@@ -205,6 +205,11 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         await backfillMailbox(db, secret, box);
       } catch (e) {
         console.error("Inbox backfill failed for", box.email, e);
+      }
+      try {
+        await labelBackfill(db, secret, box);
+      } catch (e) {
+        console.error("Label backfill failed for", box.email, e);
       }
       try {
         await labelMailbox(db, secret, box);

@@ -348,3 +348,50 @@ export async function watchInbox(
   }
   return filed;
 }
+
+// Labels only, for older mail (see labelBackfill): reads each email the same way and marks candidate and
+// client threads for their Gmail label, but adds, logs and answers nothing.
+export async function labelOnly(
+  db: Db,
+  secret: string,
+  box: { staff_id: string; email: string },
+  messages: InboxMessage[],
+) {
+  if (!process.env.OPENAI_API_KEY?.trim()) return 0;
+  const { data: ctxData } = await db.rpc("inbox_context", { p_secret: secret });
+  const jobs = ((ctxData as unknown as { jobs?: Job[] } | null)?.jobs ?? []) as Job[];
+  const me = box.email.toLowerCase();
+  const todo = messages.filter((m) => m.from !== me && (relayAddress(m.from) || !m.bulk));
+  let n = 0;
+  const one = async (m: InboxMessage) => {
+    const put = (kind: "candidate" | "business") =>
+      db.rpc("inbox_label_put", {
+        p_secret: secret,
+        p_staff: box.staff_id,
+        p_thread: m.threadId,
+        p_gmail: m.id,
+        p_from: m.from,
+        p_name: m.fromName,
+        p_kind: kind,
+      });
+    const { data: who } = await db.rpc("inbox_sender", { p_secret: secret, p_from: m.from });
+    const sender = who as unknown as Sender;
+    let kind: "candidate" | "business" | null = null;
+    if (sender?.kind === "contact") kind = "business";
+    else if (sender?.kind === "candidate") kind = "candidate";
+    else {
+      const r = await read(m, jobs, sender);
+      if (r && ["interested", "message", "job_seeker"].includes(r.kind)) kind = "candidate";
+      else if (r?.kind === "potential_client") kind = "business";
+    }
+    if (!kind) return;
+    await put(kind);
+    n++;
+  };
+  for (let i = 0; i < todo.length; i += 5) {
+    await Promise.all(
+      todo.slice(i, i + 5).map((m) => one(m).catch((e) => console.error("Label read failed", m.id, e))),
+    );
+  }
+  return n;
+}

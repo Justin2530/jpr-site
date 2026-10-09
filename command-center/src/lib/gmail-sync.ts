@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
 import { accessToken, gmailLabel, labelThread, listGmail, openToken, readGmail, replyOnly } from "@/lib/google";
 import type { Mailbox } from "@/lib/automation";
-import { watchInbox, type InboxMessage } from "@/lib/third-eye";
+import { labelOnly, watchInbox, type InboxMessage } from "@/lib/third-eye";
 
 // Pull new mail between one mailbox and known candidates and contacts into the Command Center.
 // The database (gmail_log) decides who each message belongs to; only people already on file are
@@ -188,5 +188,33 @@ export async function labelMailbox(db: SupabaseClient<Database>, secret: string,
       await db.rpc("inbox_label_done", { p_secret: secret, p_staff: box.staff_id, p_thread: r.thread_id, p_state: null as unknown as string });
     }
   }
+  return n;
+}
+
+// Works back through older mail (label_backfill, Sept 1 on) a 6-hour window at a time, oldest 25 unread-by-us
+// messages per tick, putting the same Gmail labels on candidate and client threads. Labels only.
+export async function labelBackfill(db: SupabaseClient<Database>, secret: string, box: Mailbox) {
+  const { data } = await db.rpc("label_backfill_get", { p_secret: secret, p_staff: box.staff_id });
+  const range = data as { from: string; to: string } | null;
+  if (!range) return 0;
+  const from = new Date(range.from).getTime();
+  const end = Math.min(from + 6 * 3600_000, new Date(range.to).getTime());
+  const token = await accessToken(openToken(box.token));
+  const ids = await listGmail(
+    token,
+    `after:${Math.floor(from / 1000)} before:${Math.ceil(end / 1000)} -in:spam -in:trash -in:chats -category:promotions -category:social`,
+    500,
+  );
+  let fresh = ids;
+  if (ids.length) {
+    const { data: known } = await db.rpc("inbox_label_known", { p_secret: secret, p_ids: ids.map((m) => m.id) });
+    const seen = new Set(known ?? []);
+    fresh = ids.filter((m) => !seen.has(m.id));
+  }
+  const batch = fresh.slice(-25).reverse();
+  const { inbox } = await readAll(token, batch);
+  const n = await labelOnly(db, secret, box, inbox);
+  const next = fresh.length > batch.length ? Math.max(from + 1000, ...inbox.map((m) => m.date)) : end;
+  await db.rpc("label_backfill_set", { p_secret: secret, p_staff: box.staff_id, p_from: new Date(next).toISOString() });
   return n;
 }
