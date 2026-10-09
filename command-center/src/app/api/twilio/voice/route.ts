@@ -1,4 +1,5 @@
-import { escapeXml, toE164, twilioNumber, webhookUrl } from "@/lib/twilio";
+import { after as afterResponse } from "next/server";
+import { escapeXml, toE164, twilioApi, twilioNumber, webhookUrl } from "@/lib/twilio";
 import { automationSecret } from "@/lib/automation";
 import { liveReady, runSig, sipUri } from "@/lib/live";
 import { receptionSig, receptionSipUri } from "@/lib/reception";
@@ -131,6 +132,22 @@ export async function POST(request: Request) {
       ),
     );
   }
+  // While it rings, text Justin who it is, so he can tell a candidate from a client before he picks up.
+  // No need to log it: the call itself is logged.
+  afterResponse(async () => {
+    try {
+      const { data: card } = await db.rpc("twilio_caller_card", { p_secret: secret, p_from: from });
+      const digits = from.replace(/\D/g, "").slice(-10);
+      const pretty = digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : "unknown number";
+      await twilioApi("Messages", {
+        From: twilioNumber ?? p.To ?? "",
+        To: cell,
+        Body: `JPR call ringing now. ${card ?? `New number ${pretty}, not in the system.`}`,
+      });
+    } catch (e) {
+      console.error("Couldn't text the caller heads-up", e);
+    }
+  });
   const whisper = new URL(webhookUrl(origin, "/api/twilio/whisper"));
   whisper.searchParams.set("from", from);
   const after = webhookUrl(origin, "/api/twilio/voice?step=after");

@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     return xml(p.Digits === "1" ? "" : "<Hangup/>");
   }
   const from = url.searchParams.get("from") ?? "";
-  const { data: name } = await webhookDb().rpc("twilio_caller_name", {
+  const { data: name } = await webhookDb().rpc("twilio_caller_card", {
     p_secret: process.env.TWILIO_WEBHOOK_SECRET ?? "",
     p_from: from,
   });
@@ -24,6 +24,6 @@ export async function POST(request: Request) {
   accept.searchParams.set("step", "accept");
   return xml(
     `<Gather numDigits="1" timeout="6" action="${escapeXml(accept.toString())}">` +
-      `<Say>J P R call from ${escapeXml(who)}. Press 1 to take it.</Say></Gather><Hangup/>`,
+      `<Say>J P R call. ${escapeXml(name ? name : `From ${who}`)}. Press 1 to take it.</Say></Gather><Hangup/>`,
   );
 }

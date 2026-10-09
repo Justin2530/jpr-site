@@ -1449,6 +1449,7 @@ export type Database = {
       gmail_log: { Args: { p_secret: string; p_staff: string; p_me: string; p_msgs: Json; p_synced_at: string }; Returns: number };
       twilio_inbound_text: { Args: { p_secret: string; p_sid: string; p_from: string; p_to: string; p_body: string }; Returns: undefined };
       twilio_caller_name: { Args: { p_secret: string; p_from: string }; Returns: string | null };
+      twilio_caller_card: { Args: { p_secret: string; p_from: string }; Returns: string | null };
       twilio_inbound_call: { Args: { p_secret: string; p_sid: string; p_from: string }; Returns: undefined };
       twilio_forward_number: { Args: { p_secret: string }; Returns: string | null };
       twilio_relay_target: { Args: { p_secret: string; p_name?: string }; Returns: { phone: string; name: string }[] };
