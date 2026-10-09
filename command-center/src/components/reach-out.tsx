@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ChatIcon, MailIcon, PhoneIcon } from "@/components/icons";
 import { SubmitButton } from "@/components/submit-button";
+import { AttachFiles } from "@/components/attach-files";
 import { addCallNotes, logCorrespondence, sendEmail, sendText, startCall, type OutreachResult } from "@/app/(app)/outreach-actions";
 
 type Kind = "call" | "text" | "email";
@@ -150,6 +151,7 @@ export function ReachOut({
             aria-label="Subject"
           />
           <textarea name="body" rows={6} required placeholder={`Email ${name ?? "them"}…`} className="field text-sm" aria-label="Message" />
+          <AttachFiles />
           <div className="flex items-center gap-2">
             <SubmitButton className="btn" pendingText="Sending…">
               Send email

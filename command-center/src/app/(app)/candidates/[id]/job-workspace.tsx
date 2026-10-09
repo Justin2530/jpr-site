@@ -81,6 +81,12 @@ export async function JobWorkspace({
   ]);
 
   const gmail = Boolean(await gmailAccount());
+  const { data: resumeFiles } = await supabase
+    .from("resumes")
+    .select("id, file_name")
+    .eq("candidate_id", candidate.id)
+    .not("storage_path", "is", null)
+    .order("created_at", { ascending: false });
   const { data: pursuits } = await supabase
     .from("pursuits")
     .select("id, purpose, status, paused_at, started_at, ended_at, end_reason, pursuit_steps(id, step_no, channel, due_at, status, sent_at, note)")
@@ -225,6 +231,7 @@ export async function JobWorkspace({
                   subject={template.subject}
                   body={template.body}
                   gmail={gmail}
+                  resumes={resumeFiles ?? []}
                 />
               </div>
             </details>
@@ -240,6 +247,7 @@ export async function JobWorkspace({
               locked={submission?.status === "sent"}
               sentFromGmail={Boolean(submission?.email_thread_id)}
               gmail={gmail}
+              resumes={resumeFiles ?? []}
             />
           )}
         </Panel>

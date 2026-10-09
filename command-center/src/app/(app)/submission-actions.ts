@@ -21,7 +21,9 @@ export async function decideSubmission(input: {
   contactIds: string[];
   recipients: string[];
   decision: Decision;
-}): Promise<DecideResult> {
+  // Which of the candidate's resumes to attach, picked on the submission; left out = their latest.
+  resumeIds?: string[];
+}, files?: FormData): Promise<DecideResult> {
   const { supabase, userId } = await requireStaff();
   const now = new Date().toISOString();
 
@@ -35,33 +37,40 @@ export async function decideSubmission(input: {
       if (!to.length) return { ok: false, message: "None of the people you picked have an email address on file." };
       const { data: link } = await supabase.from("candidate_jobs").select("candidate_id").eq("id", input.candidateJobId).single();
       const attachments: Attachment[] = [];
-      const { data: resume } = await supabase
+      const names: string[] = [];
+      let picked = supabase
         .from("resumes")
         .select("file_name, mime_type, storage_path")
         .eq("candidate_id", link?.candidate_id ?? "")
-        .not("storage_path", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (resume?.storage_path) {
-        const { data: file } = await supabase.storage.from("resumes").download(resume.storage_path);
+        .not("storage_path", "is", null);
+      picked = input.resumeIds ? picked.in("id", input.resumeIds) : picked.order("created_at", { ascending: false }).limit(1);
+      const { data: resumes } = input.resumeIds?.length === 0 ? { data: [] } : await picked;
+      for (const resume of resumes ?? []) {
+        const { data: file } = await supabase.storage.from("resumes").download(resume.storage_path!);
         if (file) {
           attachments.push({
             filename: resume.file_name,
             mimeType: resume.mime_type || "application/octet-stream",
             data: Buffer.from(await file.arrayBuffer()),
           });
-          attached = resume.file_name;
+          names.push(resume.file_name);
         }
       }
-      if (!attached && link?.candidate_id) {
+      if (!names.length && !input.resumeIds && link?.candidate_id) {
         const { data: cand } = await supabase.from("candidates").select("full_name, notes").eq("id", link.candidate_id).single();
         const file = cand && (await indeedResume(supabase, link.candidate_id, cand.full_name, cand.notes, userId));
         if (file) {
           attachments.push(file);
-          attached = file.filename;
+          names.push(file.filename);
         }
       }
+      // Files added on the submission itself.
+      for (const f of (files?.getAll("files") ?? []) as File[]) {
+        if (typeof f === "string" || !f.size) continue;
+        attachments.push({ filename: f.name, mimeType: f.type || "application/octet-stream", data: Buffer.from(await f.arrayBuffer()) });
+        names.push(f.name);
+      }
+      attached = names.length ? names.join(", ") : null;
       try {
         sent = await sendGmail(await accessToken(openToken(account.token_enc)), {
           from: account.email,
@@ -141,7 +150,7 @@ export async function decideSubmission(input: {
       viaGmail: true,
       message: attached
         ? `Sent from your Gmail with ${attached} attached.`
-        : "Sent from your Gmail. There was no resume file on this candidate to attach.",
+        : "Sent from your Gmail with nothing attached.",
     };
   }
   return { ok: true, message: "Saved." };

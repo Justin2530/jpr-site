@@ -218,10 +218,16 @@ export async function sendEmail(form: FormData): Promise<OutreachResult> {
   const { data: account } = await supabase.from("google_accounts").select("email, token_enc").eq("staff_id", userId).maybeSingle();
   if (!account) return { ok: false, message: "Connect your Gmail in Settings first." };
 
+  // Files picked on the email form.
+  const files = (form.getAll("files") as (File | string)[]).filter((f): f is File => typeof f !== "string" && f.size > 0);
+  const attachments = await Promise.all(
+    files.map(async (f) => ({ filename: f.name, mimeType: f.type || "application/octet-stream", data: Buffer.from(await f.arrayBuffer()) })),
+  );
+
   let sent: { id: string; threadId: string };
   try {
     const threadId = text(form, "thread_id") ?? undefined;
-    sent = await sendGmail(await accessToken(openToken(account.token_enc)), { from: account.email, to, subject, body, threadId });
+    sent = await sendGmail(await accessToken(openToken(account.token_enc)), { from: account.email, to, subject, body, threadId, attachments });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Gmail didn't accept the email.";
     return { ok: false, message: /invalid_grant|decrypt|auth/i.test(msg) ? "Gmail needs reconnecting in Settings." : msg };
@@ -230,7 +236,7 @@ export async function sendEmail(form: FormData): Promise<OutreachResult> {
     kind: "email",
     direction: "out",
     summary: `Email to ${name}: ${subject}`,
-    body,
+    body: files.length ? `${body}\n\nAttached: ${files.map((f) => f.name).join(", ")}` : body,
     ...links,
     market_id: markets[0]?.id ?? null,
     actor_id: userId,
@@ -240,5 +246,5 @@ export async function sendEmail(form: FormData): Promise<OutreachResult> {
   });
   revalidatePath(String(form.get("path") ?? "/"));
   if (error) return { ok: false, message: `Sent, but not saved to history: ${error.message}` };
-  return { ok: true, message: `Email sent to ${name}.` };
+  return { ok: true, message: `Email sent to ${name}${files.length ? ` with ${files.length === 1 ? files[0].name : `${files.length} files`} attached` : ""}.` };
 }

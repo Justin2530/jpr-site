@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { sendEmail, sendText, type OutreachResult } from "@/app/(app)/outreach-actions";
 import { SubmitButton } from "@/components/submit-button";
+import { AttachFiles } from "@/components/attach-files";
 
 // The reply bar under a conversation: a text from JPR's number, or an email from Gmail in the same thread.
 export function ReplyBox({
@@ -99,6 +100,7 @@ export function ReplyBox({
           Send
         </SubmitButton>
       </div>
+      {mode === "email" && <AttachFiles key={result?.message ?? "files"} />}
       {result && <p className={`text-sm ${result.ok ? "text-mint" : "text-amber"}`}>{result.message}</p>}
     </form>
   );
