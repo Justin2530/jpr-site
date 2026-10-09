@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
-import { SECTIONS } from "@/components/nav";
+import { SECTIONS } from "@/lib/nav-sections";
 import { PageHeader } from "@/components/ui";
 
 export const metadata = { title: "Menu · JPR" };
