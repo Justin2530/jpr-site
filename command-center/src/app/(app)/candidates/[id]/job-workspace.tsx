@@ -74,7 +74,8 @@ export async function JobWorkspace({
       .from("activities")
       .select("id, kind, summary, occurred_at")
       .eq("candidate_id", candidate.id)
-      .or(`candidate_job_id.eq.${cj.id},job_id.eq.${job.id}`)
+      // Texts, emails and calls sent from their profile aren't tied to a job, so they show on every job tab.
+      .or(`candidate_job_id.eq.${cj.id},job_id.eq.${job.id},and(job_id.is.null,kind.in.(text,email,call))`)
       .order("occurred_at", { ascending: false })
       .limit(30),
   ]);
