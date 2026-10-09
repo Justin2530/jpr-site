@@ -241,7 +241,7 @@ export async function findManualSubmissions(db: SupabaseClient<Database>, secret
     );
     const sub = msgs.sort((a, b) => a.date.getTime() - b.date.getTime())[0];
     if (!sub) continue;
-    await db.rpc("manual_submission_record", {
+    const { data: saved, error } = await db.rpc("manual_submission_record", {
       p_secret: secret,
       p_cj: d.cj_id,
       p_thread: sub.threadId,
@@ -249,6 +249,7 @@ export async function findManualSubmissions(db: SupabaseClient<Database>, secret
       p_sent_at: sub.date.toISOString(),
       p_to: sub.to,
     });
-    console.log(`Recorded ${d.full_name}'s ${d.title} submission from Gmail (${sub.subject})`);
+    if (error) console.error(`Couldn't record ${d.full_name}'s submission from Gmail`, error.message);
+    else if (saved) console.log(`Recorded ${d.full_name}'s ${d.title} submission from Gmail (${sub.subject})`);
   }
 }

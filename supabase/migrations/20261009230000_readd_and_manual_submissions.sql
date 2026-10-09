@@ -47,7 +47,7 @@ begin
   insert into public.submissions (candidate_job_id, status, subject, body, to_contact_ids, drafted_by, sent_at, email_thread_id, decided_at)
   values (p_cj, 'sent', left(coalesce(p_subject, ''), 300), '',
           coalesce((select array_agg(ct.id) from public.contacts ct where ct.company_id = comp and lower(ct.email) = any (p_to)), '{}'),
-          'justin_gmail', p_sent_at, p_thread, p_sent_at)
+          'human', p_sent_at, p_thread, p_sent_at)
   returning id into sid;
   return sid;
 end $$;
