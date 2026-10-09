@@ -104,12 +104,42 @@ type Message = {
 const b64lines = (b: Buffer) => b.toString("base64").replace(/(.{76})/g, "$1\r\n");
 const header = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
 
+// The plain-text body as simple HTML: same words and line breaks, with web addresses as short links.
+function htmlBody(body: string) {
+  const esc = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const linked = esc.replace(/\b(https?:\/\/[^\s<]+|www\.[^\s<]+)/g, (m) => {
+    const url = m.replace(/[.,)]+$/, "");
+    const rest = m.slice(url.length);
+    const href = url.startsWith("http") ? url : `https://${url}`;
+    return `<a href="${href}">${url.replace(/^https?:\/\//, "")}</a>${rest}`;
+  });
+  return `<div style="font-family:Arial,sans-serif;font-size:14px">${linked.replace(/\r?\n/g, "<br>\n")}</div>`;
+}
+
 // RFC 2822 message, base64url-encoded the way the Gmail send endpoint wants it. Plain text, plus
 // a multipart/mixed wrapper when there are attachments (a resume on a submission).
 function mime({ from, to, cc, replyTo, subject, body, attachments = [] }: Message) {
   const reply = replyTo?.replace(/[\r\n]/g, "");
   const top = [`From: ${from}`, `To: ${to}`, ...(cc ? [`Cc: ${cc}`] : []), ...(reply ? [`Reply-To: ${reply}`] : []), `Subject: ${header(subject)}`, "MIME-Version: 1.0"];
-  const text = ['Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", b64lines(Buffer.from(body, "utf8"))];
+  // Plain text plus an HTML copy, so a link (the website in the signature) shows as its short name. Outlook's
+  // Safe Links rewrites every link a client receives, and in a plain-text email that long rewritten address
+  // is what they see.
+  const alt = `jpr-alt-${crypto.randomUUID()}`;
+  const text = [
+    `Content-Type: multipart/alternative; boundary="${alt}"`,
+    "",
+    `--${alt}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    b64lines(Buffer.from(body, "utf8")),
+    `--${alt}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    b64lines(Buffer.from(htmlBody(body), "utf8")),
+    `--${alt}--`,
+  ];
   let lines: string[];
   if (!attachments.length) {
     lines = [...top, ...text];
