@@ -8,7 +8,7 @@ import type { Database } from "@/lib/database.types";
 import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
 import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
-import { syncMailbox } from "@/lib/gmail-sync";
+import { backfillMailbox, syncMailbox } from "@/lib/gmail-sync";
 import { runRelay } from "@/lib/relay";
 
 // Secret the database uses to call back into this app, derived from a server-only secret so it
@@ -199,6 +199,11 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         logged += await syncMailbox(db, secret, box);
       } catch (e) {
         console.error("Gmail check failed for", box.email, e);
+      }
+      try {
+        await backfillMailbox(db, secret, box);
+      } catch (e) {
+        console.error("Inbox backfill failed for", box.email, e);
       }
     }
   }

@@ -1432,6 +1432,8 @@ export type Database = {
       triage_apply: { Args: { p_secret: string; p_item: string; p_needs_justin: boolean; p_note: string }; Returns: undefined };
       brain_pending: { Args: { p_secret: string }; Returns: Json };
       brain_apply: { Args: { p_secret: string; p_activity: string; p_decision: Json }; Returns: string };
+      gmail_backfill_get: { Args: { p_secret: string; p_staff: string }; Returns: Json };
+      gmail_backfill_set: { Args: { p_secret: string; p_staff: string; p_from: string }; Returns: undefined };
       set_outreach: { Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string }; Returns: string };
       set_job_automation: { Args: { p_job: string; p_on: boolean }; Returns: number };
       automation_sync: { Args: { p_job?: string; p_cj?: string }; Returns: number };

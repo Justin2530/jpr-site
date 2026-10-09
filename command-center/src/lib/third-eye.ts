@@ -211,6 +211,7 @@ export async function watchInbox(
   box: { staff_id: string; email: string },
   token: string,
   messages: InboxMessage[],
+  backfill = false,
 ): Promise<Map<string, { summary: string; body: string }>> {
   const filed = new Map<string, { summary: string; body: string }>();
   if (!process.env.OPENAI_API_KEY?.trim()) return filed;
@@ -221,7 +222,8 @@ export async function watchInbox(
     jobs: Job[];
   } | null;
   if (!ctx?.since) return filed;
-  const since = Date.parse(ctx.since);
+  // A backfill re-reads older mail on purpose, so it isn't held to when the watcher was turned on.
+  const since = backfill ? 0 : Date.parse(ctx.since);
   const me = box.email.toLowerCase();
   let todo = messages.filter(
     (m) =>
