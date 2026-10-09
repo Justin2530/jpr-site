@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { makeJprVersion } from "../actions";
 
 // Makes the JPR version of a resume already on file (new uploads get one automatically), or, with redoOf,
 // throws away a JPR version that came out wrong and makes it again from the original.
-// autoAfter (the file's upload time): when the automatic JPR version should long be done (15 minutes) and isn't,
-// start it on its own when the page opens, once per browser session so a file that can't be done isn't retried
-// on every visit.
+// autoAfter (the file's upload time): for the first 15 minutes the automatic JPR version is still being made, so
+// it says so and refreshes until it shows up; after that, if it never came, it starts on its own when the page
+// opens, once per browser session so a file that can't be done isn't retried on every visit.
 export function JprButton({
   resumeId,
   candidateId,
@@ -22,8 +23,14 @@ export function JprButton({
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const fired = useRef(false);
+  const router = useRouter();
+  const [waiting] = useState(() => Boolean(autoAfter) && Date.now() - new Date(autoAfter!).getTime() < 15 * 60_000);
   useEffect(() => {
-    if (!autoAfter || fired.current || Date.now() - new Date(autoAfter).getTime() < 15 * 60_000) return;
+    if (!autoAfter || fired.current) return;
+    if (waiting) {
+      const t = setInterval(() => router.refresh(), 15_000);
+      return () => clearInterval(t);
+    }
     fired.current = true;
     const key = `jpr-auto-${resumeId}`;
     try {
@@ -36,7 +43,9 @@ export function JprButton({
       const r = await makeJprVersion(resumeId, candidateId);
       setMsg({ ok: r.ok, text: r.message });
     });
-  }, [autoAfter, resumeId, candidateId]);
+  }, [autoAfter, waiting, resumeId, candidateId, router]);
+  if (waiting && !pending && !msg)
+    return <span className="block text-xs text-faint">Making the JPR version… it shows up here in a minute or two.</span>;
   return (
     <span className="block">
       <button

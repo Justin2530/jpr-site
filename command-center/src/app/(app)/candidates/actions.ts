@@ -174,19 +174,23 @@ export async function deleteResume(resumeId: string, candidateId: string) {
   revalidatePath(`/candidates/${candidateId}`);
 }
 
-// redoOf: a JPR version to replace. It's removed first, then the original is read fresh and laid out again.
+// redoOf: a JPR version to replace. The original is read fresh and laid out again; the old version is removed
+// only once the new one is made, so a redo that fails never leaves the candidate without one.
 export async function makeJprVersion(resumeId: string, candidateId: string, redoOf?: string) {
   const { supabase, userId } = await requireStaff();
+  let old: { id: string; storage_path: string | null } | null = null;
   if (redoOf) {
-    const { data: old } = await supabase.from("resumes").select("id, storage_path, branded_from").eq("id", redoOf).single();
-    if (old?.branded_from !== resumeId) return { ok: false, message: "That isn't this resume's JPR version." };
-    if (old.storage_path) await supabase.storage.from("resumes").remove([old.storage_path]);
-    const { error } = await supabase.from("resumes").delete().eq("id", old.id);
-    if (error) return { ok: false, message: error.message };
+    const { data } = await supabase.from("resumes").select("id, storage_path, branded_from").eq("id", redoOf).single();
+    if (data?.branded_from !== resumeId) return { ok: false, message: "That isn't this resume's JPR version." };
+    old = data;
   }
-  const r = await makeJprResume(supabase, userId, resumeId, Boolean(redoOf));
+  const r = await makeJprResume(supabase, userId, resumeId, Boolean(redoOf), Boolean(redoOf));
+  if (r.ok && old) {
+    if (old.storage_path) await supabase.storage.from("resumes").remove([old.storage_path]);
+    await supabase.from("resumes").delete().eq("id", old.id);
+  }
   revalidatePath(`/candidates/${candidateId}`);
-  return r;
+  return r.ok || !old ? r : { ...r, message: `${r.message} The earlier JPR version is kept.` };
 }
 
 export async function addNote(form: FormData) {

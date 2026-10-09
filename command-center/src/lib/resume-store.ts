@@ -42,11 +42,16 @@ export async function saveResume(supabase: SupabaseClient<Database>, candidateId
 // The JPR version of one resume: the same words laid out with JPR's logo and colors, checked word for word
 // against the original and saved as its own file next to it (the original is never touched). The check
 // result goes on the new file so anything lost or added is visible before it goes to a client.
-export async function makeJprResume(supabase: SupabaseClient<Database>, userId: string, resumeId: string, fresh = false) {
+export async function makeJprResume(supabase: SupabaseClient<Database>, userId: string, resumeId: string, fresh = false, redo = false) {
   const started = Date.now();
   const { data: r } = await supabase.from("resumes").select("*").eq("id", resumeId).single();
   if (!r?.storage_path) return { ok: false, message: "That file isn't stored." };
   if (r.branded_from) return { ok: false, message: "That's already a JPR version." };
+  // Two runs at once (the automatic one and a press) would make two copies; a redo replaces its own afterwards.
+  if (!redo) {
+    const { count } = await supabase.from("resumes").select("id", { count: "exact", head: true }).eq("branded_from", r.id);
+    if (count) return { ok: true, message: "It already has a JPR version." };
+  }
   const { data: blob } = await supabase.storage.from("resumes").download(r.storage_path);
   if (!blob) return { ok: false, message: "Couldn't open the original file." };
   const file = new File([blob], r.file_name, { type: r.mime_type ?? blob.type });
@@ -62,7 +67,9 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
   let readFromPicture = false;
   if (text.trim().length < 80 && /pdf/i.test(file.type || r.file_name)) {
     try {
-      text = await transcribeResume({ name: r.file_name, data: Buffer.from(await blob.arrayBuffer()) });
+      const pic = { name: r.file_name, data: Buffer.from(await blob.arrayBuffer()) };
+      // The small model now and then balks at copying contact details; the full model gets a second go.
+      text = await transcribeResume(pic).catch(() => transcribeResume(pic, "gpt-5"));
       readFromPicture = text.trim().length >= 80;
       if (readFromPicture) await supabase.from("resumes").update({ text_content: text }).eq("id", r.id);
     } catch (e) {
