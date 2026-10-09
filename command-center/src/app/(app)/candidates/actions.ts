@@ -7,7 +7,7 @@ import { beginOutreach } from "@/lib/outreach";
 import { text } from "@/lib/format";
 import type { Enums } from "@/lib/database.types";
 import { aiReady, parseResume, resumeText, type ParsedResume } from "@/lib/resume-parse";
-import { MAX_RESUME, saveResume } from "@/lib/resume-store";
+import { MAX_RESUME, makeJprResume, saveResume } from "@/lib/resume-store";
 
 function candidateFields(form: FormData) {
   return {
@@ -155,6 +155,14 @@ export async function uploadResume(form: FormData) {
   const id = String(form.get("candidate_id"));
   await saveResume(supabase, id, userId, form.get("resume"));
   revalidatePath(`/candidates/${id}`);
+}
+
+// "Make JPR version" on a resume already on file.
+export async function makeJprVersion(resumeId: string, candidateId: string) {
+  const { supabase, userId } = await requireStaff();
+  const r = await makeJprResume(supabase, userId, resumeId);
+  revalidatePath(`/candidates/${candidateId}`);
+  return r;
 }
 
 export async function addNote(form: FormData) {

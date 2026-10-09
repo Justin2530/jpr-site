@@ -2,6 +2,7 @@ import { Panel } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { shortDate } from "@/lib/format";
 import { uploadResume } from "../actions";
+import { JprButton } from "./jpr-button";
 
 export type ShownResume = {
   id: string;
@@ -9,11 +10,14 @@ export type ShownResume = {
   created_at: string;
   mime_type: string | null;
   text_content: string | null;
+  branded_from?: string | null;
+  brand_check?: string | null;
   viewUrl?: string;
   downloadUrl?: string;
 };
 
 // The candidate's files, newest first: resumes open in a new tab or download; nothing is dumped as text.
+// A JPR version shows its word-for-word check; an original resume without one offers to make it.
 export function ResumePanel({ candidateId, resumes }: { candidateId: string; resumes: ShownResume[] }) {
   return (
     <Panel title={`Files · ${resumes.length}`}>
@@ -37,9 +41,15 @@ export function ResumePanel({ candidateId, resumes }: { candidateId: string; res
                     <p className="truncate text-sm">{r.file_name}</p>
                   )}
                   <p className="font-mono text-[11px] text-faint">
-                    {i === 0 ? "Resume · " : ""}
+                    {r.branded_from ? "JPR version · " : i === 0 ? "Resume · " : ""}
                     {shortDate(r.created_at)}
                   </p>
+                  {r.brand_check && (
+                    <p className={`text-xs ${r.brand_check.startsWith("Checked") ? "text-mint" : "text-amber"}`}>{r.brand_check}</p>
+                  )}
+                  {!r.branded_from && /\.(pdf|docx?)$/i.test(r.file_name) && !resumes.some((x) => x.branded_from === r.id) && (
+                    <JprButton resumeId={r.id} candidateId={candidateId} />
+                  )}
                   {!r.viewUrl && r.text_content && (
                     <details className="mt-1">
                       <summary className="cursor-pointer text-xs text-cyan">View text</summary>

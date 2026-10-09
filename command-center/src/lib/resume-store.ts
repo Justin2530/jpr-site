@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { after } from "next/server";
 import { resumeText } from "@/lib/resume-parse";
+import { brandedText, checkWords, layoutResume, renderResume } from "@/lib/resume-brand";
 
 export const MAX_RESUME = 10 * 1024 * 1024;
 
@@ -18,14 +20,78 @@ export async function saveResume(supabase: SupabaseClient<Database>, candidateId
   } catch (e) {
     console.error("Couldn't read resume text", e);
   }
-  const { error } = await supabase.from("resumes").insert({
-    candidate_id: candidateId,
-    text_content: textContent,
-    storage_path: path,
-    file_name: file.name,
-    mime_type: file.type || null,
-    size_bytes: file.size,
-    uploaded_by: userId,
-  });
+  const { data: row, error } = await supabase
+    .from("resumes")
+    .insert({
+      candidate_id: candidateId,
+      text_content: textContent,
+      storage_path: path,
+      file_name: file.name,
+      mime_type: file.type || null,
+      size_bytes: file.size,
+      uploaded_by: userId,
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+  // A real resume (PDF or Word) gets its JPR version made right after, without holding up the save.
+  if (/\.(pdf|docx?)$/i.test(file.name))
+    after(() => makeJprResume(supabase, userId, row.id).then((r) => !r.ok && console.error("JPR resume:", r.message)));
+}
+
+// The JPR version of one resume: the same words laid out with JPR's logo and colors, checked word for word
+// against the original and saved as its own file next to it (the original is never touched). The check
+// result goes on the new file so anything lost or added is visible before it goes to a client.
+export async function makeJprResume(supabase: SupabaseClient<Database>, userId: string, resumeId: string) {
+  const { data: r } = await supabase.from("resumes").select("*").eq("id", resumeId).single();
+  if (!r?.storage_path) return { ok: false, message: "That file isn't stored." };
+  if (r.branded_from) return { ok: false, message: "That's already a JPR version." };
+  const { data: blob } = await supabase.storage.from("resumes").download(r.storage_path);
+  if (!blob) return { ok: false, message: "Couldn't open the original file." };
+  const file = new File([blob], r.file_name, { type: r.mime_type ?? blob.type });
+  let text = r.text_content ?? "";
+  if (!text.trim()) {
+    try {
+      text = (await resumeText(file)) || "";
+    } catch {
+      text = "";
+    }
+  }
+  if (text.trim().length < 80) return { ok: false, message: "This file has no readable text (it may be a scanned image), so there's nothing to lay out." };
+  let layout;
+  try {
+    layout = await layoutResume(text, { name: r.file_name, type: file.type, data: Buffer.from(await blob.arrayBuffer()) });
+  } catch (e) {
+    return { ok: false, message: `Couldn't lay it out: ${e instanceof Error ? e.message : e}` };
+  }
+  const body = brandedText(layout);
+  const check = checkWords(text, body);
+  const note = check.ok
+    ? `Checked: all ${check.total} words of the original are here, nothing added.`
+    : [
+        "Check this one against the original.",
+        check.lost.length ? `Missing: ${check.lost.slice(0, 25).join(", ")}${check.lost.length > 25 ? "…" : ""}.` : "",
+        check.added.length ? `Not in the original: ${check.added.slice(0, 25).join(", ")}${check.added.length > 25 ? "…" : ""}.` : "",
+        !check.lost.length && !check.added.length ? `${check.lostCount} repeated words were dropped.` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+  const pdf = await renderResume(layout);
+  const name = `${(layout.name || "Candidate").replace(/[^\w .'-]+/g, "").trim()} - JPR.pdf`;
+  const path = `${r.candidate_id}/${crypto.randomUUID()}-jpr.pdf`;
+  const { error: upErr } = await supabase.storage.from("resumes").upload(path, pdf, { contentType: "application/pdf" });
+  if (upErr) return { ok: false, message: `Upload failed: ${upErr.message}` };
+  const { error } = await supabase.from("resumes").insert({
+    candidate_id: r.candidate_id,
+    text_content: body,
+    storage_path: path,
+    file_name: name,
+    mime_type: "application/pdf",
+    size_bytes: pdf.length,
+    uploaded_by: userId,
+    branded_from: r.id,
+    brand_check: note,
+  });
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, message: note };
 }

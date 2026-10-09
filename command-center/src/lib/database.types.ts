@@ -1023,6 +1023,8 @@ export type Database = {
           size_bytes: number | null;
           storage_path: string | null;
           text_content: string | null;
+          branded_from: string | null;
+          brand_check: string | null;
           uploaded_by: string | null;
         };
         Insert: {
@@ -1034,6 +1036,8 @@ export type Database = {
           size_bytes?: number | null;
           storage_path?: string | null;
           text_content?: string | null;
+          branded_from?: string | null;
+          brand_check?: string | null;
           uploaded_by?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["resumes"]["Row"]>;
