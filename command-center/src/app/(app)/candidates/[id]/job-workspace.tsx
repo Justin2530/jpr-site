@@ -184,6 +184,19 @@ export async function JobWorkspace({
           ended={(pursuits ?? []).some((p) => p.purpose === "screening" && p.status !== "active")}
         />
       )}
+      {!early && automation.on && job.automation_pilot && (
+        <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2 font-medium">
+              Automated recruiting <Chip tone="muted">Off</Chip>
+            </p>
+            <p className="text-sm text-muted">
+              Automatic texts and emails only run before the screening call. {candidate.full_name.split(" ")[0]} is past that, so nothing
+              automatic goes to them.
+            </p>
+          </div>
+        </div>
+      )}
 
       {(pursuits ?? []).map((p) => (
         <Outreach key={p.id} pursuit={p} />
