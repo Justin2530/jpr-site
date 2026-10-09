@@ -10,6 +10,8 @@ export const GMAIL_SCOPES = [
   "email",
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/gmail.readonly",
+  // Only to put JPR's candidate labels on threads; nothing is deleted or moved.
+  "https://www.googleapis.com/auth/gmail.modify",
 ];
 
 export function googleReady() {
@@ -161,6 +163,35 @@ async function gmailGet(token: string, path: string) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
   return json;
+}
+
+async function gmailPost(token: string, path: string, body: unknown) {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
+  return json;
+}
+
+// The id of a label by name, made (in the given colors) the first time it's needed.
+export async function gmailLabel(token: string, name: string, color: { backgroundColor: string; textColor: string }) {
+  const { labels = [] } = (await gmailGet(token, "labels")) as { labels?: { id: string; name: string }[] };
+  const found = labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+  if (found) return found.id;
+  const base = { name, labelListVisibility: "labelShow", messageListVisibility: "show" };
+  try {
+    return (await gmailPost(token, "labels", { ...base, color })).id as string;
+  } catch {
+    return (await gmailPost(token, "labels", base)).id as string;
+  }
+}
+
+export async function labelThread(token: string, threadId: string, add: string[], remove: string[]) {
+  await gmailPost(token, `threads/${threadId}/modify`, { addLabelIds: add, removeLabelIds: remove });
 }
 
 // Ids of messages matching a Gmail search, newest first.

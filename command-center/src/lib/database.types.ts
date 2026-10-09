@@ -1397,6 +1397,14 @@ export type Database = {
       set_inbox_auto_reply: { Args: { p_on: boolean }; Returns: undefined };
       inbox_context: { Args: { p_secret: string }; Returns: Json };
       inbox_seen: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
+      inbox_label_put: {
+        Args: { p_secret: string; p_staff: string; p_thread: string; p_gmail: string; p_from: string; p_name: string };
+        Returns: undefined;
+      };
+      inbox_label_due: { Args: { p_secret: string; p_staff: string }; Returns: { thread_id: string; want: string }[] };
+      inbox_label_done: { Args: { p_secret: string; p_staff: string; p_thread: string; p_state: string }; Returns: undefined };
+      inbox_label_backlog: { Args: { p_secret: string }; Returns: string[] };
+      release_candidates: { Args: { p_ids: string[] }; Returns: undefined };
       inbox_sender: { Args: { p_secret: string; p_from: string }; Returns: Json };
       inbox_file: { Args: { p_secret: string; p: Json }; Returns: Json };
       inbox_draft_sent: {

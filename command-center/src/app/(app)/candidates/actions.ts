@@ -104,7 +104,7 @@ export async function deleteCandidate(form: FormData) {
   const { data: files } = await supabase.from("resumes").select("storage_path").eq("candidate_id", id);
   const paths = (files ?? []).map((f) => f.storage_path).filter((p): p is string => Boolean(p));
   if (paths.length) await supabase.storage.from("resumes").remove(paths);
-  await supabase.rpc("release_candidates" as never, { p_ids: [id] } as never);
+  await supabase.rpc("release_candidates", { p_ids: [id] });
   const { error } = await supabase.from("candidates").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
@@ -121,7 +121,7 @@ export async function deleteCandidates(ids: string[]): Promise<{ ok: boolean; me
   const { data: files } = await supabase.from("resumes").select("storage_path").in("candidate_id", list);
   const paths = (files ?? []).map((f) => f.storage_path).filter((p): p is string => Boolean(p));
   if (paths.length) await supabase.storage.from("resumes").remove(paths);
-  await supabase.rpc("release_candidates" as never, { p_ids: list } as never);
+  await supabase.rpc("release_candidates", { p_ids: list });
   // One at a time, so one person who can't go yet doesn't hold up the rest.
   const stuck: string[] = [];
   for (const id of list) {

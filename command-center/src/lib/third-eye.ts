@@ -243,14 +243,25 @@ export async function watchInbox(
       p_from: m.from,
     });
     const sender = who as unknown as Sender;
+    // Marks the thread for its Gmail label ("Candidate - Needs adding" / "In system", see labelMailbox).
+    const label = () =>
+      db.rpc("inbox_label_put", {
+        p_secret: secret,
+        p_staff: box.staff_id,
+        p_thread: m.threadId,
+        p_gmail: m.id,
+        p_from: m.from,
+        p_name: m.fromName,
+      });
     // A client, or a candidate the recruiting assistant is already talking to: not ours.
-    if (
-      sender?.kind === "contact" ||
-      (sender?.kind === "candidate" && sender.brain)
-    )
+    if (sender?.kind === "contact") return;
+    if (sender?.kind === "candidate" && sender.brain) {
+      await label();
       return;
+    }
     const r = await read(m, ctx.jobs, sender);
     if (!r) return;
+    if (["interested", "message", "job_seeker"].includes(r.kind)) await label();
     const auto = ctx.auto_reply;
     const { data: res, error } = await db.rpc("inbox_file", {
       p_secret: secret,

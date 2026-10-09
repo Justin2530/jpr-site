@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
-import { accessToken, listGmail, openToken, readGmail, replyOnly } from "@/lib/google";
+import { accessToken, gmailLabel, labelThread, listGmail, openToken, readGmail, replyOnly } from "@/lib/google";
 import type { Mailbox } from "@/lib/automation";
 import { watchInbox, type InboxMessage } from "@/lib/third-eye";
 
@@ -137,4 +137,55 @@ export async function backfillMailbox(db: SupabaseClient<Database>, secret: stri
   const next = fresh.length > batch.length ? Math.max(from + 1000, ...inbox.map((m) => m.date)) : end;
   await db.rpc("gmail_backfill_set", { p_secret: secret, p_staff: box.staff_id, p_from: new Date(next).toISOString() });
   return filed.size;
+}
+
+// Gmail labels for potential candidates: "Candidate - Needs adding" until Justin adds them, then
+// "Candidate - In system". The inbox watcher notes each candidate thread (inbox_label_put); this works out
+// which label each should have now and fixes the ones that are missing or out of date. Mail the watcher read
+// before labels existed is picked up a few at a time.
+export const LABELS = {
+  needs: { name: "Candidate - Needs adding", color: { backgroundColor: "#fb4c2f", textColor: "#ffffff" } },
+  in: { name: "Candidate - In system", color: { backgroundColor: "#16a766", textColor: "#ffffff" } },
+} as const;
+
+export async function labelMailbox(db: SupabaseClient<Database>, secret: string, box: Mailbox) {
+  const token = await accessToken(openToken(box.token));
+  const { data: backlog } = await db.rpc("inbox_label_backlog", { p_secret: secret });
+  for (const id of backlog ?? []) {
+    try {
+      const m = await readGmail(token, id);
+      await db.rpc("inbox_label_put", { p_secret: secret, p_staff: box.staff_id, p_thread: m.threadId, p_gmail: m.id, p_from: m.from, p_name: m.fromName });
+    } catch {
+      // Gone from Gmail: remember it so it isn't looked up again.
+      await db.rpc("inbox_label_put", { p_secret: secret, p_staff: box.staff_id, p_thread: `x:${id}`, p_gmail: id, p_from: "", p_name: "" });
+      await db.rpc("inbox_label_done", { p_secret: secret, p_staff: box.staff_id, p_thread: `x:${id}`, p_state: "skip" });
+    }
+  }
+  const { data: due } = await db.rpc("inbox_label_due", { p_secret: secret, p_staff: box.staff_id });
+  if (!due?.length) return 0;
+  let ids: Record<"needs" | "in", string>;
+  try {
+    ids = {
+      needs: await gmailLabel(token, LABELS.needs.name, LABELS.needs.color),
+      in: await gmailLabel(token, LABELS.in.name, LABELS.in.color),
+    };
+  } catch (e) {
+    // Most likely Gmail was connected before label permission was asked for; reconnecting fixes it.
+    console.error("Gmail labels unavailable", e instanceof Error ? e.message : e);
+    for (const r of due) await db.rpc("inbox_label_done", { p_secret: secret, p_staff: box.staff_id, p_thread: r.thread_id, p_state: null as unknown as string });
+    return 0;
+  }
+  let n = 0;
+  for (const r of due) {
+    const want = r.want === "in" ? "in" : "needs";
+    try {
+      await labelThread(token, r.thread_id, [ids[want]], [ids[want === "in" ? "needs" : "in"]]);
+      await db.rpc("inbox_label_done", { p_secret: secret, p_staff: box.staff_id, p_thread: r.thread_id, p_state: want });
+      n++;
+    } catch (e) {
+      console.error("Couldn't label thread", r.thread_id, e instanceof Error ? e.message : e);
+      await db.rpc("inbox_label_done", { p_secret: secret, p_staff: box.staff_id, p_thread: r.thread_id, p_state: null as unknown as string });
+    }
+  }
+  return n;
 }
