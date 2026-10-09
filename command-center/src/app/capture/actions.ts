@@ -15,6 +15,21 @@ export type CaptureRead = {
 
 const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "").slice(-10);
 
+// First and last name, ignoring case and middle names or initials ("PATRICK A. MCGINTY" is Patrick McGinty).
+const nameKey = (s: string) => {
+  const parts = s.toLowerCase().replace(/[^a-z' -]/g, " ").split(/\s+/).filter(Boolean);
+  return parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : "";
+};
+
+// The one candidate with the same first and last name, if exactly one.
+async function sameName(supabase: Awaited<ReturnType<typeof requireStaff>>["supabase"], name: string) {
+  const key = nameKey(name);
+  if (!key) return null;
+  const { data } = await supabase.from("candidates").select("id, full_name").ilike("full_name", `%${key.split(" ")[1]}%`).limit(50);
+  const hits = (data ?? []).filter((c) => nameKey(c.full_name) === key);
+  return hits.length === 1 ? hits[0] : null;
+}
+
 // Step one of "Send to JPR": read the resume (or the page, when there's no file) and fill in who this is,
 // which open job the page mentions, and whether they're already in the system. Nothing is saved yet.
 export async function readCapture(form: FormData): Promise<CaptureRead> {
@@ -45,10 +60,7 @@ export async function readCapture(form: FormData): Promise<CaptureRead> {
     );
     if (hit) match = { id: hit.id, full_name: hit.full_name };
   }
-  if (!match && fields.full_name.trim().includes(" ")) {
-    const { data } = await supabase.from("candidates").select("id, full_name").ilike("full_name", fields.full_name.trim()).limit(2);
-    if (data?.length === 1) match = data[0];
-  }
+  if (!match) match = await sameName(supabase, fields.full_name);
 
   // The job: an open job whose title shows up on the Indeed page (the conversation names it).
   const { data: jobs } = await supabase.from("jobs").select("id, title").eq("status", "open");
@@ -82,6 +94,15 @@ export async function saveCapture(form: FormData): Promise<{ ok: boolean; messag
     ) as Partial<typeof fields>;
     if (Object.keys(fill).length) await supabase.from("candidates").update(fill).eq("id", id);
   } else {
+    // Same email or phone as someone on file (a second press, or a box left unticked): use that person.
+    const phone = digits(fields.phone);
+    const ors = [fields.email && `email.ilike.${fields.email}`, phone.length === 10 && `phone.ilike.%${phone.slice(-4)}`].filter(Boolean);
+    if (ors.length) {
+      const { data } = await supabase.from("candidates").select("id, email, phone").or(ors.join(",")).limit(20);
+      id = (data ?? []).find((c) => (fields.email && c.email?.toLowerCase() === fields.email) || (phone.length === 10 && digits(c.phone) === phone))?.id ?? null;
+    }
+  }
+  if (!id) {
     const { data, error } = await supabase
       .from("candidates")
       .insert({

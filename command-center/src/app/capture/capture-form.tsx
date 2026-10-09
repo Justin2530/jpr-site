@@ -96,6 +96,8 @@ export function CaptureForm({ jobs }: { jobs: { id: string; label: string }[] })
         setDone(await saveCapture(form));
         setBusy(false);
       }}
+      // Set here, not in the action: state set inside the action only shows once it finishes, so a second press got through.
+      onSubmit={() => setBusy(true)}
       className="space-y-3"
     >
       <div className="panel space-y-1 p-3 text-sm">
