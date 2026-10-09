@@ -56,7 +56,7 @@ export async function JobWorkspace({
   const { data: cj } = await supabase
     .from("candidate_jobs")
     .select(
-      "id, stage, stage_changed_at, assigned_at, jobs(id, title, company_id, hiring_contact_id, location, compensation, schedule, companies(id, name, short_name))",
+      "id, stage, stage_changed_at, assigned_at, jobs(id, title, company_id, hiring_contact_id, automation_pilot, location, compensation, schedule, companies(id, name, short_name))",
     )
     .eq("id", cjId)
     .eq("candidate_id", candidate.id)
@@ -175,11 +175,11 @@ export async function JobWorkspace({
         </div>
       )}
 
-      {early && (
+      {/* The candidate's switch shows only once the master and this job's switch are both on. */}
+      {early && automation.on && job.automation_pilot && (
         <AutomationSwitch
           cjId={cj.id}
           live={(pursuits ?? []).find((p) => p.purpose === "screening" && p.status === "active") ?? null}
-          masterOn={automation.on}
           eligible={automation.eligible(candidate.created_at)}
           ended={(pursuits ?? []).some((p) => p.purpose === "screening" && p.status !== "active")}
         />
@@ -528,55 +528,38 @@ function Outreach({
   );
 }
 
-// The per-job Automated recruiting switch: on texts and emails them on the schedule until they reply,
-// off pauses it where it is. The master switch in Settings sits above every one of these.
+// The candidate's Automated recruiting switch for this job, shown only while the master and the job's switch
+// are on: on texts and emails them on the schedule until they reply, off pauses it where it is.
 function AutomationSwitch({
   cjId,
   live,
-  masterOn,
   eligible,
   ended,
 }: {
   cjId: string;
   live: { paused_at: string | null } | null;
-  masterOn: boolean;
   eligible: boolean;
   ended: boolean;
 }) {
   const on = Boolean(live && !live.paused_at);
-  const canTurnOn = masterOn && eligible;
   const note = !eligible
     ? "Stays manual. This candidate was in the system before automated recruiting was first turned on."
-    : !masterOn
-      ? on
-        ? "On here, but nothing sends while automated recruiting is off in Settings."
-        : "Automated recruiting is off for the whole Command Center. Turn it on in Settings first."
-      : on
-        ? "Texting and emailing them on the schedule until they reply. Turning it off pauses it where it is."
-        : live
-          ? "Paused. Turning it back on picks up where it left off."
-          : ended
-            ? "The last round ended. Turning it on starts the schedule over."
-            : "Turn it on to text and email them on the schedule until they reply.";
+    : on
+      ? "Texting and emailing them on the schedule until they reply. Turning it off pauses it where it is."
+      : live
+        ? "Paused. Turning it back on picks up where it left off."
+        : ended
+          ? "The last round ended. Turning it on starts the schedule over."
+          : "Turn it on to text and email them on the schedule until they reply.";
   return (
     <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 font-medium">
           Automated recruiting <Chip tone={on ? "cyan" : "muted"}>{on ? "On" : "Off"}</Chip>
         </p>
-        <p className="text-sm text-muted">
-          {note}
-          {eligible && !masterOn && (
-            <>
-              {" "}
-              <Link href="/settings" className="link">
-                Phone &amp; email
-              </Link>
-            </>
-          )}
-        </p>
+        <p className="text-sm text-muted">{note}</p>
       </div>
-      {(on || canTurnOn) && (
+      {eligible && (
         <form action={setOutreach}>
           <input type="hidden" name="id" value={cjId} />
           <input type="hidden" name="on" value={on ? "false" : "true"} />

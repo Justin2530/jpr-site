@@ -13,7 +13,7 @@ import { Constants } from "@/lib/database.types";
 import { JobFields } from "../job-fields";
 import { QuestionInput } from "@/components/screening-questions";
 import { addGoal, deleteGoal, setJobStatus, toggleGoal, updateJob } from "../actions";
-import { assignToJob, moveCandidateJob, unassign } from "../../pipeline-actions";
+import { assignToJob, moveCandidateJob, setJobAutomation, unassign } from "../../pipeline-actions";
 
 export default async function JobDetail({
   params,
@@ -125,7 +125,7 @@ export default async function JobDetail({
                   </option>
                 ))}
               </select>
-              {automation.on && (
+              {automation.on && job.automation_pilot && (
                 <select name="outreach_source" defaultValue="" className="field sm:w-auto" aria-label="How they came to this job">
                   <option value="">Source from their profile</option>
                   {OUTREACH_SOURCES.map((o) => (
@@ -135,10 +135,10 @@ export default async function JobDetail({
                   ))}
                 </select>
               )}
-              <SubmitButton className={automation.on ? "btn-quiet shrink-0" : "btn shrink-0"} pendingText="Assigning…">
+              <SubmitButton className={automation.on && job.automation_pilot ? "btn-quiet shrink-0" : "btn shrink-0"} pendingText="Assigning…">
                 Assign only
               </SubmitButton>
-              {automation.on && (
+              {automation.on && job.automation_pilot && (
                 <SubmitButton className="btn shrink-0" name="automate" value="on" pendingText="Assigning…">
                   Assign + automate
                 </SubmitButton>
@@ -248,6 +248,31 @@ export default async function JobDetail({
         </div>
 
         <div className="space-y-6">
+          {/* The job's switch shows only while the master switch in Settings is on. */}
+          {automation.on && (
+            <div className="panel flex flex-wrap items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 font-medium">
+                  Automated recruiting <Chip tone={job.automation_pilot ? "cyan" : "muted"}>{job.automation_pilot ? "On" : "Off"}</Chip>
+                </p>
+                <p className="text-sm text-muted">
+                  {job.automation_pilot
+                    ? "On for this job. Each candidate still needs their own switch on. Turning this off pauses everyone here."
+                    : "Off for this job, so nobody on it is contacted automatically."}
+                </p>
+              </div>
+              <form action={setJobAutomation}>
+                <input type="hidden" name="id" value={job.id} />
+                <input type="hidden" name="on" value={job.automation_pilot ? "false" : "true"} />
+                <SubmitButton
+                  className={job.automation_pilot ? "btn-quiet hover:text-rose" : "btn"}
+                  pendingText={job.automation_pilot ? "Turning off…" : "Turning on…"}
+                >
+                  {job.automation_pilot ? "Turn off" : "Turn on"}
+                </SubmitButton>
+              </form>
+            </div>
+          )}
           <Panel title="Details">
             <dl>
               <Row label="Hiring contact">

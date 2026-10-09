@@ -97,3 +97,14 @@ export async function callNow(form: FormData) {
   if (data) revalidatePath(`/candidates/${data.candidate_id}`);
   revalidatePath("/");
 }
+
+// The job's Automated recruiting switch: off pauses everyone on this job where they are, on picks them back up.
+export async function setJobAutomation(form: FormData) {
+  const { supabase } = await requireStaff();
+  const id = String(form.get("id") ?? "");
+  const { error } = await supabase.rpc("set_job_automation", { p_job: id, p_on: form.get("on") === "true" });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/jobs/${id}`);
+  revalidatePath("/pipeline");
+  revalidatePath("/");
+}

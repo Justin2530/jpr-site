@@ -265,6 +265,7 @@ export type Database = {
           job_id: string;
           notes: string | null;
           outreach_source: "indeed" | "applied" | "linkedin" | "referral" | "other" | null;
+          automate: boolean;
           stage: Database["public"]["Enums"]["pipeline_stage"];
           stage_changed_at: string;
         };
@@ -276,6 +277,7 @@ export type Database = {
           job_id: string;
           notes?: string | null;
           outreach_source?: "indeed" | "applied" | "linkedin" | "referral" | "other" | null;
+          automate?: boolean;
           stage?: Database["public"]["Enums"]["pipeline_stage"];
           stage_changed_at?: string;
         };
@@ -1428,6 +1430,8 @@ export type Database = {
       brain_pending: { Args: { p_secret: string }; Returns: Json };
       brain_apply: { Args: { p_secret: string; p_activity: string; p_decision: Json }; Returns: string };
       set_outreach: { Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string }; Returns: string };
+      set_job_automation: { Args: { p_job: string; p_on: boolean }; Returns: number };
+      automation_sync: { Args: { p_job?: string; p_cj?: string }; Returns: number };
       automation_register: { Args: { p_secret: string; p_url: string }; Returns: undefined };
       automation_due: { Args: { p_secret: string }; Returns: Json };
       automation_step_done: {

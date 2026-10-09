@@ -250,9 +250,10 @@ export default async function SettingsPage({
         </Step>
         <Step done={autoOn} title="Automated recruiting">
           <p className="text-sm text-muted">
-            {autoOn ? "On." : "Off."} This is the master switch. While it&apos;s
-            on, assigning someone to a job asks whether to automate them, and
-            each candidate&apos;s job tab has its own on/off switch. When
+            {autoOn ? "On." : "Off."} This is the master switch. Off means
+            nothing runs anywhere. While it&apos;s on, each job gets its own
+            on/off switch, and once a job is on, each candidate on it gets one
+            too. Someone is automated only when all three are on. When
             automated, the Command Center texts and emails them to set up a
             call: a text and an email right away, an email on day 1, an AI call
             on day 3, an email on day 5, a text on day 8, an AI call on day 12

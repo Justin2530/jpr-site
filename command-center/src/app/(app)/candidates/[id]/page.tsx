@@ -54,7 +54,7 @@ export default async function CandidateDetail({
       .eq("candidate_id", id)
       .order("occurred_at", { ascending: false })
       .limit(50),
-    supabase.from("jobs").select("id, title, companies(name)").eq("status", "open").order("title"),
+    supabase.from("jobs").select("id, title, automation_pilot, companies(name)").eq("status", "open").order("title"),
   ]);
   if (!c) notFound();
 
@@ -92,7 +92,8 @@ export default async function CandidateDetail({
   const assignedIds = new Set((links ?? []).map((l) => l.jobs?.id));
   const assignable = (openJobs ?? []).filter((j) => !assignedIds.has(j.id));
   const automation = await automationState(supabase);
-  const canAutomate = automation.on && automation.eligible(c.created_at);
+  // Assign + automate needs the master switch on and at least one open job with its own switch on.
+  const canAutomate = automation.on && automation.eligible(c.created_at) && assignable.some((j) => j.automation_pilot);
   const activeTab = (links ?? []).find((l) => l.id === jobTab)?.id;
   const path = `/candidates/${c.id}`;
   const [history, { data: reminders }] = await Promise.all([
@@ -182,6 +183,7 @@ export default async function CandidateDetail({
                   {assignable.map((j) => (
                     <option key={j.id} value={j.id}>
                       {j.title} · {j.companies?.name}
+                      {canAutomate && j.automation_pilot ? " · automation on" : ""}
                     </option>
                   ))}
                 </select>

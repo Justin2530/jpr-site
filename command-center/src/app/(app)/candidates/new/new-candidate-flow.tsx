@@ -8,7 +8,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { CandidateFields } from "../candidate-fields";
 import { createCandidate, readResume, type ResumeRead } from "../actions";
 
-type Job = { id: string; title: string; company: string };
+type Job = { id: string; title: string; company: string; auto: boolean };
 const ACCEPT = ".pdf,.docx,.doc,.rtf,.txt";
 
 // Adding a candidate the Recruiterflow way: drop a resume, the details fill themselves in, then pick
@@ -58,7 +58,9 @@ export function NewCandidateFlow({
   const prefill = f
     ? (Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v || null])) as unknown as Tables<"candidates">)
     : undefined;
-  const ready = assign === "no" || (assign === "yes" && jobId && (!automationOn || automate));
+  // Asked only when the master switch and the chosen job's switch are both on.
+  const canAutomate = automationOn && Boolean(jobs.find((j) => j.id === jobId)?.auto);
+  const ready = assign === "no" || (assign === "yes" && jobId && (!canAutomate || automate));
 
   return (
     <form action={createCandidate} className="space-y-6">
@@ -181,7 +183,7 @@ export function NewCandidateFlow({
               </Field>
             )}
 
-            {assign === "yes" && jobId && automationOn && (
+            {assign === "yes" && jobId && canAutomate && (
               <div className="space-y-2">
                 <p className="font-medium">Turn on automated recruiting for this job?</p>
                 <p className="text-sm text-muted">Texts and emails them on the schedule until they reply. You can switch it off any time.</p>
@@ -193,16 +195,22 @@ export function NewCandidateFlow({
                     No, I&apos;ll reach out myself
                   </button>
                 </div>
-                {automate === "yes" && <input type="hidden" name="automate" value="on" />}
+                {automate === "yes" && canAutomate && <input type="hidden" name="automate" value="on" />}
               </div>
             )}
-            {assign === "yes" && jobId && !automationOn && (
+            {assign === "yes" && jobId && !canAutomate && (
               <p className="text-sm text-faint">
-                Automated recruiting is off on{" "}
-                <Link href="/settings" className="link">
-                  Phone &amp; email
-                </Link>
-                , so they&apos;ll be assigned without it.
+                {automationOn ? (
+                  "Automated recruiting is off for this job, so they'll be assigned without it."
+                ) : (
+                  <>
+                    Automated recruiting is off on{" "}
+                    <Link href="/settings" className="link">
+                      Phone &amp; email
+                    </Link>
+                    , so they&apos;ll be assigned without it.
+                  </>
+                )}
               </p>
             )}
           </div>
