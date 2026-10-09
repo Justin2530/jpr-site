@@ -94,8 +94,8 @@ export async function readCapture(form: FormData): Promise<CaptureRead> {
 }
 
 // Step two: save it. A person already on file gets the resume and any details they were missing; anyone new
-// is added as an Indeed candidate. With a job picked they land on it as Sourced, never Assigned, so nothing
-// automatic starts.
+// is added as an Indeed candidate. With a job picked they land on it as Assigned: pressing Add
+// to JPR is Justin's own assign (his call, 2026-10-09). Nothing automatic starts until he turns on their switch.
 export async function saveCapture(form: FormData): Promise<{ ok: boolean; message: string; id?: string }> {
   const { supabase, userId, markets } = await requireStaff();
   const name = text(form, "full_name");
@@ -158,7 +158,7 @@ export async function saveCapture(form: FormData): Promise<{ ok: boolean; messag
   if (jobId) {
     const { data: existing } = await supabase.from("candidate_jobs").select("id").eq("candidate_id", id).eq("job_id", jobId).maybeSingle();
     if (!existing) {
-      const { error } = await supabase.from("candidate_jobs").insert({ candidate_id: id, job_id: jobId, stage: "sourced", outreach_source: "indeed" });
+      const { error } = await supabase.from("candidate_jobs").insert({ candidate_id: id, job_id: jobId, stage: "assigned", assigned_by: userId, outreach_source: "indeed" });
       if (error) return { ok: false, message: `Saved, but not put on the job: ${error.message}`, id };
     }
   }

@@ -155,7 +155,7 @@ export function CaptureForm({ jobs }: { jobs: { id: string; label: string }[] })
           ))}
         </select>
         {read?.jobWhy && <span className="block text-xs text-cyan">{read.jobWhy}</span>}
-        <span className="text-xs text-faint">They go on the job as Sourced. Nothing automatic starts.</span>
+        <span className="text-xs text-faint">They go on the job as Assigned. Nothing automatic starts until you turn on their switch.</span>
       </label>
 
       <div className="flex items-center gap-2">
