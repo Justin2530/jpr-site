@@ -1398,7 +1398,7 @@ export type Database = {
       inbox_context: { Args: { p_secret: string }; Returns: Json };
       inbox_seen: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
       inbox_label_put: {
-        Args: { p_secret: string; p_staff: string; p_thread: string; p_gmail: string; p_from: string; p_name: string };
+        Args: { p_secret: string; p_staff: string; p_thread: string; p_gmail: string; p_from: string; p_name: string; p_kind?: string };
         Returns: undefined;
       };
       inbox_label_due: { Args: { p_secret: string; p_staff: string }; Returns: { thread_id: string; want: string }[] };

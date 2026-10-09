@@ -139,14 +139,18 @@ export async function backfillMailbox(db: SupabaseClient<Database>, secret: stri
   return filed.size;
 }
 
-// Gmail labels for potential candidates: "Candidate - Needs adding" until Justin adds them, then
-// "Candidate - In system". The inbox watcher notes each candidate thread (inbox_label_put); this works out
-// which label each should have now and fixes the ones that are missing or out of date. Mail the watcher read
-// before labels existed is picked up a few at a time.
+// Gmail labels so Justin can pick people out of a busy inbox at a glance: candidates (in the Command Center or
+// not yet), current clients and potential clients. The inbox watcher notes each such thread (inbox_label_put);
+// this works out which label each should have now and fixes any that are missing or out of date, so a
+// candidate's label flips by itself once he adds them. Mail the watcher read before labels existed is picked
+// up a few at a time.
 export const LABELS = {
-  needs: { name: "Candidate - Needs adding", color: { backgroundColor: "#fb4c2f", textColor: "#ffffff" } },
-  in: { name: "Candidate - In system", color: { backgroundColor: "#16a766", textColor: "#ffffff" } },
+  needs: { name: "Candidate - not in system", color: { backgroundColor: "#fb4c2f", textColor: "#ffffff" } },
+  in: { name: "Candidate - in system", color: { backgroundColor: "#4a86e8", textColor: "#ffffff" } },
+  client: { name: "Client", color: { backgroundColor: "#0b804b", textColor: "#ffffff" } },
+  prospect: { name: "Potential client", color: { backgroundColor: "#fad165", textColor: "#000000" } },
 } as const;
+type LabelKey = keyof typeof LABELS;
 
 export async function labelMailbox(db: SupabaseClient<Database>, secret: string, box: Mailbox) {
   const token = await accessToken(openToken(box.token));
@@ -163,12 +167,9 @@ export async function labelMailbox(db: SupabaseClient<Database>, secret: string,
   }
   const { data: due } = await db.rpc("inbox_label_due", { p_secret: secret, p_staff: box.staff_id });
   if (!due?.length) return 0;
-  let ids: Record<"needs" | "in", string>;
+  const ids = {} as Record<LabelKey, string>;
   try {
-    ids = {
-      needs: await gmailLabel(token, LABELS.needs.name, LABELS.needs.color),
-      in: await gmailLabel(token, LABELS.in.name, LABELS.in.color),
-    };
+    for (const k of Object.keys(LABELS) as LabelKey[]) ids[k] = await gmailLabel(token, LABELS[k].name, LABELS[k].color);
   } catch (e) {
     // Most likely Gmail was connected before label permission was asked for; reconnecting fixes it.
     console.error("Gmail labels unavailable", e instanceof Error ? e.message : e);
@@ -177,9 +178,9 @@ export async function labelMailbox(db: SupabaseClient<Database>, secret: string,
   }
   let n = 0;
   for (const r of due) {
-    const want = r.want === "in" ? "in" : "needs";
+    const want = (r.want in LABELS ? r.want : "needs") as LabelKey;
     try {
-      await labelThread(token, r.thread_id, [ids[want]], [ids[want === "in" ? "needs" : "in"]]);
+      await labelThread(token, r.thread_id, [ids[want]], (Object.keys(LABELS) as LabelKey[]).filter((k) => k !== want).map((k) => ids[k]));
       await db.rpc("inbox_label_done", { p_secret: secret, p_staff: box.staff_id, p_thread: r.thread_id, p_state: want });
       n++;
     } catch (e) {

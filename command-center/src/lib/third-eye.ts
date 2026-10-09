@@ -47,7 +47,7 @@ type Sender = {
 } | null;
 
 type Reading = {
-  kind: "interested" | "message" | "not_interested" | "job_seeker" | "other";
+  kind: "interested" | "message" | "not_interested" | "job_seeker" | "potential_client" | "other";
   name: string;
   email: string;
   phone: string;
@@ -66,7 +66,7 @@ const SCHEMA = {
   properties: {
     kind: {
       type: "string",
-      enum: ["interested", "message", "not_interested", "job_seeker", "other"],
+      enum: ["interested", "message", "not_interested", "job_seeker", "potential_client", "other"],
     },
     name: { type: "string" },
     email: { type: "string" },
@@ -101,7 +101,8 @@ Most candidates reach Justin through Indeed, from a relay address like conversat
 - "New Message from <Name>" with "You've received a new message from <Name>" and their words in a box. That's kind "message" (a reply, a question, info about themselves), unless they plainly say no to everything.
 - "Feedback from candidate <Name>": "The candidate has indicated that they are not interested at this time." That's kind "not_interested".
 Candidates also email directly, reply to Justin's emails, or send a resume out of the blue. Someone looking for work who isn't answering anything of Justin's is "job_seeker".
-Everything else is "other": clients and employers, vendors, Indeed account, billing or marketing mail, newsletters, notifications, personal mail. When it's not clearly a job seeker or candidate, it's "other".
+A business that might hire JPR is "potential_client": an employer or manager asking about help hiring, recruiting or staffing, JPR's services or pricing, or answering Justin's sales outreach; or a person writing for their company about open positions they need filled. Not vendors or salespeople selling something to Justin, not marketing, newsletters or cold pitches, not job boards or software companies.
+Everything else is "other": vendors, Indeed account, billing or marketing mail, newsletters, notifications, personal mail. When it's not clearly a job seeker, candidate or potential client, it's "other". For "potential_client", leave every field but summary empty.
 
 Fields:
 - name: the candidate's full name as they give it (fix ALL CAPS to normal case). email and phone: only if they wrote their own real ones in the message (never an @indeedemail.com address). resume_link: the Indeed resume link if there is one.
@@ -243,8 +244,9 @@ export async function watchInbox(
       p_from: m.from,
     });
     const sender = who as unknown as Sender;
-    // Marks the thread for its Gmail label ("Candidate - Needs adding" / "In system", see labelMailbox).
-    const label = () =>
+    // Marks the thread for its Gmail label (candidate in system or not, client or potential client; see
+    // labelMailbox, which works out which).
+    const label = (kind: "candidate" | "business") =>
       db.rpc("inbox_label_put", {
         p_secret: secret,
         p_staff: box.staff_id,
@@ -252,16 +254,25 @@ export async function watchInbox(
         p_gmail: m.id,
         p_from: m.from,
         p_name: m.fromName,
+        p_kind: kind,
       });
-    // A client, or a candidate the recruiting assistant is already talking to: not ours.
-    if (sender?.kind === "contact") return;
+    // A client or prospect on file, or a candidate the recruiting assistant is already talking to: labeled,
+    // otherwise not ours.
+    if (sender?.kind === "contact") {
+      await label("business");
+      return;
+    }
     if (sender?.kind === "candidate" && sender.brain) {
-      await label();
+      await label("candidate");
       return;
     }
     const r = await read(m, ctx.jobs, sender);
     if (!r) return;
-    if (["interested", "message", "job_seeker"].includes(r.kind)) await label();
+    if (["interested", "message", "job_seeker"].includes(r.kind)) await label("candidate");
+    if (r.kind === "potential_client") {
+      await label("business");
+      r.kind = "other";
+    }
     const auto = ctx.auto_reply;
     const { data: res, error } = await db.rpc("inbox_file", {
       p_secret: secret,
