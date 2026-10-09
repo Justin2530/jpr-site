@@ -4,15 +4,17 @@ import { Chip, Empty, PageHeader } from "@/components/ui";
 import { PlusIcon, SearchIcon } from "@/components/icons";
 import { SOURCE_LABEL, STAGE_LABEL, STAGE_TONE, timeAgo } from "@/lib/format";
 import { ViewSwitcher } from "@/components/view-switcher";
+import { SelectDelete } from "./select-delete";
 
 export const metadata = { title: "Candidates · JPR" };
 
-export default async function CandidatesPage({ searchParams }: { searchParams: Promise<{ q?: string; view?: string }> }) {
-  const { q, view = "list" } = await searchParams;
-  const { supabase } = await requireStaff();
+export default async function CandidatesPage({ searchParams }: { searchParams: Promise<{ q?: string; view?: string; pick?: string }> }) {
+  const { q, view = "list", pick } = await searchParams;
+  const { supabase, staff } = await requireStaff();
+  const owner = staff.role === "owner";
   let query = supabase
     .from("candidates")
-    .select("id, full_name, phone, email, current_title, current_employer, city, source, contact_consent, updated_at, candidate_jobs(stage, stage_changed_at, jobs(title))")
+    .select("id, full_name, phone, email, current_title, current_employer, city, source, contact_consent, created_at, updated_at, candidate_jobs(stage, stage_changed_at, jobs(title))")
     .order("updated_at", { ascending: false })
     .limit(200);
   const term = q?.trim().replace(/[%,()]/g, " ");
@@ -35,6 +37,7 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
               options={[
                 { key: "list", label: "List" },
                 { key: "table", label: "Table" },
+                ...(owner ? [{ key: "select", label: "Select" }] : []),
               ]}
             />
             <Link href="/candidates/new" className="btn">
@@ -50,6 +53,19 @@ export default async function CandidatesPage({ searchParams }: { searchParams: P
       </form>
       {(candidates ?? []).length === 0 ? (
         <Empty>{term ? "No matches." : "No candidates yet. Add the first one."}</Empty>
+      ) : view === "select" && owner ? (
+        <SelectDelete
+          picked={(pick ?? "").split(",")}
+          rows={candidates!.map((c) => ({
+            id: c.id,
+            name: c.full_name,
+            detail:
+              c.candidate_jobs.map((cj) => `${cj.jobs?.title ?? "Job"} · ${STAGE_LABEL[cj.stage]}`).join(", ") ||
+              [c.current_title, c.city].filter(Boolean).join(" · ") ||
+              SOURCE_LABEL[c.source],
+            added: `added ${new Date(c.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })}`,
+          }))}
+        />
       ) : view === "table" ? (
         <div className="panel overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">

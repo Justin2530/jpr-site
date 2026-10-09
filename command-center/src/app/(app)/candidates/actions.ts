@@ -104,10 +104,39 @@ export async function deleteCandidate(form: FormData) {
   const { data: files } = await supabase.from("resumes").select("storage_path").eq("candidate_id", id);
   const paths = (files ?? []).map((f) => f.storage_path).filter((p): p is string => Boolean(p));
   if (paths.length) await supabase.storage.from("resumes").remove(paths);
+  await supabase.rpc("release_candidates" as never, { p_ids: [id] } as never);
   const { error } = await supabase.from("candidates").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
   redirect("/candidates");
+}
+
+// Several at once, from the Select view on Candidates (owner only). Same as deleting each one: their resume
+// files go too, and everything linked to them goes with the record.
+export async function deleteCandidates(ids: string[]): Promise<{ ok: boolean; message: string }> {
+  const { supabase, staff } = await requireStaff();
+  if (staff.role !== "owner") return { ok: false, message: "Only the owner can delete candidates." };
+  const list = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!list.length) return { ok: false, message: "Nobody is selected." };
+  const { data: files } = await supabase.from("resumes").select("storage_path").in("candidate_id", list);
+  const paths = (files ?? []).map((f) => f.storage_path).filter((p): p is string => Boolean(p));
+  if (paths.length) await supabase.storage.from("resumes").remove(paths);
+  await supabase.rpc("release_candidates" as never, { p_ids: list } as never);
+  // One at a time, so one person who can't go yet doesn't hold up the rest.
+  const stuck: string[] = [];
+  for (const id of list) {
+    const { error } = await supabase.from("candidates").delete().eq("id", id);
+    if (error) {
+      const { data } = await supabase.from("candidates").select("full_name").eq("id", id).maybeSingle();
+      stuck.push(`${data?.full_name ?? "Someone"}${/inbox_drafts/.test(error.message) ? " (has a reply draft waiting)" : ""}`);
+    }
+  }
+  revalidatePath("/", "layout");
+  const gone = list.length - stuck.length;
+  return {
+    ok: gone > 0,
+    message: `Deleted ${gone} ${gone === 1 ? "candidate" : "candidates"}.${stuck.length ? ` Couldn't delete: ${stuck.join(", ")}.` : ""}`,
+  };
 }
 
 export async function updateCandidate(form: FormData) {
