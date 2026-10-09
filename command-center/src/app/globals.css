@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /* JPR Command Center: dark HUD theme. Calm, readable, one accent color.
-   Two looks share every class: JARVIS (navy + cyan, the default) and Matrix (black + green).
+   Three looks share every class: JARVIS (navy + cyan, the default), Matrix (black + green) and
+   Classic (light, in the website's colors).
    The <html data-theme> attribute picks one; "cyan" below just means "the accent". */
 :root {
   --c-void: #04070d;
@@ -39,6 +40,26 @@
   --c-mint: #7affd4;
   --glow: 0 255 102;
   --c-font: var(--font-geist-mono);
+}
+
+:root[data-theme="classic"] {
+  /* Classic: a plain, light CRM in the website's colors (warm off-white, charcoal, burnt orange). */
+  --c-void: #f4f2ee;
+  --c-deep: #ffffff;
+  --c-panel: #ffffff;
+  --c-panel-solid: #ffffff;
+  --c-line: #e1ded9;
+  --c-line-strong: #bdbbb6;
+  --c-ink: #222328;
+  --c-muted: #5c5d61;
+  --c-faint: #8a8b8f;
+  --c-cyan: #b84520;
+  --c-cyan-soft: #f6e9e2;
+  --c-amber: #9a6400;
+  --c-rose: #c0392b;
+  --c-mint: #1f7a4d;
+  --glow: 184 69 32;
+  --c-font: var(--font-manrope);
 }
 
 @theme inline {
@@ -81,8 +102,42 @@ body {
   background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgb(var(--glow) / 0.08), transparent 60%);
 }
 
+:root[data-theme="classic"] {
+  color-scheme: light;
+}
+
+:root[data-theme="classic"] body {
+  background-image: none;
+}
+
+:root[data-theme="classic"] .panel {
+  box-shadow: 0 1px 2px rgb(34 35 40 / 0.06);
+  backdrop-filter: none;
+}
+
+:root[data-theme="classic"] .readout {
+  text-shadow: none;
+}
+
+:root[data-theme="classic"] .btn {
+  background-color: var(--c-cyan);
+  border-color: var(--c-cyan);
+  color: #ffffff;
+}
+
+:root[data-theme="classic"] .btn:hover {
+  background-color: #903617;
+  border-color: #903617;
+}
+
+/* The dark looks lighten rows on hover; the light one darkens them a touch instead. */
+:root[data-theme="classic"] [class*="hover:bg-white/"]:hover {
+  background-color: rgb(34 35 40 / 0.04);
+}
+
 /* Bits of text that only show in one look. */
 :root[data-theme="matrix"] .jarvis-only,
+:root[data-theme="classic"] .jarvis-only,
 :root:not([data-theme="matrix"]) .matrix-only {
   display: none;
 }
@@ -123,5 +178,34 @@ body {
   }
   .link {
     @apply text-ink underline-offset-4 transition hover:text-cyan hover:underline;
+  }
+}
+
+/* Printing (e.g. a job description saved as PDF): just the page content, dark text on white. */
+@media print {
+  :root,
+  :root[data-theme] {
+    --c-void: #ffffff;
+    --c-panel: #ffffff;
+    --c-line: #dddddd;
+    --c-ink: #111111;
+    --c-muted: #333333;
+    --c-cyan: #b84520;
+  }
+  aside,
+  header.sticky,
+  nav,
+  canvas {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
+  .lg\:pl-60 {
+    padding-left: 0 !important;
+  }
+  .panel {
+    border: none !important;
+    box-shadow: none !important;
   }
 }

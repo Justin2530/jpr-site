@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Manrope } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { MatrixRain } from "@/components/matrix-rain";
+import { themeFrom } from "@/lib/theme";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "JPR Command Center",
@@ -20,12 +22,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#060e1c" };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  // JARVIS or Matrix, chosen in Settings.
+  // JARVIS, Matrix or Classic, chosen in Settings.
   const jar = await cookies();
-  const theme = jar.get("jpr-theme")?.value === "matrix" ? "matrix" : "jarvis";
+  const theme = themeFrom(jar.get("jpr-theme")?.value);
   const rain = ["off", "subtle"].includes(jar.get("jpr-rain")?.value ?? "") ? jar.get("jpr-rain")!.value : "bright";
   return (
-    <html lang="en" data-theme={theme} data-rain={rain} className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" data-theme={theme} data-rain={rain} className={`${geistSans.variable} ${geistMono.variable} ${manrope.variable}`}>
       <head>
         {/* With credentials so the manifest loads behind Vercel sign-in. */}
         <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />

@@ -4,6 +4,7 @@ import { Nav } from "@/components/nav";
 import { Clock } from "@/components/clock";
 import { SearchHotkey } from "@/components/search-hotkey";
 import { EmailSync } from "@/components/email-sync";
+import { BrowserButtons } from "@/components/browser-buttons";
 import { PlusIcon, SearchIcon } from "@/components/icons";
 import { label } from "@/lib/format";
 
@@ -57,6 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/" className="readout text-sm text-cyan lg:hidden">
             JPR
           </Link>
+          <BrowserButtons />
           <form action="/search" className="relative flex-1">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <input

@@ -16,6 +16,7 @@ import { ConnectButton } from "./connect-button";
 import { PasswordForm } from "./password-form";
 import { cookies } from "next/headers";
 import { AppearanceSettings, type Rain } from "@/components/theme";
+import { themeFrom } from "@/lib/theme";
 
 export const metadata = { title: "Settings · JPR" };
 
@@ -174,9 +175,7 @@ export default async function SettingsPage({
         </div>
         <div className="p-4">
           <AppearanceSettings
-            theme={
-              jar.get("jpr-theme")?.value === "matrix" ? "matrix" : "jarvis"
-            }
+            theme={themeFrom(jar.get("jpr-theme")?.value)}
             rain={
               (["off", "subtle"].includes(jar.get("jpr-rain")?.value ?? "")
                 ? jar.get("jpr-rain")!.value

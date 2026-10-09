@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type Theme = "jarvis" | "matrix";
+import type { Theme } from "@/lib/theme";
 
 // The look lives on <html data-theme data-rain>; cookies keep it so the server renders it the same way next time.
 function save(name: string, value: string) {
@@ -37,13 +37,14 @@ export function AppearanceSettings({ theme: initialTheme, rain: initialRain }: {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-ink">Look</p>
-          <p className="text-sm text-muted">JARVIS is navy and cyan. Matrix is black and green.</p>
+          <p className="text-sm text-muted">JARVIS is navy and cyan. Matrix is black and green. Classic is light, in the website&apos;s colors.</p>
         </div>
         <Choice
           value={theme}
           options={[
             ["jarvis", "JARVIS"],
             ["matrix", "Matrix"],
+            ["classic", "Classic"],
           ]}
           onChange={(v) => {
             setTheme(v);

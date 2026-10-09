@@ -263,9 +263,19 @@ export default async function JobDetail({
                 )}
               </Row>
               <Row label="Opened">{timeAgo(job.opened_on)}</Row>
-              <Row label="Description">{job.description && <span className="whitespace-pre-wrap">{job.description}</span>}</Row>
+              <Row label="Description">
+                {job.description && (
+                  <Link href={`/jobs/${job.id}/description`} className="btn-quiet">
+                    Job description
+                  </Link>
+                )}
+              </Row>
               <Row label="Can share">
-                {job.candidate_description && <span className="whitespace-pre-wrap">{job.candidate_description}</span>}
+                {job.candidate_description && (
+                  <Link href={`/jobs/${job.id}/description?v=share`} className="btn-quiet">
+                    What candidates can be told
+                  </Link>
+                )}
               </Row>
               <Row label="Internal">
                 {job.internal_notes && <span className="whitespace-pre-wrap text-amber">{job.internal_notes}</span>}

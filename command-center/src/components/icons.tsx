@@ -132,3 +132,19 @@ export const SettingsIcon = (p: P) => (
     <path d="M12 2.5v3M12 18.5v3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" />
   </S>
 );
+export const BackIcon = (p: P) => (
+  <S {...p}>
+    <path d="M15 5l-7 7 7 7" />
+  </S>
+);
+export const ForwardIcon = (p: P) => (
+  <S {...p}>
+    <path d="M9 5l7 7-7 7" />
+  </S>
+);
+export const RefreshIcon = (p: P) => (
+  <S {...p}>
+    <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+    <path d="M20 4v4.5h-4.5" />
+  </S>
+);
