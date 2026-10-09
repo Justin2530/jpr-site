@@ -343,6 +343,61 @@ export async function tellCall(
   });
 }
 
+// The go-ahead for an inbound call's greeting, made sure of: if the assistant hasn't started talking a few
+// seconds after being told to, it's told again (once she stayed silent until the caller said hello).
+export async function greetCall(sessionId: string, content: string, delayMs = 0) {
+  if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+  const { default: WebSocket } = await import("ws");
+  const ws = new WebSocket(
+    `wss://api.openai.com/v1/live/sessions/${sessionId}/attach`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}`,
+      },
+    },
+  );
+  return new Promise<string>((resolve) => {
+    let tries = 0;
+    let check: ReturnType<typeof setTimeout> | undefined;
+    const finish = (result: string) => {
+      clearTimeout(giveUp);
+      clearTimeout(check);
+      ws.close();
+      resolve(result);
+    };
+    const giveUp = setTimeout(() => finish(`timed out after ${tries} tries`), 15000);
+    const tell = () => {
+      tries++;
+      ws.send(
+        JSON.stringify({
+          type: "session.instructions.append",
+          event_id: `greet${tries}`,
+          delegation_id: null,
+          content:
+            tries === 1
+              ? content
+              : "You haven't greeted the caller yet. Say your opening to them right now.",
+        }),
+      );
+      check = setTimeout(() => (tries < 3 ? tell() : finish("no greeting after 3 tries")), 3500);
+    };
+    ws.on("open", tell);
+    ws.on("message", (raw) => {
+      const type = (() => {
+        try {
+          return (JSON.parse(String(raw)) as { type?: string }).type ?? "";
+        } catch {
+          return "";
+        }
+      })();
+      if (type === "session.output_transcript.delta" || type === "session.output_audio.delta")
+        finish(tries === 1 ? "ok" : `ok after ${tries} tries`);
+      else if (type === "session.input_transcript.delta") finish(`caller spoke first (try ${tries})`);
+    });
+    ws.on("error", (err) => finish(`socket ${String(err).slice(0, 200)}`));
+  });
+}
+
 // They picked up: let them say hello first, the way people expect a call to go. If they
 // stay quiet for a few seconds, the assistant opens on its own. Best effort: returns what happened.
 const QUIET_MS = 3500;

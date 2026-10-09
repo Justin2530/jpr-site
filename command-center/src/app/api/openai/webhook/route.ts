@@ -4,9 +4,9 @@ import { automationSecret } from "@/lib/automation";
 import {
   acceptCall,
   acceptLive,
+  greetCall,
   rejectCall,
   runFromSipHeaders,
-  tellCall,
   validOpenAIWebhook,
   type CallContext,
 } from "@/lib/live";
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     after(async () =>
       console.info(
         "Answering agent greeting:",
-        await tellCall(sessionId, GO_AHEAD, GREET_AFTER_MS),
+        await greetCall(sessionId, GO_AHEAD, GREET_AFTER_MS),
       ),
     );
     return NextResponse.json({ ok: true });
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
     after(async () =>
       console.info(
         "Inbound screening greeting:",
-        await tellCall(sessionId, GO_AHEAD, GREET_AFTER_MS),
+        await greetCall(sessionId, GO_AHEAD, GREET_AFTER_MS),
       ),
     );
   return NextResponse.json({ ok: true });
