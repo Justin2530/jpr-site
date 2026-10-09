@@ -154,6 +154,7 @@ export function CaptureForm({ jobs }: { jobs: { id: string; label: string }[] })
             </option>
           ))}
         </select>
+        {read?.jobWhy && <span className="block text-xs text-cyan">{read.jobWhy}</span>}
         <span className="text-xs text-faint">They go on the job as Sourced. Nothing automatic starts.</span>
       </label>
 

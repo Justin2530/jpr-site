@@ -10,6 +10,7 @@ export type CaptureRead = {
   fields: ParsedResume;
   match: { id: string; full_name: string } | null;
   jobId: string | null;
+  jobWhy: string | null;
   readFrom: "resume" | "page";
 };
 
@@ -63,26 +64,27 @@ export async function readCapture(form: FormData): Promise<CaptureRead> {
   if (!match) match = await sameName(supabase, fields.full_name);
 
   // The job: an open job whose title shows up on the Indeed page (the conversation names it).
-  // Titles are compared as plain words, without the parenthetical ("Machinist/CNC Machinist (2nd Shift)" shows on
-  // Indeed as "Acme Machine - Machinist / CNC Machinist"), and the client's name on the page decides between jobs
-  // with similar titles. A job they're already on wins.
-  const { data: jobs } = await supabase.from("jobs").select("id, title, companies(name, short_name)").eq("status", "open");
-  const plain = (t: string) => ` ${t.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[^a-z0-9]+/g, " ").trim()} `;
-  const words = plain(page);
+  const { data: jobs } = await supabase
+    .from("jobs")
+    .select("id, title, location, schedule, companies(name, short_name)")
+    .eq("status", "open");
+  const open = (jobs ?? []).map((j) => ({
+    id: j.id,
+    title: j.title,
+    company: j.companies?.short_name || j.companies?.name || "",
+    location: j.location,
+    schedule: j.schedule,
+  }));
   let onJobs: string[] = [];
   if (match) {
     const { data } = await supabase.from("candidate_jobs").select("job_id").eq("candidate_id", match.id);
     onJobs = (data ?? []).map((r) => r.job_id);
   }
-  const job = (jobs ?? [])
-    .filter((j) => plain(j.title).trim() && words.includes(plain(j.title)))
-    .map((j) => {
-      const co = [j.companies?.short_name, j.companies?.name?.split(/\s+/)[0]].filter((n): n is string => Boolean(n && n.length > 2));
-      const coHit = co.some((n) => words.includes(plain(n)));
-      return { j, score: (onJobs.includes(j.id) ? 4 : 0) + (coHit ? 2 : 0) + plain(j.title).length / 100 };
-    })
-    .sort((a, b) => b.score - a.score)[0]?.j;
-  return { fields, match, jobId: job?.id ?? null, readFrom: body ? "resume" : "page" };
+  const pick = await pickJob(page, fields, open, onJobs).catch((e) => {
+    console.error("Send to JPR job pick failed", e);
+    return null;
+  });
+  return { fields, match, jobId: pick?.job_id || null, jobWhy: pick?.job_id ? pick.reason : null, readFrom: body ? "resume" : "page" };
 }
 
 // Step two: save it. A person already on file gets the resume and any details they were missing; anyone new
@@ -150,4 +152,58 @@ export async function saveCapture(form: FormData): Promise<{ ok: boolean; messag
   revalidatePath("/candidates");
   revalidatePath("/pipeline");
   return { ok: true, message: `${name} is in the Command Center.`, id };
+}
+
+type OpenJob = { id: string; title: string; company: string; location: string | null; schedule: string | null };
+
+// Which open job this person was contacted about, reasoned the way Justin would: his outreach message on the
+// Indeed page (town, shift, details) first, then where they live against where each job is. Indeed project names
+// are his own labels and can be reused across clients, so a title match alone decides nothing.
+async function pickJob(page: string, fields: ParsedResume, jobs: OpenJob[], onJobs: string[]) {
+  const key = process.env.OPENAI_API_KEY?.trim();
+  if (!key || !jobs.length) return null;
+  const res = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
+      instructions:
+        "You work for JPR, a recruiting firm. Justin, the owner, reached out to this person on Indeed about one of JPR's open jobs. " +
+        "From their Indeed page, work out which job in OPEN_JOBS it was. Several jobs share similar titles at different clients and towns, so reason like a recruiter: " +
+        "1) Justin's outreach message on the page is the strongest clue (the town or area it names, shift, pay, details); " +
+        "2) where the person lives against where each job is (a reasonable commute); 3) the title last. " +
+        "Indeed project names are Justin's own labels and can be reused for other clients, so never decide on a project name alone. " +
+        "ALREADY_ON lists jobs they were put on before, possibly by mistake; it is a weak hint only. " +
+        "Leave job_id empty unless you're confident; a wrong job is worse than none. reason: one short plain sentence Justin will read, e.g. \"Your message says New Kensington area, and he lives in Apollo.\"",
+      input: JSON.stringify({
+        person: { name: fields.full_name, city: fields.city, state: fields.state, current_title: fields.current_title },
+        OPEN_JOBS: jobs,
+        ALREADY_ON: onJobs,
+        indeed_page: page.replace(/\n{3,}/g, "\n\n").slice(0, 15000),
+      }),
+      reasoning: { effort: "low" },
+      text: {
+        format: {
+          type: "json_schema",
+          name: "job_pick",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: { job_id: { type: "string" }, reason: { type: "string" } },
+            required: ["job_id", "reason"],
+          },
+        },
+      },
+    }),
+    signal: AbortSignal.timeout(40000),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const data = await res.json();
+  const out = (data.output ?? [])
+    .flatMap((o: { content?: { type: string; text?: string }[] }) => o.content ?? [])
+    .find((c: { type: string }) => c.type === "output_text")?.text;
+  const r = JSON.parse(out) as { job_id: string; reason: string };
+  if (!jobs.some((j) => j.id === r.job_id)) r.job_id = "";
+  return r;
 }
