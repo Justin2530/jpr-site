@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/", "/api/twilio/", "/api/automation/", "/api/screening/", "/api/openai/", "/api/reception/", "/manifest.webmanifest"];
+const PUBLIC_PATHS = ["/login", "/auth/", "/api/twilio/", "/api/automation/", "/api/screening/", "/api/openai/", "/api/reception/", "/manifest.webmanifest", "/sw.js"];
 
 // Refreshes the auth session on every request and sends signed-out visitors to /login.
 export async function updateSession(request: NextRequest) {

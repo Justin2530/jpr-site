@@ -1,4 +1,7 @@
 import { escapeXml, toE164, twilioApi, twilioNumber, webhookUrl } from "@/lib/twilio";
+import { after } from "next/server";
+import { automationSecret } from "@/lib/automation";
+import { sendPushes } from "@/lib/push";
 import { EMPTY_TWIML, readTwilio, webhookDb } from "../webhook";
 
 function reply(text: string) {
@@ -69,6 +72,8 @@ export async function POST(request: Request) {
     console.error("twilio sms webhook", error.message);
     return new Response("Error", { status: 500 }); // Twilio retries
   }
+  // Phone notification for the Messages tab, sent after Twilio has its answer.
+  after(() => sendPushes(db, automationSecret() ?? "").catch((e) => console.error("Push after text failed", e)));
 
   if (cell) {
     const { data: name } = await db.rpc("twilio_caller_name", { p_secret: secret, p_from: p.From ?? "" });

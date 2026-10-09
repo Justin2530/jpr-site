@@ -104,6 +104,7 @@ export type Database = {
           relay_status: string | null;
           relay_note: string | null;
           relay_claimed_at: string | null;
+          pushed_at: string | null;
           actor_id: string | null;
           brain_claimed_at: string | null;
           brain_note: string | null;
@@ -131,6 +132,7 @@ export type Database = {
           relay_status?: string | null;
           relay_note?: string | null;
           relay_claimed_at?: string | null;
+          pushed_at?: string | null;
           actor_id?: string | null;
           brain_claimed_at?: string | null;
           brain_note?: string | null;
@@ -557,6 +559,18 @@ export type Database = {
           staff_id?: string;
           token_enc?: string;
         };
+        Relationships: [];
+      };
+      message_reads: {
+        Row: { staff_id: string; who: string; read_at: string };
+        Insert: { staff_id: string; who: string; read_at?: string };
+        Update: { staff_id?: string; who?: string; read_at?: string };
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: { endpoint: string; staff_id: string; p256dh: string; auth: string; created_at: string; gone_at: string | null };
+        Insert: { endpoint: string; staff_id: string; p256dh: string; auth: string; created_at?: string; gone_at?: string | null };
+        Update: { endpoint?: string; staff_id?: string; p256dh?: string; auth?: string; created_at?: string; gone_at?: string | null };
         Relationships: [];
       };
       integration_snapshots: {
@@ -1434,6 +1448,9 @@ export type Database = {
       brain_apply: { Args: { p_secret: string; p_activity: string; p_decision: Json }; Returns: string };
       gmail_backfill_get: { Args: { p_secret: string; p_staff: string }; Returns: Json };
       gmail_backfill_set: { Args: { p_secret: string; p_staff: string; p_from: string }; Returns: undefined };
+      push_claim: { Args: { p_secret: string }; Returns: { title: string; body: string; url: string }[] };
+      push_devices: { Args: { p_secret: string }; Returns: { endpoint: string; p256dh: string; auth: string }[] };
+      push_forget: { Args: { p_secret: string; p_endpoint: string }; Returns: undefined };
       set_outreach: { Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string }; Returns: string };
       set_job_automation: { Args: { p_job: string; p_on: boolean }; Returns: number };
       automation_sync: { Args: { p_job?: string; p_cj?: string }; Returns: number };

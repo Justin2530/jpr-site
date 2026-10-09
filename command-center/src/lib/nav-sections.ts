@@ -2,6 +2,7 @@
 // It lives outside nav.tsx because a server page can't read plain data out of a "use client" file.
 import {
   CandidatesIcon,
+  ChatIcon,
   ClientsIcon,
   ContactsIcon,
   DealsIcon,
@@ -17,7 +18,13 @@ import {
 type Item = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactElement; ownerOnly?: boolean };
 
 export const SECTIONS: { title: string | null; items: Item[] }[] = [
-  { title: null, items: [{ href: "/", label: "What needs me", Icon: HomeIcon }] },
+  {
+    title: null,
+    items: [
+      { href: "/", label: "What needs me", Icon: HomeIcon },
+      { href: "/messages", label: "Messages", Icon: ChatIcon },
+    ],
+  },
   {
     title: "Recruiting",
     items: [

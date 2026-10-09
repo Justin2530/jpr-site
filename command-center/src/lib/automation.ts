@@ -9,6 +9,7 @@ import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
 import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
 import { backfillMailbox, syncMailbox } from "@/lib/gmail-sync";
+import { sendPushes } from "@/lib/push";
 import { runRelay } from "@/lib/relay";
 
 // Secret the database uses to call back into this app, derived from a server-only secret so it
@@ -206,6 +207,11 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         console.error("Inbox backfill failed for", box.email, e);
       }
     }
+  }
+  try {
+    await sendPushes(db, secret);
+  } catch (e) {
+    console.error("Phone notifications failed", e);
   }
   // Hiring requests from the website also go to Justin's inbox, with Reply-To set to the employer.
   let leads = 0;

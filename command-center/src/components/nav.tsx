@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CandidatesIcon, DealsIcon, HomeIcon, MenuIcon, PipelineIcon } from "./icons";
+import { CandidatesIcon, ChatIcon, HomeIcon, MenuIcon, PipelineIcon } from "./icons";
 import { SECTIONS } from "@/lib/nav-sections";
 
 const MOBILE = [
   { href: "/", label: "Home", Icon: HomeIcon },
   { href: "/pipeline", label: "Pipeline", Icon: PipelineIcon },
   { href: "/candidates", label: "Candidates", Icon: CandidatesIcon },
-  { href: "/deals", label: "Deals", Icon: DealsIcon },
+  { href: "/messages", label: "Messages", Icon: ChatIcon },
   { href: "/menu", label: "More", Icon: MenuIcon },
 ];
 
