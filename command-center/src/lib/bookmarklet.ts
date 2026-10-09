@@ -16,7 +16,8 @@ const ranked=links.map(l=>({...l,s:score(l)})).filter(l=>l.s>=3).sort((a,b)=>b.s
 const seen=new Set();
 for(const l of ranked){if(file||seen.has(l.u)||seen.size>=5)continue;seen.add(l.u);try{const r=await fetch(l.u,{credentials:'include'});const ct=r.headers.get('content-type')||'';if(r.ok&&/pdf|msword|officedocument|octet-stream|rtf|text\\/plain/i.test(ct)){const b=await r.arrayBuffer();const m=(r.headers.get('content-disposition')||'').match(/filename\\*?=(?:UTF-8'')?"?([^";]+)/i);file={name:m?decodeURIComponent(m[1]):(/word|officedocument/i.test(ct)?'resume.docx':'resume.pdf'),type:ct,buf:b};}}catch(e){}}
 if(!file){
-const btn=docs.flatMap(d=>[...d.querySelectorAll('button,[role=button],a')]).find(e=>/^\\s*download resume\\s*$/i.test((e.innerText||'')+'')||/^download resume$/i.test(e.getAttribute('aria-label')||''));
+const cands=docs.flatMap(d=>[...d.querySelectorAll('button,[role=button],a')]);const lbl=e=>((e.innerText||'').trim()||e.getAttribute('aria-label')||'').trim();
+const btn=cands.find(e=>/^download resume$/i.test(lbl(e)))||cands.find(e=>/^download profile$/i.test(lbl(e)));
 if(btn){
 const of=window.fetch,oc=URL.createObjectURL,ac=HTMLAnchorElement.prototype.click,wo=window.open,xs=XMLHttpRequest.prototype.send;let nm=null;
 const kind=(b,ct)=>{const h=new Uint8Array(b.slice(0,4));if(h[0]==37&&h[1]==80&&h[2]==68&&h[3]==70)return 'application/pdf';if(h[0]==80&&h[1]==75)return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';if(h[0]==208&&h[1]==207)return 'application/msword';return /pdf|msword|officedocument|rtf/i.test(ct||'')?ct:null;};
