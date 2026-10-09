@@ -48,13 +48,12 @@ export async function setStage(form: FormData) {
 
 export async function unassign(form: FormData) {
   const { supabase } = await requireStaff();
-  const { data, error } = await supabase
-    .from("candidate_jobs")
-    .delete()
-    .eq("id", String(form.get("id")))
-    .select("candidate_id, job_id")
-    .single();
+  const id = String(form.get("id"));
+  // An unsent reply draft filed on this job would block the removal; it goes too.
+  await supabase.from("inbox_drafts").delete().eq("candidate_job_id", id);
+  const { data, error } = await supabase.from("candidate_jobs").delete().eq("id", id).select("candidate_id, job_id").maybeSingle();
   if (error) throw new Error(error.message);
+  if (!data) return; // already removed (a second press)
   revalidatePath(`/candidates/${data.candidate_id}`);
   revalidatePath(`/jobs/${data.job_id}`);
   revalidatePath("/");

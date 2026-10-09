@@ -218,3 +218,37 @@ export async function labelBackfill(db: SupabaseClient<Database>, secret: string
   await db.rpc("label_backfill_set", { p_secret: secret, p_staff: box.staff_id, p_from: new Date(next).toISOString() });
   return n;
 }
+
+// Submissions Justin sent from his own Gmail: a candidate moved to Submitted (or later) with no submission sent
+// from the Command Center gets his Sent mail searched for an email to that client (a contact's address or their
+// company domain) naming the candidate. The one found is recorded as the submission, thread and all, so the
+// client follow-up and interview scheduling work for it like any other.
+export async function findManualSubmissions(db: SupabaseClient<Database>, secret: string, box: Mailbox) {
+  const { data } = await db.rpc("manual_submissions_due", { p_secret: secret });
+  const due = (data ?? []) as unknown as { cj_id: string; full_name: string; title: string; since: string; emails: string[] }[];
+  if (!due.length) return;
+  const token = await accessToken(openToken(box.token));
+  const free = /@(gmail|yahoo|hotmail|outlook|aol|icloud|live|msn|comcast|verizon|att)\./i;
+  for (const d of due) {
+    if (!d.emails.length) continue;
+    const domains = [...new Set(d.emails.filter((e) => !free.test(e)).map((e) => e.split("@")[1]))];
+    const to = [...d.emails.map((e) => `to:${e}`), ...domains.map((x) => `to:${x}`)].join(" OR ");
+    const after = Math.floor(new Date(d.since).getTime() / 1000) - 21 * 86400;
+    const ids = await listGmail(token, `in:sent (${to}) "${d.full_name.replace(/"/g, "")}" after:${after}`, 5);
+    if (!ids.length) continue;
+    const msgs = (await Promise.all(ids.map((m) => readGmail(token, m.id).catch(() => null)))).filter(
+      (m): m is NonNullable<typeof m> => Boolean(m),
+    );
+    const sub = msgs.sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+    if (!sub) continue;
+    await db.rpc("manual_submission_record", {
+      p_secret: secret,
+      p_cj: d.cj_id,
+      p_thread: sub.threadId,
+      p_subject: sub.subject,
+      p_sent_at: sub.date.toISOString(),
+      p_to: sub.to,
+    });
+    console.log(`Recorded ${d.full_name}'s ${d.title} submission from Gmail (${sub.subject})`);
+  }
+}

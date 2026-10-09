@@ -5,6 +5,7 @@ import { requireStaff } from "@/lib/staff";
 import { text } from "@/lib/format";
 import { parseResume, resumeText, type ParsedResume } from "@/lib/resume-parse";
 import { MAX_RESUME, saveResume } from "@/lib/resume-store";
+import { accessToken, listGmail, openToken, readGmail } from "@/lib/google";
 
 export type CaptureRead = {
   fields: ParsedResume;
@@ -34,7 +35,7 @@ async function sameName(supabase: Awaited<ReturnType<typeof requireStaff>>["supa
 // Step one of "Send to JPR": read the resume (or the page, when there's no file) and fill in who this is,
 // which open job the page mentions, and whether they're already in the system. Nothing is saved yet.
 export async function readCapture(form: FormData): Promise<CaptureRead> {
-  const { supabase } = await requireStaff();
+  const { supabase, userId } = await requireStaff();
   const page = String(form.get("page") ?? "").slice(0, 30000);
   // What the bookmark saw that might be the resume, so a missed download can be tuned to Indeed's page.
   const links = String(form.get("links") ?? "");
@@ -68,7 +69,8 @@ export async function readCapture(form: FormData): Promise<CaptureRead> {
     .from("jobs")
     .select("id, title, location, schedule, companies(name, short_name)")
     .eq("status", "open");
-  const open = (jobs ?? []).map((j) => ({
+  // JPR's own test and in-house jobs are never what an Indeed outreach was about.
+  const open = (jobs ?? []).filter((j) => !/\(test\)/i.test(j.title) && !/j-?\.?\s*peace/i.test(j.companies?.name ?? "")).map((j) => ({
     id: j.id,
     title: j.title,
     company: j.companies?.short_name || j.companies?.name || "",
@@ -80,7 +82,11 @@ export async function readCapture(form: FormData): Promise<CaptureRead> {
     const { data } = await supabase.from("candidate_jobs").select("job_id").eq("candidate_id", match.id);
     onJobs = (data ?? []).map((r) => r.job_id);
   }
-  const pick = await pickJob(page, fields, open, onJobs).catch((e) => {
+  const mail = await mailAbout(supabase, userId, fields.full_name, fields.email).catch((e) => {
+    console.error("Send to JPR Gmail look-up failed", e);
+    return [];
+  });
+  const pick = await pickJob(page, fields, open, onJobs, mail).catch((e) => {
     console.error("Send to JPR job pick failed", e);
     return null;
   });
@@ -122,7 +128,11 @@ export async function saveCapture(form: FormData): Promise<{ ok: boolean; messag
     const fresh = Object.fromEntries(
       Object.entries(fields).filter(([k, v]) => v && (k !== "full_name" || !c.full_name) && v !== c[k as keyof typeof c]),
     ) as Partial<typeof fields>;
-    if (Object.keys(fresh).length) await supabase.from("candidates").update(fresh).eq("id", id);
+    // Adding someone through Send to JPR is adding them now: automation's "only people added after it was
+    // turned on" rule reads created_at, so an older record (a Recruiterflow import) counts from today, and the
+    // original date is kept in first_added_at.
+    const readd = new Date(c.created_at) < new Date(Date.now() - 24 * 3600_000) ? { created_at: new Date().toISOString(), first_added_at: c.first_added_at ?? c.created_at } : {};
+    if (Object.keys(fresh).length || Object.keys(readd).length) await supabase.from("candidates").update({ ...fresh, ...readd }).eq("id", id);
     updated = true;
   } else {
     const { data, error } = await supabase
@@ -163,7 +173,28 @@ type OpenJob = { id: string; title: string; company: string; location: string | 
 // Which open job this person was contacted about, reasoned the way Justin would: his outreach message on the
 // Indeed page (town, shift, details) first, then where they live against where each job is. Indeed project names
 // are his own labels and can be reused across clients, so a title match alone decides nothing.
-async function pickJob(page: string, fields: ParsedResume, jobs: OpenJob[], onJobs: string[]) {
+// Justin's own emails about this person (Indeed message notifications carry his outreach and their reply,
+// named after them), newest first, trimmed: the best record of which job he contacted them about.
+async function mailAbout(supabase: Awaited<ReturnType<typeof requireStaff>>["supabase"], userId: string, name: string, email: string | null) {
+  if (!name.trim()) return [];
+  const { data: account } = await supabase.from("google_accounts").select("token_enc").eq("staff_id", userId).maybeSingle();
+  if (!account) return [];
+  const token = await accessToken(openToken(account.token_enc));
+  const q = [`"${name.replace(/"/g, "")}"`, email && `from:${email}`, email && `to:${email}`].filter(Boolean).join(" OR ");
+  const ids = await listGmail(token, `(${q}) newer_than:120d -in:spam -in:trash`, 6);
+  const msgs = await Promise.all(ids.map((m) => readGmail(token, m.id).catch(() => null)));
+  return msgs
+    .filter((m): m is NonNullable<typeof m> => Boolean(m))
+    .map((m) => ({ date: m.date.toISOString().slice(0, 10), from: m.from, subject: m.subject, text: m.text.replace(/\s+\n/g, "\n").slice(0, 2500) }));
+}
+
+async function pickJob(
+  page: string,
+  fields: ParsedResume,
+  jobs: OpenJob[],
+  onJobs: string[],
+  mail: { date: string; from: string; subject: string; text: string }[] = [],
+) {
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key || !jobs.length) return null;
   const res = await fetch("https://api.openai.com/v1/responses", {
@@ -174,7 +205,7 @@ async function pickJob(page: string, fields: ParsedResume, jobs: OpenJob[], onJo
       instructions:
         "You work for JPR, a recruiting firm. Justin, the owner, reached out to this person on Indeed about one of JPR's open jobs. " +
         "From their Indeed page, work out which job in OPEN_JOBS it was. Several jobs share similar titles at different clients and towns, so reason like a recruiter: " +
-        "1) Justin's outreach message on the page is the strongest clue (the town or area it names, shift, pay, details); " +
+        "1) Justin's own outreach is the strongest clue, whether on the Indeed page or in MY_EMAILS (his Gmail: Indeed message notifications with his outreach and their replies, or emails with them): the company, town or area it names, shift, pay, details; " +
         "2) where the person lives against where each job is (a reasonable commute); 3) the title last. " +
         "Indeed project names are Justin's own labels and can be reused for other clients, so never decide on a project name alone. " +
         "ALREADY_ON lists jobs they were put on before, possibly by mistake; it is a weak hint only. " +
@@ -184,6 +215,7 @@ async function pickJob(page: string, fields: ParsedResume, jobs: OpenJob[], onJo
         OPEN_JOBS: jobs,
         ALREADY_ON: onJobs,
         indeed_page: page.replace(/\n{3,}/g, "\n\n").slice(0, 15000),
+        MY_EMAILS: mail,
       }),
       reasoning: { effort: "low" },
       text: {

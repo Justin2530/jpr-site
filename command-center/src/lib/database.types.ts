@@ -260,6 +260,7 @@ export type Database = {
       };
       candidate_jobs: {
         Row: {
+          submission_lookup_at: string | null;
           assigned_at: string;
           assigned_by: string | null;
           candidate_id: string;
@@ -310,6 +311,7 @@ export type Database = {
       };
       candidates: {
         Row: {
+          first_added_at: string | null;
           automation_paused_at: string | null;
           automation_paused_reason: string | null;
           indeed_relay: string | null;
@@ -1412,6 +1414,11 @@ export type Database = {
       label_backfill_get: { Args: { p_secret: string; p_staff: string }; Returns: Json };
       label_backfill_set: { Args: { p_secret: string; p_staff: string; p_from: string }; Returns: undefined };
       release_candidates: { Args: { p_ids: string[] }; Returns: undefined };
+      manual_submissions_due: { Args: { p_secret: string }; Returns: Json };
+      manual_submission_record: {
+        Args: { p_secret: string; p_cj: string; p_thread: string; p_subject: string; p_sent_at: string; p_to: string[] };
+        Returns: string | null;
+      };
       inbox_sender: { Args: { p_secret: string; p_from: string }; Returns: Json };
       inbox_file: { Args: { p_secret: string; p: Json }; Returns: Json };
       inbox_draft_sent: {

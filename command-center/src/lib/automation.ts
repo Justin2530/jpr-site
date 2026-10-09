@@ -8,7 +8,7 @@ import type { Database } from "@/lib/database.types";
 import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
 import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
-import { backfillMailbox, labelBackfill, labelMailbox, syncMailbox } from "@/lib/gmail-sync";
+import { backfillMailbox, findManualSubmissions, labelBackfill, labelMailbox, syncMailbox } from "@/lib/gmail-sync";
 import { sendPushes } from "@/lib/push";
 import { runRelay } from "@/lib/relay";
 
@@ -215,6 +215,11 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         await labelMailbox(db, secret, box);
       } catch (e) {
         console.error("Gmail labels failed for", box.email, e);
+      }
+      try {
+        await findManualSubmissions(db, secret, box);
+      } catch (e) {
+        console.error("Looking up Gmail submissions failed for", box.email, e);
       }
     }
   }
