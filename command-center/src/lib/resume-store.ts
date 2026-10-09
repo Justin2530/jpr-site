@@ -75,8 +75,23 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
   } catch (e) {
     return { ok: false, message: `Couldn't lay it out: ${e instanceof Error ? e.message : e}` };
   }
-  const body = brandedText(layout);
-  const check = checkWords(text, body);
+  let body = brandedText(layout);
+  let check = checkWords(text, body);
+  // Anything dropped gets one more try with the missing words named; the better of the two is kept.
+  if (check.lost.length) {
+    try {
+      const again = await layoutResume(text, { name: r.file_name, type: file.type, data: Buffer.from(await blob.arrayBuffer()) }, check.lost);
+      const againBody = brandedText(again);
+      const againCheck = checkWords(text, againBody);
+      if (againCheck.lost.length + againCheck.added.length < check.lost.length + check.added.length) {
+        layout = again;
+        body = againBody;
+        check = againCheck;
+      }
+    } catch {
+      // keep the first try
+    }
+  }
   const note0 = check.ok
     ? `Checked: all ${check.total} words of the original are here, nothing added.`
     : [

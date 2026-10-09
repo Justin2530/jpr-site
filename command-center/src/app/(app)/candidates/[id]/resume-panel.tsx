@@ -3,6 +3,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { shortDate } from "@/lib/format";
 import { uploadResume } from "../actions";
 import { JprButton } from "./jpr-button";
+import { DeleteFile } from "./delete-file";
 
 export type ShownResume = {
   id: string;
@@ -70,6 +71,12 @@ export function ResumePanel({ candidateId, resumes }: { candidateId: string; res
                     Download
                   </a>
                 )}
+                <DeleteFile
+                  resumeId={r.id}
+                  candidateId={candidateId}
+                  name={r.file_name}
+                  hasJpr={resumes.some((x) => x.branded_from === r.id)}
+                />
               </li>
             );
           })}

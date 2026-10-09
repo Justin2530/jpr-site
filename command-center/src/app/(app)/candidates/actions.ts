@@ -158,6 +158,22 @@ export async function uploadResume(form: FormData) {
 }
 
 // "Make JPR version" on a resume already on file.
+// Removes one file from a candidate. An original resume takes its JPR version with it.
+export async function deleteResume(resumeId: string, candidateId: string) {
+  const { supabase } = await requireStaff();
+  const { data: rows } = await supabase
+    .from("resumes")
+    .select("id, storage_path")
+    .eq("candidate_id", candidateId)
+    .or(`id.eq.${resumeId},branded_from.eq.${resumeId}`);
+  if (!rows?.length) return;
+  const paths = rows.map((x) => x.storage_path).filter((x): x is string => Boolean(x));
+  if (paths.length) await supabase.storage.from("resumes").remove(paths);
+  const { error } = await supabase.from("resumes").delete().in("id", rows.map((x) => x.id));
+  if (error) throw new Error(error.message);
+  revalidatePath(`/candidates/${candidateId}`);
+}
+
 // redoOf: a JPR version to replace. It's removed first, then the original is read fresh and laid out again.
 export async function makeJprVersion(resumeId: string, candidateId: string, redoOf?: string) {
   const { supabase, userId } = await requireStaff();
