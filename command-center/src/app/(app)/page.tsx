@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
-import { Chip, Dot, Empty, Panel, Stat } from "@/components/ui";
+import { Chip, Dot, Empty, Panel } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ShieldIcon } from "@/components/icons";
 import { timeAgo, type Tone } from "@/lib/format";
@@ -36,6 +36,28 @@ function hrefFor(item: Tables<"needs_me">) {
   return null;
 }
 
+// What needs me, grouped so each kind of thing has its own section instead of one long list.
+const SECTIONS = [
+  { key: "submit", title: "Submissions and offers to approve" },
+  { key: "call", title: "Calls to make or return" },
+  { key: "message", title: "Messages waiting on you" },
+  { key: "people", title: "New people to review" },
+  { key: "sales", title: "Sales and business" },
+  { key: "tasks", title: "Tasks and reminders" },
+] as const;
+type SectionKey = (typeof SECTIONS)[number]["key"];
+
+function sectionFor(item: Tables<"needs_me">): SectionKey {
+  const kind = item.kind ?? "task";
+  const title = item.title ?? "";
+  if (["submission_ready", "offer", "protected_client"].includes(kind)) return "submit";
+  if (/^(call back|call |return call|missed call|voicemail|screening call)/i.test(title)) return "call";
+  if (kind === "website_lead" || kind === "needs_contact" || (kind === "inbox" && /^new candidate/i.test(title))) return "people";
+  if (kind === "reply" || kind === "inbox") return "message";
+  if (["deal_follow_up", "agreement_ending", "service_renewal", "invoice_due", "stale_job"].includes(kind)) return "sales";
+  return "tasks";
+}
+
 function greeting() {
   const hour = Number(
     new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }).format(new Date()),
@@ -45,20 +67,12 @@ function greeting() {
   return "Good evening";
 }
 
-const CLOSED_STAGES = "(placed,passed,withdrawn,couldnt_contact)";
-
 export default async function Home() {
   const { supabase, staff } = await requireStaff();
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const soon = new Date(new Date().getTime() - 2 * 3600_000).toISOString();
 
-  const [needs, openJobs, inPipeline, readyToSubmit, placedMonth, openDeals, recent, samples, upcoming, drafts] = await Promise.all([
-    supabase.from("needs_me").select("*").order("priority").order("since", { ascending: true }).limit(50),
-    supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "open"),
-    supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).not("stage", "in", CLOSED_STAGES),
-    supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).eq("stage", "ready_to_submit"),
-    supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).eq("stage", "placed").gte("stage_changed_at", monthStart),
-    supabase.from("deals").select("id", { count: "exact", head: true }).not("stage", "in", "(won,lost)"),
+  const [needs, recent, samples, upcoming, drafts] = await Promise.all([
+    supabase.from("needs_me").select("*").order("priority").order("since", { ascending: true }).limit(100),
     supabase
       .from("activities")
       .select("id, summary, occurred_at, kind, candidate_id, job_id, company_id, candidates(full_name)")
@@ -114,64 +128,73 @@ export default async function Home() {
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <Stat label="Open jobs" value={openJobs.count ?? 0} href="/jobs" />
-        <Stat label="In pipeline" value={inPipeline.count ?? 0} href="/pipeline" />
-        <Stat label="Ready to submit" value={readyToSubmit.count ?? 0} tone="amber" href="/pipeline" />
-        <Stat label="Placed this month" value={placedMonth.count ?? 0} tone="mint" href="/placements?period=month" />
-        <Stat label="Open deals" value={openDeals.count ?? 0} href="/deals" />
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <Panel title="What needs me" action={<span className="readout text-xs text-cyan">{items.length}</span>}>
           {items.length === 0 ? (
             <Empty>All clear. Assign a candidate to a job and it will show up here.</Empty>
           ) : (
-            <ul className="-my-1 divide-y divide-line">
-              {items.map((item) => {
-                const k = KIND[item.kind ?? "task"] ?? KIND.task;
-                const href = hrefFor(item);
-                const taskId = item.key?.startsWith("task:") ? item.key.slice(5) : null;
+            <div className="-my-1 space-y-3">
+              {SECTIONS.map((sec) => {
+                const list = items.filter((item) => sectionFor(item) === sec.key);
+                if (list.length === 0) return null;
                 return (
-                  <li key={item.key} className="flex items-start gap-3 py-3">
-                    <div className="pt-1.5">
-                      {item.kind === "protected_client" ? (
-                        <ShieldIcon className="h-4 w-4 text-rose" />
-                      ) : (
-                        <Dot tone={item.priority === 1 ? "amber" : k.tone} />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {href ? (
-                          <Link href={href} className="link font-medium">
-                            {item.title}
-                          </Link>
-                        ) : (
-                          <span className="font-medium">{item.title}</span>
-                        )}
-                        <Chip tone={k.tone}>{k.label}</Chip>
-                      </div>
-                      {item.detail && <p className="mt-0.5 whitespace-pre-line text-sm text-muted">{item.detail}</p>}
-                      {taskId && draftFor.has(taskId) && (
-                        <InboxDraft id={draftFor.get(taskId)!.id} body={draftFor.get(taskId)!.body} />
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="font-mono text-[11px] text-faint">{timeAgo(item.since)}</span>
-                      {taskId && (
-                        <form action={resolveTask}>
-                          <input type="hidden" name="id" value={taskId} />
-                          <SubmitButton className="btn-quiet px-2 py-1 text-xs" pendingText="…">
-                            Done
-                          </SubmitButton>
-                        </form>
-                      )}
-                    </div>
-                  </li>
+                  <details key={sec.key} open className="group rounded-lg border border-line">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 hover:bg-white/[0.02]">
+                      <span className="flex items-center gap-2 font-medium">
+                        <span className="text-faint transition group-open:rotate-90">›</span>
+                        {sec.title}
+                      </span>
+                      <span className="readout text-xs text-cyan">{list.length}</span>
+                    </summary>
+                    <ul className="divide-y divide-line border-t border-line px-3">
+                  {list.map((item) => {
+                    const k = KIND[item.kind ?? "task"] ?? KIND.task;
+                    const href = hrefFor(item);
+                    const taskId = item.key?.startsWith("task:") ? item.key.slice(5) : null;
+                    return (
+                      <li key={item.key} className="flex items-start gap-3 py-3">
+                        <div className="pt-1.5">
+                          {item.kind === "protected_client" ? (
+                            <ShieldIcon className="h-4 w-4 text-rose" />
+                          ) : (
+                            <Dot tone={item.priority === 1 ? "amber" : k.tone} />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {href ? (
+                              <Link href={href} className="link font-medium">
+                                {item.title}
+                              </Link>
+                            ) : (
+                              <span className="font-medium">{item.title}</span>
+                            )}
+                            <Chip tone={k.tone}>{k.label}</Chip>
+                          </div>
+                          {item.detail && <p className="mt-0.5 whitespace-pre-line text-sm text-muted">{item.detail}</p>}
+                          {taskId && draftFor.has(taskId) && (
+                            <InboxDraft id={draftFor.get(taskId)!.id} body={draftFor.get(taskId)!.body} />
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="font-mono text-[11px] text-faint">{timeAgo(item.since)}</span>
+                          {taskId && (
+                            <form action={resolveTask}>
+                              <input type="hidden" name="id" value={taskId} />
+                              <SubmitButton className="btn-quiet px-2 py-1 text-xs" pendingText="…">
+                                Done
+                              </SubmitButton>
+                            </form>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                    </ul>
+                  </details>
                 );
               })}
-            </ul>
+            </div>
           )}
           <form action={addTask} className="mt-4 flex gap-2 border-t border-line pt-4">
             <input name="title" className="field" placeholder="Add a reminder for yourself…" aria-label="New reminder" />

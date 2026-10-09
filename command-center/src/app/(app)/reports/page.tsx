@@ -50,14 +50,25 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   }
   const from = periodStart(period).toISOString();
 
-  const [stages, activity, placements, deals, agreements, jobs] = await Promise.all([
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const [stages, activity, placements, deals, agreements, jobs, placedMonth] = await Promise.all([
     supabase.from("candidate_jobs").select("stage, candidates(source)"),
     supabase.from("activities").select("kind, summary, occurred_at, candidate_id, candidates(source)").gte("occurred_at", from).limit(5000),
     supabase.from("placements").select("fee_amount, invoice_status, start_date, created_at, candidate_jobs(jobs(companies(name)))"),
     supabase.from("deals").select("stage, value, closed_at, created_at"),
     supabase.from("agreements").select("type, status, monthly_price, end_date"),
     supabase.from("jobs").select("id, title, opened_on, companies(name), candidate_jobs(stage)").eq("status", "open"),
+    supabase.from("candidate_jobs").select("id", { count: "exact", head: true }).eq("stage", "placed").gte("stage_changed_at", monthStart),
   ]);
+  // Right now (moved here from the home page, Justin 2026-10-09).
+  const closed = ["placed", "passed", "withdrawn", "couldnt_contact"];
+  const current = {
+    openJobs: (jobs.data ?? []).length,
+    inPipeline: (stages.data ?? []).filter((r) => !closed.includes(r.stage)).length,
+    ready: (stages.data ?? []).filter((r) => r.stage === "ready_to_submit").length,
+    placedMonth: placedMonth.count ?? 0,
+    openDeals: (deals.data ?? []).filter((d) => d.stage !== "won" && d.stage !== "lost").length,
+  };
 
   // Pipeline right now
   const now = Constants.public.Enums.pipeline_stage
@@ -142,6 +153,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           </details>
         }
       />
+      <p className="panel-title mb-2">Right now</p>
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <Stat label="Open jobs" value={current.openJobs} href="/jobs" />
+        <Stat label="In pipeline" value={current.inPipeline} href="/pipeline" />
+        <Stat label="Ready to submit" value={current.ready} tone="amber" href="/pipeline" />
+        <Stat label="Placed this month" value={current.placedMonth} tone="mint" href="/placements?period=month" />
+        <Stat label="Open deals" value={current.openDeals} href="/deals" />
+      </div>
+
       <div className="mb-5">
         <FilterTabs tabs={tabs} current={period} basePath="/reports" paramName="period" />
       </div>
