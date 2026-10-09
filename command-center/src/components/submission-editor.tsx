@@ -41,6 +41,7 @@ export function SubmissionEditor({
   const fileInput = useRef<HTMLInputElement>(null);
   const addedSize = added.reduce((n, f) => n + f.size, 0);
   const [picked, setPicked] = useState<string[]>(preselected);
+  const [cc, setCc] = useState("");
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState(initialBody);
   const [pending, start] = useTransition();
@@ -48,7 +49,7 @@ export function SubmissionEditor({
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const chosen = contacts.filter((c) => picked.includes(c.id));
   const emails = chosen.map((c) => c.email).filter(Boolean) as string[];
-  const mailto = `mailto:${emails.map(encodeURIComponent).join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailto = `mailto:${emails.map(encodeURIComponent).join(",")}?${cc.trim() ? `cc=${encodeURIComponent(cc.trim())}&` : ""}subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   function decide(decision: "save" | "send" | "hold" | "pass", sure = false) {
     // Nothing to attach: ask first, so a submission never goes out without a resume by accident.
@@ -67,6 +68,7 @@ export function SubmissionEditor({
         body,
         contactIds: picked,
         recipients: chosen.map((c) => c.full_name),
+        cc,
         decision,
         resumeIds: resumeId ? [resumeId] : [],
       }, added.length ? files : undefined);
@@ -104,6 +106,20 @@ export function SubmissionEditor({
           </ul>
         )}
       </div>
+      {!locked && (
+        <div>
+          <label className="label" htmlFor={`cc-${candidateJobId}`}>
+            CC (optional)
+          </label>
+          <input
+            id={`cc-${candidateJobId}`}
+            value={cc}
+            onChange={(e) => setCc(e.target.value)}
+            placeholder="name@company.com, another@company.com"
+            className="field"
+          />
+        </div>
+      )}
       <div>
         <label className="label" htmlFor={`subject-${candidateJobId}`}>
           Subject

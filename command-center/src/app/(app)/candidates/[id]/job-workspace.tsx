@@ -56,7 +56,7 @@ export async function JobWorkspace({
   const { data: cj } = await supabase
     .from("candidate_jobs")
     .select(
-      "id, stage, stage_changed_at, assigned_at, automate, jobs(id, title, company_id, hiring_contact_id, automation_pilot, location, compensation, schedule, companies(id, name, short_name))",
+      "id, stage, stage_changed_at, assigned_at, automate, jobs(id, title, company_id, hiring_contact_id, automation_pilot, location, compensation, schedule, companies(id, name, short_name, submit_to_contact_id))",
     )
     .eq("id", cjId)
     .eq("candidate_id", candidate.id)
@@ -69,7 +69,17 @@ export async function JobWorkspace({
     supabase.from("screening_facts").select("*").eq("candidate_job_id", cj.id).order("created_at").order("sort"),
     supabase.from("screening_goals").select("id, prompt, required").eq("job_id", job.id).is("retired_at", null).order("sort"),
     supabase.from("submissions").select("*").eq("candidate_job_id", cj.id).order("created_at", { ascending: false }).limit(1),
-    supabase.from("contacts").select("id, full_name, title, email").eq("company_id", job.company_id).order("full_name"),
+    // The company's contacts, plus the one its submissions go to when that person is filed under a sister
+    // company (Ciarra at ACME takes ALKAB's too).
+    supabase
+      .from("contacts")
+      .select("id, full_name, title, email")
+      .or(
+        job.companies?.submit_to_contact_id
+          ? `company_id.eq.${job.company_id},id.eq.${job.companies.submit_to_contact_id}`
+          : `company_id.eq.${job.company_id}`,
+      )
+      .order("full_name"),
     supabase
       .from("activities")
       .select("id, kind, summary, occurred_at")
@@ -112,10 +122,14 @@ export async function JobWorkspace({
   const extraFacts = allFacts.filter((f) => !f.goal_id);
   const missing = (goals ?? []).filter((g) => g.required && !byGoal.get(g.id)?.value);
 
+  // Who a new submission is addressed to: the company's submissions contact, else the job's hiring contact.
+  const submitTo = job.companies?.submit_to_contact_id;
   const hiring =
-    job.hiring_contact_id && people.some((p) => p.id === job.hiring_contact_id)
-      ? [job.hiring_contact_id]
-      : people.slice(0, 1).map((p) => p.id);
+    submitTo && people.some((p) => p.id === submitTo)
+      ? [submitTo]
+      : job.hiring_contact_id && people.some((p) => p.id === job.hiring_contact_id)
+        ? [job.hiring_contact_id]
+        : people.slice(0, 1).map((p) => p.id);
   const preselected = submission?.to_contact_ids.length ? submission.to_contact_ids : hiring;
   const template = draftSubmission({
     candidate,

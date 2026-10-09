@@ -382,6 +382,7 @@ export type Database = {
       };
       companies: {
         Row: {
+          submit_to_contact_id: string | null;
           city: string | null;
           created_at: string;
           created_by: string | null;

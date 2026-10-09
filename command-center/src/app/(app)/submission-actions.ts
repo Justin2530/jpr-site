@@ -8,6 +8,9 @@ import { indeedResume } from "@/lib/indeed-resume";
 
 type Decision = "save" | "send" | "hold" | "pass";
 
+// Typed CC addresses, separated by commas, semicolons or spaces; anything that isn't an email is dropped.
+const cleanCc = (cc?: string) => (cc ?? "").split(/[\s,;]+/).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)).join(", ") || null;
+
 export type DecideResult = { ok: boolean; message: string; viaGmail?: boolean };
 
 // The human SEND / EDIT / HOLD / PASS on a submission. With Gmail connected, Send goes out from the
@@ -20,6 +23,8 @@ export async function decideSubmission(input: {
   body: string;
   contactIds: string[];
   recipients: string[];
+  // Extra addresses to copy, typed on the submission.
+  cc?: string;
   decision: Decision;
   // Which of the candidate's resumes to attach, picked on the submission; left out = their latest.
   resumeIds?: string[];
@@ -75,6 +80,7 @@ export async function decideSubmission(input: {
         sent = await sendGmail(await accessToken(openToken(account.token_enc)), {
           from: account.email,
           to: to.join(", "),
+          cc: cleanCc(input.cc),
           subject: input.subject,
           body: input.body,
           attachments,
