@@ -220,7 +220,8 @@ export async function sendEmail(form: FormData): Promise<OutreachResult> {
 
   let sent: { id: string; threadId: string };
   try {
-    sent = await sendGmail(await accessToken(openToken(account.token_enc)), { from: account.email, to, subject, body });
+    const threadId = text(form, "thread_id") ?? undefined;
+    sent = await sendGmail(await accessToken(openToken(account.token_enc)), { from: account.email, to, subject, body, threadId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Gmail didn't accept the email.";
     return { ok: false, message: /invalid_grant|decrypt|auth/i.test(msg) ? "Gmail needs reconnecting in Settings." : msg };

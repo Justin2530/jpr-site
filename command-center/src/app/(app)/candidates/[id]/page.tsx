@@ -124,7 +124,8 @@ export default async function CandidateDetail({
         action={
           <ReachOut
             phone={c.phone}
-            email={c.email}
+            email={c.email ?? c.indeed_relay}
+            indeed={!c.email && c.indeed_relay ? { thread: c.indeed_thread_id, subject: c.indeed_subject } : undefined}
             name={c.full_name}
             links={{ candidate_id: c.id }}
             path={path}

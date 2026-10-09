@@ -20,6 +20,7 @@ export function ReachOut({
   twilio = false,
   gmail = false,
   optedOut = false,
+  indeed,
 }: {
   phone: string | null;
   email: string | null;
@@ -29,6 +30,8 @@ export function ReachOut({
   twilio?: boolean;
   gmail?: boolean;
   optedOut?: boolean;
+  // Someone we only know through Indeed: Email goes to their Indeed relay address, inside the Indeed thread.
+  indeed?: { thread: string | null; subject: string | null };
 }) {
   const [logging, setLogging] = useState<Kind | null>(null);
   const [composing, setComposing] = useState(false);
@@ -44,6 +47,7 @@ export function ReachOut({
       <input type="hidden" name="to" value={phone ?? ""} />
       <input type="hidden" name="name" value={name ?? ""} />
       <input type="hidden" name="email" value={email ?? ""} />
+      {indeed?.thread && <input type="hidden" name="thread_id" value={indeed.thread} />}
     </>
   );
   const call = () =>
@@ -136,8 +140,15 @@ export function ReachOut({
           className="panel w-full max-w-md space-y-2 p-3 text-left"
         >
           {hidden}
-          <p className="text-xs text-faint">To {email}</p>
-          <input name="subject" required placeholder="Subject" className="field" aria-label="Subject" />
+          <p className="text-xs text-faint">{indeed ? `To ${name ?? "them"} through Indeed` : `To ${email}`}</p>
+          <input
+            name="subject"
+            required
+            placeholder="Subject"
+            defaultValue={indeed?.subject ? `Re: ${indeed.subject}` : undefined}
+            className="field"
+            aria-label="Subject"
+          />
           <textarea name="body" rows={6} required placeholder={`Email ${name ?? "them"}…`} className="field text-sm" aria-label="Message" />
           <div className="flex items-center gap-2">
             <SubmitButton className="btn" pendingText="Sending…">

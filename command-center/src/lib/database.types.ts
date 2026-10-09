@@ -310,6 +310,9 @@ export type Database = {
         Row: {
           automation_paused_at: string | null;
           automation_paused_reason: string | null;
+          indeed_relay: string | null;
+          indeed_thread_id: string | null;
+          indeed_subject: string | null;
           city: string | null;
           contact_consent: boolean;
           contact_consent_at: string | null;
