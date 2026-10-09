@@ -43,6 +43,7 @@ export async function saveResume(supabase: SupabaseClient<Database>, candidateId
 // against the original and saved as its own file next to it (the original is never touched). The check
 // result goes on the new file so anything lost or added is visible before it goes to a client.
 export async function makeJprResume(supabase: SupabaseClient<Database>, userId: string, resumeId: string, fresh = false) {
+  const started = Date.now();
   const { data: r } = await supabase.from("resumes").select("*").eq("id", resumeId).single();
   if (!r?.storage_path) return { ok: false, message: "That file isn't stored." };
   if (r.branded_from) return { ok: false, message: "That's already a JPR version." };
@@ -78,7 +79,7 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
   let body = brandedText(layout);
   let check = checkWords(text, body);
   // Anything dropped gets one more try with the missing words named; the better of the two is kept.
-  if (check.lost.length) {
+  if (check.lost.length && Date.now() - started < 450_000) {
     try {
       const again = await layoutResume(text, { name: r.file_name, type: file.type, data: Buffer.from(await blob.arrayBuffer()) }, check.lost);
       const againBody = brandedText(again);
@@ -121,5 +122,6 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
     brand_check: note,
   });
   if (error) return { ok: false, message: error.message };
+  console.log(`JPR resume made for ${r.file_name} in ${Math.round((Date.now() - started) / 1000)}s`);
   return { ok: true, message: note };
 }

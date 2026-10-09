@@ -49,7 +49,11 @@ export function ResumePanel({ candidateId, resumes }: { candidateId: string; res
                     <p className={`text-xs ${r.brand_check.startsWith("Checked") ? "text-mint" : "text-amber"}`}>{r.brand_check}</p>
                   )}
                   {!r.branded_from && /\.(pdf|docx?)$/i.test(r.file_name) && !resumes.some((x) => x.branded_from === r.id) && (
-                    <JprButton resumeId={r.id} candidateId={candidateId} />
+                    <JprButton
+                      resumeId={r.id}
+                      candidateId={candidateId}
+                      autoAfter={r.created_at}
+                    />
                   )}
                   {r.branded_from && <JprButton resumeId={r.branded_from} candidateId={candidateId} redoOf={r.id} />}
                   {!r.viewUrl && r.text_content && (

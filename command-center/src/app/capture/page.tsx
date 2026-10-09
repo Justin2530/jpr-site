@@ -2,8 +2,8 @@ import { requireStaff } from "@/lib/staff";
 import { CaptureForm } from "./capture-form";
 
 export const metadata = { title: "Send to JPR" };
-// Making the JPR resume after a save can take a few minutes when the resume is a picture.
-export const maxDuration = 300;
+// Making the JPR resume after a save can take several minutes when the resume is a picture (two or three AI passes).
+export const maxDuration = 800;
 
 // The small window the "Send to JPR" bookmark opens over an Indeed profile.
 export default async function CapturePage() {
