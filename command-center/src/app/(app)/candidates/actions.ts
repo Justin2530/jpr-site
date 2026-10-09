@@ -2,14 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireStaff } from "@/lib/staff";
 import { beginOutreach } from "@/lib/outreach";
 import { text } from "@/lib/format";
-import type { Database, Enums } from "@/lib/database.types";
+import type { Enums } from "@/lib/database.types";
 import { aiReady, parseResume, resumeText, type ParsedResume } from "@/lib/resume-parse";
-
-const MAX_RESUME = 10 * 1024 * 1024;
+import { MAX_RESUME, saveResume } from "@/lib/resume-store";
 
 function candidateFields(form: FormData) {
   return {
@@ -24,31 +22,6 @@ function candidateFields(form: FormData) {
     source: (text(form, "source") ?? "other") as Enums<"candidate_source">,
     notes: text(form, "notes"),
   };
-}
-
-async function saveResume(supabase: SupabaseClient<Database>, candidateId: string, userId: string, file: FormDataEntryValue | null) {
-  if (!(file instanceof File) || file.size === 0) return;
-  if (file.size > MAX_RESUME) throw new Error("Resume is larger than 10MB.");
-  const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
-  const path = `${candidateId}/${crypto.randomUUID()}-${safe}`;
-  const { error: upErr } = await supabase.storage.from("resumes").upload(path, file, { contentType: file.type || undefined });
-  if (upErr) throw new Error(`Resume upload failed: ${upErr.message}`);
-  let textContent: string | null = null;
-  try {
-    textContent = (await resumeText(file)) || null;
-  } catch (e) {
-    console.error("Couldn't read resume text", e);
-  }
-  const { error } = await supabase.from("resumes").insert({
-    candidate_id: candidateId,
-    text_content: textContent,
-    storage_path: path,
-    file_name: file.name,
-    mime_type: file.type || null,
-    size_bytes: file.size,
-    uploaded_by: userId,
-  });
-  if (error) throw new Error(error.message);
 }
 
 export type ResumeRead = {

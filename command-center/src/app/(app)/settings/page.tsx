@@ -17,6 +17,7 @@ import { PasswordForm } from "./password-form";
 import { cookies } from "next/headers";
 import { AppearanceSettings, type Rain } from "@/components/theme";
 import { themeFrom } from "@/lib/theme";
+import { sendToJprBookmarklet } from "@/lib/bookmarklet";
 
 export const metadata = { title: "Settings · JPR" };
 
@@ -154,6 +155,28 @@ export default async function SettingsPage({
   return (
     <>
       <PageHeader kicker="Business" title="Settings" />
+      <section className="panel mb-6 max-w-2xl">
+        <div className="border-b border-line px-4 py-3">
+          <h2 className="panel-title">Send to JPR button</h2>
+        </div>
+        <div className="space-y-3 px-4 py-4">
+          <p className="text-sm text-muted">
+            On your computer, drag this button onto your browser&apos;s bookmarks bar once. Then, on a candidate&apos;s Indeed
+            page, click it: a small window opens with their details and resume read in, you pick the job, and press Add to JPR.
+            They go on the job as Sourced; nothing automatic starts.
+          </p>
+          {/* React won't render a javascript: link itself, so the bookmark is written as plain HTML. */}
+          <div
+            dangerouslySetInnerHTML={{
+              __html: `<a href="${sendToJprBookmarklet(origin)}" class="btn" onclick="alert('Drag this button onto your bookmarks bar, then click it on a candidate\'s Indeed page.');return false;">📎 Send to JPR</a>`,
+            }}
+          />
+          <p className="text-xs text-faint">
+            Bookmarks bar hidden? In Chrome press Ctrl+Shift+B (Cmd+Shift+B on a Mac). If a window doesn&apos;t open, allow
+            pop-ups for indeed.com.
+          </p>
+        </div>
+      </section>
       <section className="panel mb-6 max-w-2xl">
         <div className="border-b border-line px-4 py-3">
           <h2 className="panel-title">Sign in</h2>
@@ -357,8 +380,8 @@ export default async function SettingsPage({
               .
             </span>{" "}
             {auto?.inbox_agent_since
-              ? "It reads every new email in your Gmail, adds potential candidates (Indeed first) on the job they're asking about, and answers their questions from that job's facts. It never starts outreach, texts or calls: that's still your Yes, automate."
-              : "When on, it reads new email for potential candidates, adds them, and answers their questions about the job."}
+              ? "It reads every new email in your Gmail and files replies from people already in the Command Center on their record. It never adds new people (use the Send to JPR button) and never starts outreach, texts or calls."
+              : "When on, it reads new email and files replies from people already in the Command Center."}
           </p>
           {staff.role === "owner" && (
             <div className="flex flex-wrap gap-2">
