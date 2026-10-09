@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { after } from "next/server";
 import { resumeText } from "@/lib/resume-parse";
-import { brandedText, checkWords, layoutResume, renderResume } from "@/lib/resume-brand";
+import { brandedText, checkWords, layoutResume, renderResume, transcribeResume } from "@/lib/resume-brand";
 
 export const MAX_RESUME = 10 * 1024 * 1024;
 
@@ -57,6 +57,16 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
       text = "";
     }
   }
+  let readFromPicture = false;
+  if (text.trim().length < 80 && /pdf/i.test(file.type || r.file_name)) {
+    try {
+      text = await transcribeResume({ name: r.file_name, data: Buffer.from(await blob.arrayBuffer()) });
+      readFromPicture = text.trim().length >= 80;
+      if (readFromPicture) await supabase.from("resumes").update({ text_content: text }).eq("id", r.id);
+    } catch (e) {
+      console.error("JPR resume: reading the picture failed", e);
+    }
+  }
   if (text.trim().length < 80) return { ok: false, message: "This file has no readable text (it may be a scanned image), so there's nothing to lay out." };
   let layout;
   try {
@@ -66,7 +76,7 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
   }
   const body = brandedText(layout);
   const check = checkWords(text, body);
-  const note = check.ok
+  const note0 = check.ok
     ? `Checked: all ${check.total} words of the original are here, nothing added.`
     : [
         "Check this one against the original.",
@@ -76,6 +86,8 @@ export async function makeJprResume(supabase: SupabaseClient<Database>, userId: 
       ]
         .filter(Boolean)
         .join(" ");
+  // A picture has no text to compare against, so the check is against the AI's reading of it; say so.
+  const note = readFromPicture ? `Read from a picture of the resume, so give it a look. ${note0}` : note0;
   const pdf = await renderResume(layout);
   const name = `${(layout.name || "Candidate").replace(/[^\w .'-]+/g, "").trim()} - JPR.pdf`;
   const path = `${r.candidate_id}/${crypto.randomUUID()}-jpr.pdf`;

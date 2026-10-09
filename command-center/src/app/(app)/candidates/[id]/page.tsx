@@ -21,6 +21,9 @@ import { ResumePanel } from "./resume-panel";
 import { resumeText } from "@/lib/resume-parse";
 import { assignToJob, unassign } from "../../pipeline-actions";
 
+// Making a JPR resume (after an upload or the button) can take a few minutes when the resume is a picture.
+export const maxDuration = 300;
+
 const KIND_LABEL: Record<string, string> = {
   note: "Note",
   call: "Call",
