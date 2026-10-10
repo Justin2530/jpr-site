@@ -29,7 +29,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     supabase.from("companies").select("id, name, city").or(`name.ilike.${like},city.ilike.${like},industry.ilike.${like}`).limit(20),
     supabase
       .from("contacts")
-      .select("id, full_name, title, company_id, companies(name)")
+      .select("id, full_name, title, company_id, companies!contacts_company_id_fkey(name)")
       .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
       .limit(20),
     supabase.from("deals").select("id, title, companies(name)").ilike("title", like).limit(20),

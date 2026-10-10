@@ -18,7 +18,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const { supabase } = await requireStaff();
   const [{ data: c }, { data: deals }, { data: jobs }, { data: companies }] = await Promise.all([
-    supabase.from("contacts").select("*, companies(id, name, status)").eq("id", id).maybeSingle(),
+    supabase.from("contacts").select("*, companies!contacts_company_id_fkey(id, name, status)").eq("id", id).maybeSingle(),
     supabase.from("deals").select("id, title, stage, value").eq("contact_id", id).order("updated_at", { ascending: false }),
     supabase.from("jobs").select("id, title, status").eq("hiring_contact_id", id).order("created_at", { ascending: false }),
     supabase.from("companies").select("id, name").order("name"),

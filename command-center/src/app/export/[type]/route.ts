@@ -10,7 +10,7 @@ const QUERIES: Record<string, { table: string; select: string }> = {
     select: "start_date, compensation, fee_percent, fee_amount, covered_by_subscription, invoice_status, invoiced_on, paid_on, guarantee_until, candidate_jobs(candidates(full_name), jobs(title, companies(name)))",
   },
   companies: { table: "companies", select: "name, status, industry, city, phone, website, created_at" },
-  contacts: { table: "contacts", select: "full_name, title, phone, email, companies(name)" },
+  contacts: { table: "contacts", select: "full_name, title, phone, email, companies!contacts_company_id_fkey(name)" },
   deals: { table: "deals", select: "title, stage, deal_type, value, expected_close, next_step, next_step_on, closed_at, companies(name)" },
 };
 

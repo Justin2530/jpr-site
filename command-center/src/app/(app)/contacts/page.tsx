@@ -13,7 +13,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const { supabase } = await requireStaff();
   let query = supabase
     .from("contacts")
-    .select("id, full_name, title, phone, email, company_id, companies(name, status)")
+    .select("id, full_name, title, phone, email, company_id, companies!contacts_company_id_fkey(name, status)")
     .order("full_name")
     .limit(500);
   const term = q?.trim().replace(/[%,()]/g, " ");

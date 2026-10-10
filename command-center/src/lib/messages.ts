@@ -42,7 +42,7 @@ export async function people(supabase: DB, list: Who[]): Promise<Map<string, Per
           .not("stage", "in", `(${CLOSED_STAGES.join(",")})`)
       : Promise.resolve({ data: [] }),
     conts.length
-      ? supabase.from("contacts").select("id, full_name, title, companies(name, status)").in("id", conts)
+      ? supabase.from("contacts").select("id, full_name, title, companies!contacts_company_id_fkey(name, status)").in("id", conts)
       : Promise.resolve({ data: [] }),
   ]);
   const out = new Map<string, Person>();

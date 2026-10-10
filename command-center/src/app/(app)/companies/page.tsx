@@ -11,7 +11,7 @@ const TONE: Record<string, Tone> = { client: "mint", prospect: "cyan", former_cl
 export default async function CompaniesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status } = await searchParams;
   const { supabase } = await requireStaff();
-  let q = supabase.from("companies").select("id, name, status, city, industry, jobs(id, status), contacts(id), deals(stage)").order("name");
+  let q = supabase.from("companies").select("id, name, status, city, industry, jobs(id, status), contacts!contacts_company_id_fkey(id), deals(stage)").order("name");
   if (status === "client" || status === "prospect" || status === "former_client") q = q.eq("status", status);
   const { data: companies, error } = await q;
   if (error) throw new Error(error.message);
