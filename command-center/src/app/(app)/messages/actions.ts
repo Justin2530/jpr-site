@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/staff";
 
 // Saves this phone or computer so new texts and emails can notify it.
@@ -15,4 +16,13 @@ export async function savePushSubscription(sub: { endpoint: string; keys: { p256
 export async function forgetPushSubscription(endpoint: string) {
   const { supabase } = await requireStaff();
   await supabase.from("push_subscriptions").update({ gone_at: new Date().toISOString() }).eq("endpoint", endpoint);
+}
+
+// Mark one conversation read without opening it.
+export async function markRead(form: FormData) {
+  const { supabase, userId } = await requireStaff();
+  const who = String(form.get("who") ?? "");
+  if (!/^[cp]:[0-9a-f-]{36}$/i.test(who)) return;
+  await supabase.from("message_reads").upsert({ staff_id: userId, who, read_at: new Date().toISOString() });
+  revalidatePath("/messages");
 }

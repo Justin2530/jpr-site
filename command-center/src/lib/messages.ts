@@ -79,3 +79,26 @@ export async function people(supabase: DB, list: Who[]): Promise<Map<string, Per
   }
   return out;
 }
+
+// How many conversations have a text or email in that Justin hasn't opened yet (the Messages page's Unread count).
+export async function unreadConversations(supabase: DB, userId: string) {
+  const [{ data: rows }, { data: reads }] = await Promise.all([
+    supabase
+      .from("activities")
+      .select("occurred_at, candidate_id, contact_id")
+      .in("kind", ["text", "email"])
+      .eq("direction", "in")
+      .or("candidate_id.not.is.null,contact_id.not.is.null")
+      .order("occurred_at", { ascending: false })
+      .limit(1000),
+    supabase.from("message_reads").select("who, read_at").eq("staff_id", userId),
+  ]);
+  const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
+  const unread = new Set<string>();
+  for (const r of rows ?? []) {
+    const key = whoKey(r.contact_id ? { kind: "p", id: r.contact_id } : { kind: "c", id: r.candidate_id! });
+    const seen = readAt.get(key);
+    if (!seen || r.occurred_at > seen) unread.add(key);
+  }
+  return unread.size;
+}

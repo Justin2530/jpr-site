@@ -3,6 +3,7 @@ import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader } from "@/components/ui";
 import { ChatIcon, MailIcon } from "@/components/icons";
 import { PushToggle } from "@/components/push-toggle";
+import { markRead } from "./actions";
 import { people, whoKey, whoPath, type Who } from "@/lib/messages";
 import { STAGE_LABEL, timeAgo } from "@/lib/format";
 
@@ -43,7 +44,8 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
   // One row per person: their latest message, and how many came in since Justin last opened it.
   const threads = new Map<string, { who: Who; last: Row; unread: number }>();
   for (const r of (rows ?? []) as Row[]) {
-    const who: Who = r.candidate_id ? { kind: "c", id: r.candidate_id } : { kind: "p", id: r.contact_id! };
+    // Anything with a client contact on it (submission emails, their replies) is that contact's conversation.
+    const who: Who = r.contact_id ? { kind: "p", id: r.contact_id } : { kind: "c", id: r.candidate_id! };
     const key = whoKey(who);
     const t = threads.get(key) ?? { who, last: r, unread: 0 };
     const seen = readAt.get(key);
@@ -83,8 +85,8 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
               if (!p) return null;
               const Icon = t.last.kind === "text" ? ChatIcon : MailIcon;
               return (
-                <li key={whoKey(t.who)}>
-                  <Link href={whoPath(t.who)} className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.03]">
+                <li key={whoKey(t.who)} className="flex items-center">
+                  <Link href={whoPath(t.who)} className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 hover:bg-white/[0.03]">
                     <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${t.unread ? "bg-cyan shadow-[0_0_8px_rgb(var(--glow)/0.9)]" : "bg-transparent"}`} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -109,6 +111,12 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
                       <span className="mt-0.5 shrink-0 rounded-full bg-cyan px-1.5 font-mono text-[10.5px] text-void">{t.unread}</span>
                     )}
                   </Link>
+                  {t.unread > 0 && (
+                    <form action={markRead} className="shrink-0 pr-3">
+                      <input type="hidden" name="who" value={whoKey(t.who)} />
+                      <button className="btn-quiet py-1 text-xs">Mark read</button>
+                    </form>
+                  )}
                 </li>
               );
             })}

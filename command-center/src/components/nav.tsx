@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { unreadCount } from "@/app/(app)/messages/unread-action";
 import { CandidatesIcon, ChatIcon, HomeIcon, MenuIcon, PipelineIcon } from "./icons";
 import { SECTIONS } from "@/lib/nav-sections";
 
@@ -17,8 +19,36 @@ export function isActive(path: string, href: string) {
   return href === "/" ? path === "/" : path === href || path.startsWith(href + "/");
 }
 
+// Conversations with something unread, checked on every page change and once a minute.
+function useUnread(path: string) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const check = () => unreadCount().then((x) => live && setN(x)).catch(() => {});
+    check();
+    const t = setInterval(check, 60000);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [path]);
+  return n;
+}
+
+function Badge({ n, dot = false }: { n: number; dot?: boolean }) {
+  if (!n) return null;
+  return dot ? (
+    <span className="absolute -right-1.5 -top-1 min-w-[16px] rounded-full bg-cyan px-1 text-center font-mono text-[9.5px] leading-4 text-void shadow-[0_0_8px_rgb(var(--glow)/0.9)]">
+      {n > 99 ? "99+" : n}
+    </span>
+  ) : (
+    <span className="ml-auto rounded-full bg-cyan px-1.5 font-mono text-[10.5px] text-void shadow-[0_0_8px_rgb(var(--glow)/0.9)]">{n > 99 ? "99+" : n}</span>
+  );
+}
+
 export function Nav({ mobile = false, owner = false }: { mobile?: boolean; owner?: boolean }) {
   const path = usePathname();
+  const unread = useUnread(path);
 
   if (mobile) {
     return (
@@ -29,7 +59,10 @@ export function Nav({ mobile = false, owner = false }: { mobile?: boolean; owner
             href={href}
             className={`flex flex-col items-center gap-1 py-2.5 text-[10.5px] ${isActive(path, href) ? "text-cyan" : "text-muted"}`}
           >
-            <Icon />
+            <span className="relative">
+              <Icon />
+              {href === "/messages" && <Badge n={unread} dot />}
+            </span>
             {label}
           </Link>
         ))}
@@ -61,6 +94,7 @@ export function Nav({ mobile = false, owner = false }: { mobile?: boolean; owner
                     )}
                     <Icon />
                     {label}
+                    {href === "/messages" && <Badge n={unread} />}
                   </Link>
                 );
               })}

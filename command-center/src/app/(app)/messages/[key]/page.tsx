@@ -42,13 +42,15 @@ export default async function ConversationPage({ params }: { params: Promise<{ k
   const col = who.kind === "c" ? "candidate_id" : "contact_id";
 
   const [{ data: rows }, info, { data: cand }, { data: contact }] = await Promise.all([
-    supabase
-      .from("activities")
-      .select("id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, duration_seconds")
-      .eq(col, who.id)
-      .in("kind", ["text", "email", "call"])
-      .order("occurred_at", { ascending: false })
-      .limit(200),
+    (() => {
+      const q = supabase
+        .from("activities")
+        .select("id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, duration_seconds")
+        .eq(col, who.id)
+        .in("kind", ["text", "email", "call"]);
+      // A candidate's conversation is with them; emails to and from a client about them live under that client.
+      return (who.kind === "c" ? q.is("contact_id", null) : q).order("occurred_at", { ascending: false }).limit(200);
+    })(),
     people(supabase, [who]),
     who.kind === "c"
       ? supabase
