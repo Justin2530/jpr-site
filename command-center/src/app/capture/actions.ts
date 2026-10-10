@@ -206,7 +206,7 @@ async function pickJob(
         "You work for JPR, a recruiting firm. Justin, the owner, reached out to this person on Indeed about one of JPR's open jobs. " +
         "From their Indeed page, work out which job in OPEN_JOBS it was. Several jobs share similar titles at different clients and towns, so reason like a recruiter: " +
         "1) Justin's own outreach is the strongest clue, whether on the Indeed page or in MY_EMAILS (his Gmail: Indeed message notifications with his outreach and their replies, or emails with them): the company, town or area it names, shift, pay, details; " +
-        "2) where the person lives against where each job is (a reasonable commute); 3) the title last. " +
+        "2) where the person lives against where each job is (a reasonable commute): never pick a job more than about an hour's drive from their town unless Justin's outreach clearly names that job; 3) the title last. " +
         "Indeed project names are Justin's own labels and can be reused for other clients, so never decide on a project name alone. " +
         "ALREADY_ON lists jobs they were put on before, possibly by mistake; it is a weak hint only. " +
         "Leave job_id empty unless you're confident; a wrong job is worse than none. reason: one short plain sentence Justin will read, e.g. \"Your message says New Kensington area, and he lives in Apollo.\"",
@@ -217,7 +217,7 @@ async function pickJob(
         indeed_page: page.replace(/\n{3,}/g, "\n\n").slice(0, 15000),
         MY_EMAILS: mail,
       }),
-      reasoning: { effort: "low" },
+      reasoning: { effort: "medium" },
       text: {
         format: {
           type: "json_schema",
