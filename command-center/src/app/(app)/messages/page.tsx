@@ -4,7 +4,15 @@ import { Chip, Empty, PageHeader } from "@/components/ui";
 import { ChatIcon, MailIcon } from "@/components/icons";
 import { PushToggle } from "@/components/push-toggle";
 import { markRead } from "./actions";
-import { people, whoKey, whoPath, type Who } from "@/lib/messages";
+import {
+  baseKey,
+  convOf,
+  lastRead,
+  people,
+  whoKey,
+  whoPath,
+  type Who,
+} from "@/lib/messages";
 import { STAGE_LABEL, timeAgo } from "@/lib/format";
 
 export const metadata = { title: "Messages · JPR" };
@@ -18,6 +26,7 @@ type Row = {
   occurred_at: string;
   candidate_id: string | null;
   contact_id: string | null;
+  external_thread_id: string | null;
 };
 
 function preview(r: Row) {
@@ -54,28 +63,49 @@ export default async function MessagesPage({
   const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
 
   // One row per person: their latest message, and how many came in since Justin last opened it.
-  const threads = new Map<string, { who: Who; last: Row; unread: number }>();
+  // A client's messages are split by topic: each email thread, and texts about each candidate, are their own conversation.
+  const threads = new Map<
+    string,
+    {
+      who: Who;
+      last: Row;
+      unread: number;
+      subject: string | null;
+      candidateId: string | null;
+    }
+  >();
   for (const r of (rows ?? []) as Row[]) {
-    // Anything with a client contact on it (submission emails, their replies) is that contact's conversation.
-    const who: Who = r.contact_id
-      ? { kind: "p", id: r.contact_id }
-      : { kind: "c", id: r.candidate_id! };
+    const who = convOf(r);
     const key = whoKey(who);
-    const t = threads.get(key) ?? { who, last: r, unread: 0 };
-    const seen = readAt.get(key);
+    const t = threads.get(key) ?? {
+      who,
+      last: r,
+      unread: 0,
+      subject: null,
+      candidateId: null,
+    };
+    if (!t.subject && r.kind === "email")
+      t.subject = r.summary.replace(/^Email (to|from) [^:]+:\s*/, "");
+    if (!t.candidateId && who.kind === "p" && r.candidate_id)
+      t.candidateId = r.candidate_id;
+    const seen = lastRead(readAt, who);
     if (r.direction === "in" && (!seen || r.occurred_at > seen)) t.unread++;
     threads.set(key, t);
   }
   let list = [...threads.values()];
   if (show === "unread") list = list.filter((t) => t.unread > 0);
-  const who = await people(
-    supabase,
-    list.map((t) => t.who),
-  );
+  // Who each conversation is with, plus the candidate each client topic is about.
+  const who = await people(supabase, [
+    ...list.map((t) => t.who),
+    ...list.flatMap((t) =>
+      t.candidateId ? [{ kind: "c" as const, id: t.candidateId }] : [],
+    ),
+  ]);
   const unreadCount = [...threads.values()].filter((t) => t.unread > 0).length;
 
   function row(t: (typeof list)[number]) {
-    const p = who.get(whoKey(t.who));
+    const p = who.get(baseKey(t.who));
+    const about = t.candidateId ? who.get(`c:${t.candidateId}`) : null;
     if (!p) return null;
     const Icon = t.last.kind === "text" ? ChatIcon : MailIcon;
     return (
@@ -99,6 +129,14 @@ export default async function MessagesPage({
                 {timeAgo(t.last.occurred_at)}
               </span>
             </div>
+            {t.who.kind === "p" && (
+              <p className="truncate text-xs font-medium text-ink/80">
+                {about
+                  ? `About ${about.name}${about.jobs[0] ? ` · ${about.jobs[0].title} (${STAGE_LABEL[about.jobs[0].stage]})` : ""}`
+                  : (t.subject ?? "General")}
+                {about && t.subject ? ` · ${t.subject}` : ""}
+              </p>
+            )}
             <p className="truncate text-xs text-muted">
               {p.jobs.length
                 ? p.jobs
@@ -171,7 +209,7 @@ export default async function MessagesPage({
               list.filter(
                 (t) =>
                   t.who.kind === "p" &&
-                  who.get(whoKey(t.who))?.role.text === "Client",
+                  who.get(baseKey(t.who))?.role.text === "Client",
               ),
             ],
             [
@@ -179,7 +217,7 @@ export default async function MessagesPage({
               list.filter(
                 (t) =>
                   t.who.kind === "p" &&
-                  who.get(whoKey(t.who))?.role.text !== "Client",
+                  who.get(baseKey(t.who))?.role.text !== "Client",
               ),
             ],
             ["Candidates", list.filter((t) => t.who.kind === "c")],

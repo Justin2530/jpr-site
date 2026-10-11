@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { sendEmail, sendText, type OutreachResult } from "@/app/(app)/outreach-actions";
+import {
+  sendEmail,
+  sendText,
+  type OutreachResult,
+} from "@/app/(app)/outreach-actions";
 import { SubmitButton } from "@/components/submit-button";
 import { AttachFiles } from "@/components/attach-files";
 
@@ -29,7 +33,9 @@ export function ReplyBox({
   start: "text" | "email";
   textBlocked: string | null;
 }) {
-  const [mode, setMode] = useState<"text" | "email">(start === "text" && phone ? "text" : email ? "email" : "text");
+  const [mode, setMode] = useState<"text" | "email">(
+    start === "text" && phone ? "text" : email ? "email" : "text",
+  );
   const [result, setResult] = useState<OutreachResult | null>(null);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -37,13 +43,19 @@ export function ReplyBox({
   }, []);
 
   const can = mode === "text" ? Boolean(phone) && !textBlocked : Boolean(email);
-  const why = mode === "text" ? (textBlocked ?? (phone ? null : "No phone number on file.")) : email ? null : "No email on file.";
+  const why =
+    mode === "text"
+      ? (textBlocked ?? (phone ? null : "No phone number on file."))
+      : email
+        ? null
+        : "No email on file.";
 
   return (
     <form
       ref={form}
       action={async (data) => {
-        const r = mode === "text" ? await sendText(data) : await sendEmail(data);
+        const r =
+          mode === "text" ? await sendText(data) : await sendEmail(data);
         setResult(r);
         if (r.ok) form.current?.reset();
       }}
@@ -56,7 +68,9 @@ export function ReplyBox({
       <input type="hidden" name="name" value={name} />
       <input type="hidden" name="to" value={phone ?? ""} />
       <input type="hidden" name="email" value={email ?? ""} />
-      {mode === "email" && thread && <input type="hidden" name="thread_id" value={thread} />}
+      {mode === "email" && thread && (
+        <input type="hidden" name="thread_id" value={thread} />
+      )}
       <div className="flex items-center gap-1.5">
         {(["text", "email"] as const).map((m) => (
           <button
@@ -72,7 +86,11 @@ export function ReplyBox({
           </button>
         ))}
         <span className="ml-auto truncate text-xs text-faint">
-          {mode === "text" ? "From JPR's business number" : through ? `Through ${through}` : `From your Gmail to ${email ?? "them"}`}
+          {mode === "text"
+            ? "From JPR's business number"
+            : through
+              ? `Through ${through}`
+              : `From your Gmail to ${email ?? "them"}`}
         </span>
       </div>
       {mode === "email" && (
@@ -80,7 +98,9 @@ export function ReplyBox({
           key={`subject-${mode}`}
           name="subject"
           required
-          defaultValue={subject ? (/^re:/i.test(subject) ? subject : `Re: ${subject}`) : ""}
+          defaultValue={
+            subject ? (/^re:/i.test(subject) ? subject : `Re: ${subject}`) : ""
+          }
           placeholder="Subject"
           className="field"
           aria-label="Subject"
@@ -92,16 +112,29 @@ export function ReplyBox({
           rows={mode === "email" ? 5 : 2}
           required
           disabled={!can}
-          placeholder={why ?? (mode === "text" ? `Text ${name.split(" ")[0]}…` : `Email ${name.split(" ")[0]}…`)}
+          placeholder={
+            why ??
+            (mode === "text"
+              ? `Text ${name.split(" ")[0]}…`
+              : `Email ${name.split(" ")[0]}…`)
+          }
           className="field flex-1 text-sm"
           aria-label="Message"
         />
-        <SubmitButton className="btn shrink-0" pendingText="Sending…" disabled={!can}>
+        <SubmitButton
+          className="btn shrink-0"
+          pendingText="Sending…"
+          disabled={!can}
+        >
           Send
         </SubmitButton>
       </div>
       {mode === "email" && <AttachFiles key={result?.message ?? "files"} />}
-      {result && <p className={`text-sm ${result.ok ? "text-mint" : "text-amber"}`}>{result.message}</p>}
+      {result && (
+        <p className={`text-sm ${result.ok ? "text-mint" : "text-amber"}`}>
+          {result.message}
+        </p>
+      )}
     </form>
   );
 }

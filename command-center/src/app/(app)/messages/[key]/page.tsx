@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty } from "@/components/ui";
 import { PhoneIcon } from "@/components/icons";
-import { parseWho, people, whoKey } from "@/lib/messages";
+import { baseKey, parseWho, people, whoKey } from "@/lib/messages";
 import { STAGE_LABEL, STAGE_TONE } from "@/lib/format";
 import { ReplyBox } from "./reply-box";
 
@@ -19,6 +19,7 @@ type Row = {
   external_status: string | null;
   external_thread_id: string | null;
   duration_seconds: number | null;
+  candidate_id: string | null;
 };
 
 const PROBLEM = ["failed", "undelivered"];
@@ -34,48 +35,104 @@ function stamp(iso: string) {
 }
 
 // One conversation: who they are and what they're on, every text and email (calls as markers), and a reply box.
-export default async function ConversationPage({ params }: { params: Promise<{ key: string }> }) {
+export default async function ConversationPage({
+  params,
+}: {
+  params: Promise<{ key: string }>;
+}) {
   const { key } = await params;
   const who = parseWho(key);
   if (!who) notFound();
   const { supabase, userId } = await requireStaff();
   const col = who.kind === "c" ? "candidate_id" : "contact_id";
 
-  const [{ data: rows }, info, { data: cand }, { data: contact }] = await Promise.all([
-    (() => {
-      const q = supabase
-        .from("activities")
-        .select("id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, duration_seconds")
-        .eq(col, who.id)
-        .in("kind", ["text", "email", "call"]);
-      // A candidate's conversation is with them; emails to and from a client about them live under that client.
-      return (who.kind === "c" ? q.is("contact_id", null) : q).order("occurred_at", { ascending: false }).limit(200);
-    })(),
-    people(supabase, [who]),
-    who.kind === "c"
-      ? supabase
-          .from("candidates")
-          .select("phone, email, indeed_relay, indeed_thread_id, indeed_subject, sms_opted_out_at")
-          .eq("id", who.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    who.kind === "p"
-      ? supabase.from("contacts").select("phone, email, sms_opted_out_at").eq("id", who.id).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
-  const person = info.get(whoKey(who));
+  const [{ data: rows }, info, { data: cand }, { data: contact }] =
+    await Promise.all([
+      (() => {
+        const q = supabase
+          .from("activities")
+          .select(
+            "id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, duration_seconds, candidate_id",
+          )
+          .eq(col, who.id)
+          .in("kind", ["text", "email", "call"]);
+        // A candidate's conversation is with them; emails to and from a client about them live under that client,
+        // split into one conversation per email thread, texts and calls about one candidate, or everything else.
+        if (who.kind === "c")
+          return q
+            .is("contact_id", null)
+            .order("occurred_at", { ascending: false })
+            .limit(200);
+        const t = who.t;
+        const scoped = !t
+          ? q
+          : t.startsWith("g")
+            ? q.eq("external_thread_id", t.slice(1))
+            : t.startsWith("c")
+              ? q.eq("candidate_id", t.slice(1)).is("external_thread_id", null)
+              : q.is("candidate_id", null).is("external_thread_id", null);
+        return scoped.order("occurred_at", { ascending: false }).limit(200);
+      })(),
+      people(supabase, [
+        who,
+        ...(who.t?.startsWith("c")
+          ? [{ kind: "c" as const, id: who.t.slice(1) }]
+          : []),
+      ]),
+      who.kind === "c"
+        ? supabase
+            .from("candidates")
+            .select(
+              "phone, email, indeed_relay, indeed_thread_id, indeed_subject, sms_opted_out_at",
+            )
+            .eq("id", who.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      who.kind === "p"
+        ? supabase
+            .from("contacts")
+            .select("phone, email, sms_opted_out_at")
+            .eq("id", who.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+  const person = info.get(baseKey(who));
   if (!person) notFound();
 
   // Opening the conversation marks it read.
-  await supabase.from("message_reads").upsert({ staff_id: userId, who: whoKey(who), read_at: new Date().toISOString() });
+  await supabase
+    .from("message_reads")
+    .upsert({
+      staff_id: userId,
+      who: whoKey(who),
+      read_at: new Date().toISOString(),
+    });
 
   const list = ((rows ?? []) as Row[]).reverse();
+  // The candidate a client conversation is about, if any.
+  const aboutId = who.t?.startsWith("c")
+    ? who.t.slice(1)
+    : (list.find((r) => r.candidate_id)?.candidate_id ?? null);
+  const about = aboutId
+    ? (info.get(`c:${aboutId}`) ??
+      (await people(supabase, [{ kind: "c", id: aboutId }])).get(
+        `c:${aboutId}`,
+      ))
+    : null;
+  const topic = who.t?.startsWith("g")
+    ? (list
+        .find((r) => r.kind === "email")
+        ?.summary.replace(/^Email (to|from) [^:]+:\s*/, "") ?? null)
+    : null;
   const lastEmail = [...list].reverse().find((r) => r.kind === "email");
-  const lastIn = [...list].reverse().find((r) => r.direction === "in" && r.kind !== "call");
+  const lastIn = [...list]
+    .reverse()
+    .find((r) => r.direction === "in" && r.kind !== "call");
   const phone = cand?.phone ?? contact?.phone ?? null;
   const viaIndeed = !cand?.email && Boolean(cand?.indeed_relay);
   const email = cand?.email ?? cand?.indeed_relay ?? contact?.email ?? null;
-  const profile = who.kind === "c" ? `/candidates/${who.id}` : `/contacts/${who.id}`;
+  const profile =
+    who.kind === "c" ? `/candidates/${who.id}` : `/contacts/${who.id}`;
   const optedOut = cand?.sms_opted_out_at ?? contact?.sms_opted_out_at;
 
   return (
@@ -85,7 +142,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ k
           <Link href="/messages" className="text-sm text-muted hover:text-cyan">
             ‹ Messages
           </Link>
-          <Link href={profile} className="ml-auto text-sm text-muted hover:text-cyan">
+          <Link
+            href={profile}
+            className="ml-auto text-sm text-muted hover:text-cyan"
+          >
             Open profile ›
           </Link>
         </div>
@@ -94,6 +154,34 @@ export default async function ConversationPage({ params }: { params: Promise<{ k
           <Chip tone={person.role.tone}>{person.role.text}</Chip>
         </div>
         {person.detail && <p className="text-sm text-muted">{person.detail}</p>}
+        {who.kind === "p" && who.t && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            {topic && <span className="font-medium">✉ {topic}</span>}
+            {about && (
+              <Link
+                href={`/candidates/${about.who.id}`}
+                className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-1 hover:border-cyan/40"
+              >
+                About {about.name}
+                {about.jobs[0] && (
+                  <>
+                    <span className="text-muted">· {about.jobs[0].title}</span>
+                    <Chip tone={STAGE_TONE[about.jobs[0].stage]}>
+                      {STAGE_LABEL[about.jobs[0].stage]}
+                    </Chip>
+                  </>
+                )}
+              </Link>
+            )}
+            {!topic && !about && <span className="text-muted">General</span>}
+            <Link
+              href={`/messages/p-${who.id}`}
+              className="ml-auto text-xs text-muted hover:text-cyan"
+            >
+              All with {person.name.split(" ")[0]} ›
+            </Link>
+          </div>
+        )}
         {who.kind === "c" &&
           (person.jobs.length ? (
             <div className="mt-2 flex flex-wrap gap-2">
@@ -104,7 +192,9 @@ export default async function ConversationPage({ params }: { params: Promise<{ k
                   className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-1 text-sm hover:border-cyan/40"
                 >
                   {j.title}
-                  {j.company && <span className="text-muted">· {j.company}</span>}
+                  {j.company && (
+                    <span className="text-muted">· {j.company}</span>
+                  )}
                   <Chip tone={STAGE_TONE[j.stage]}>{STAGE_LABEL[j.stage]}</Chip>
                 </Link>
               ))}
@@ -121,34 +211,62 @@ export default async function ConversationPage({ params }: { params: Promise<{ k
           {list.map((r) => {
             if (r.kind === "call")
               return (
-                <li key={r.id} className="flex items-center justify-center gap-2 text-xs text-faint">
+                <li
+                  key={r.id}
+                  className="flex items-center justify-center gap-2 text-xs text-faint"
+                >
                   <PhoneIcon className="h-3.5 w-3.5" />
                   {r.summary} · {stamp(r.occurred_at)}
                 </li>
               );
             const out = r.direction === "out";
-            const subject = r.kind === "email" ? r.summary.replace(/^Email (to|from) [^:]+:\s*/, "") : null;
+            const subject =
+              r.kind === "email"
+                ? r.summary.replace(/^Email (to|from) [^:]+:\s*/, "")
+                : null;
             const body = (r.body ?? "").trim();
             const long = body.length > 700;
             return (
-              <li key={r.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
+              <li
+                key={r.id}
+                className={`flex ${out ? "justify-end" : "justify-start"}`}
+              >
                 <div
                   className={`max-w-[85%] rounded-2xl border px-3.5 py-2.5 sm:max-w-[70%] ${
-                    out ? "rounded-br-sm border-cyan/30 bg-cyan-soft" : "rounded-bl-sm border-line bg-white/[0.03]"
+                    out
+                      ? "rounded-br-sm border-cyan/30 bg-cyan-soft"
+                      : "rounded-bl-sm border-line bg-white/[0.03]"
                   }`}
                 >
-                  {subject && <p className="mb-1 text-xs font-medium text-muted">✉ {subject}</p>}
+                  {subject && (
+                    <p className="mb-1 text-xs font-medium text-muted">
+                      ✉ {subject}
+                    </p>
+                  )}
                   {long ? (
                     <details>
-                      <summary className="cursor-pointer whitespace-pre-wrap break-words text-sm">{body.slice(0, 500)}… <span className="text-cyan">more</span></summary>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-sm">{body.slice(500)}</p>
+                      <summary className="cursor-pointer whitespace-pre-wrap break-words text-sm">
+                        {body.slice(0, 500)}…{" "}
+                        <span className="text-cyan">more</span>
+                      </summary>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+                        {body.slice(500)}
+                      </p>
                     </details>
                   ) : (
-                    <p className="whitespace-pre-wrap break-words text-sm">{body || r.summary}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm">
+                      {body || r.summary}
+                    </p>
                   )}
-                  <p className={`mt-1 font-mono text-[10px] text-faint ${out ? "text-right" : ""}`}>
-                    {r.kind === "text" ? "Text" : "Email"} · {stamp(r.occurred_at)}
-                    {r.external_status && PROBLEM.includes(r.external_status) && <span className="text-amber"> · not delivered</span>}
+                  <p
+                    className={`mt-1 font-mono text-[10px] text-faint ${out ? "text-right" : ""}`}
+                  >
+                    {r.kind === "text" ? "Text" : "Email"} ·{" "}
+                    {stamp(r.occurred_at)}
+                    {r.external_status &&
+                      PROBLEM.includes(r.external_status) && (
+                        <span className="text-amber"> · not delivered</span>
+                      )}
                   </p>
                 </div>
               </li>
@@ -158,12 +276,19 @@ export default async function ConversationPage({ params }: { params: Promise<{ k
       )}
 
       <ReplyBox
-        links={{ [col]: who.id }}
+        links={{
+          [col]: who.id,
+          ...(who.kind === "p" && aboutId ? { candidate_id: aboutId } : {}),
+        }}
         path={`/messages/${key}`}
         name={person.name}
         phone={phone}
         email={email}
-        thread={viaIndeed ? (cand?.indeed_thread_id ?? lastEmail?.external_thread_id ?? null) : (lastEmail?.external_thread_id ?? null)}
+        thread={
+          viaIndeed
+            ? (cand?.indeed_thread_id ?? lastEmail?.external_thread_id ?? null)
+            : (lastEmail?.external_thread_id ?? null)
+        }
         subject={
           lastEmail
             ? lastEmail.summary.replace(/^Email (to|from) [^:]+:\s*/, "")
@@ -172,8 +297,14 @@ export default async function ConversationPage({ params }: { params: Promise<{ k
               : null
         }
         through={viaIndeed ? "Indeed" : null}
-        start={lastIn?.kind === "email" ? "email" : "text"}
-        textBlocked={optedOut ? `${person.name.split(" ")[0]} replied STOP, so texting is blocked.` : null}
+        start={
+          who.t?.startsWith("g") || lastIn?.kind === "email" ? "email" : "text"
+        }
+        textBlocked={
+          optedOut
+            ? `${person.name.split(" ")[0]} replied STOP, so texting is blocked.`
+            : null
+        }
       />
     </div>
   );
