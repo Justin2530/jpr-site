@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
+import { BulkCheck, BulkList } from "@/components/bulk";
 import { automationState } from "@/lib/automation-state";
 import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -42,7 +43,8 @@ export default async function JobDetail({
 }) {
   const { id } = await params;
   const { view = "list" } = await searchParams;
-  const { supabase } = await requireStaff();
+  const { supabase, staff } = await requireStaff();
+  const owner = staff.role === "owner";
   const [
     { data: job },
     { data: pipeline },
@@ -107,8 +109,15 @@ export default async function JobDetail({
     stage === "applied" || stage === "sourced";
   const working = sorted.filter((r) => !isWaiting(r.stage));
   const waiting = sorted.filter((r) => isWaiting(r.stage));
+  const bulkItems = (rows: typeof sorted) =>
+    rows.map((r) => ({
+      id: r.id,
+      candidateId: r.candidates?.id ?? "",
+      name: r.candidates?.full_name ?? "Someone",
+    }));
   const renderRow = (r: (typeof sorted)[number]) => (
     <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
+      <BulkCheck id={r.id} label={r.candidates?.full_name} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Link
@@ -338,9 +347,11 @@ export default async function JobDetail({
             ) : (
               <>
                 {working.length > 0 ? (
-                  <ul className="-mb-1 divide-y divide-line">
-                    {working.map(renderRow)}
-                  </ul>
+                  <BulkList kind="job" owner={owner} items={bulkItems(working)}>
+                    <ul className="-mb-1 divide-y divide-line">
+                      {working.map(renderRow)}
+                    </ul>
+                  </BulkList>
                 ) : (
                   <Empty>Nobody is assigned to this job yet.</Empty>
                 )}
@@ -350,9 +361,15 @@ export default async function JobDetail({
                       Not assigned yet · {waiting.length} applied or sourced,
                       waiting on you
                     </summary>
-                    <ul className="-mb-1 divide-y divide-line">
-                      {waiting.map(renderRow)}
-                    </ul>
+                    <BulkList
+                      kind="job"
+                      owner={owner}
+                      items={bulkItems(waiting)}
+                    >
+                      <ul className="-mb-1 divide-y divide-line">
+                        {waiting.map(renderRow)}
+                      </ul>
+                    </BulkList>
                   </details>
                 )}
               </>

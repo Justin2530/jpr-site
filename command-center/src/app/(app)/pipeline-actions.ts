@@ -152,3 +152,48 @@ export async function clearOldImports() {
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
 }
+
+// Bulk actions from the checkboxes on job pages and the Pipeline list (Justin 2026-10-11).
+const cleanIds = (ids: string[]) =>
+  ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500);
+
+export async function bulkSetStage(
+  ids: string[],
+  stage: string,
+): Promise<{ ok: boolean; message: string }> {
+  const { supabase } = await requireStaff();
+  if (
+    !Constants.public.Enums.pipeline_stage.includes(
+      stage as Enums<"pipeline_stage">,
+    )
+  )
+    return { ok: false, message: "Unknown stage." };
+  const list = cleanIds(ids);
+  const { data, error } = await supabase
+    .from("candidate_jobs")
+    .update({ stage: stage as Enums<"pipeline_stage"> })
+    .in("id", list)
+    .select("id");
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    message: `Moved ${data.length} to ${stage.replaceAll("_", " ")}.`,
+  };
+}
+
+export async function bulkUnassign(
+  ids: string[],
+): Promise<{ ok: boolean; message: string }> {
+  const { supabase } = await requireStaff();
+  const list = cleanIds(ids);
+  await supabase.from("inbox_drafts").delete().in("candidate_job_id", list);
+  const { data, error } = await supabase
+    .from("candidate_jobs")
+    .delete()
+    .in("id", list)
+    .select("id");
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Removed ${data.length} from the job.` };
+}
