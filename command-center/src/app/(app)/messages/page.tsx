@@ -7,6 +7,7 @@ import { markRead } from "./actions";
 import {
   baseKey,
   convOf,
+  currentSince,
   lastRead,
   people,
   soleJobs,
@@ -99,16 +100,39 @@ export default async function MessagesPage({
     if (r.direction === "in" && (!seen || r.occurred_at > seen)) t.unread++;
     threads.set(key, t);
   }
-  let list = [...threads.values()];
-  if (show === "unread") list = list.filter((t) => t.unread > 0);
+  const all = [...threads.values()];
   // Who each conversation is with, plus the candidate each client topic is about.
   const who = await people(supabase, [
-    ...list.map((t) => t.who),
-    ...list.flatMap((t) =>
+    ...all.map((t) => t.who),
+    ...all.flatMap((t) =>
       t.candidateId ? [{ kind: "c" as const, id: t.candidateId }] : [],
     ),
   ]);
-  const unreadCount = [...threads.values()].filter((t) => t.unread > 0).length;
+
+  // Three tabs (Justin 2026-10-11): Waiting on you (they wrote last), Current (anything in the last two weeks, or
+  // unread) and History (everything, so nothing is lost). A job conversation whose job is closed for them
+  // (passed, withdrawn) only stays current while it has something unread.
+  const CURRENT_DAYS = 14;
+  const since = currentSince(CURRENT_DAYS);
+  const closedJob = (t: (typeof all)[number]) =>
+    Boolean(
+      t.who.t?.startsWith("j") &&
+      !who.get(baseKey(t.who))?.jobs.some((j) => j.cjId === t.who.t!.slice(1)),
+    );
+  const isCurrent = (t: (typeof all)[number]) =>
+    t.unread > 0 || (t.last.occurred_at >= since && !closedJob(t));
+  const isWaiting = (t: (typeof all)[number]) =>
+    t.last.direction === "in" && isCurrent(t);
+  const tab = show === "history" || show === "waiting" ? show : "current";
+  const counts = {
+    waiting: all.filter(isWaiting).length,
+    current: all.filter(isCurrent).length,
+    history: all.length,
+  };
+  const list =
+    tab === "history"
+      ? all
+      : all.filter(tab === "waiting" ? isWaiting : isCurrent);
 
   // What a conversation is about: the email's subject, or the job (or candidate) its texts are about.
   function topic(
@@ -215,24 +239,29 @@ export default async function MessagesPage({
       <div className="space-y-4">
         <PushToggle />
         <div className="flex gap-1.5">
-          {[
-            ["all", "All", threads.size],
-            ["unread", "Unread", unreadCount],
-          ].map(([key, text, n]) => (
+          {(
+            [
+              ["waiting", "Waiting on you"],
+              ["current", "Current"],
+              ["history", "History"],
+            ] as const
+          ).map(([key, text]) => (
             <Link
               key={key}
-              href={key === "all" ? "/messages" : "/messages?show=unread"}
-              className={`rounded-md border px-2.5 py-1 text-xs ${(show === "unread") === (key === "unread") ? "border-cyan/50 bg-cyan-soft text-cyan" : "border-line text-muted hover:text-ink"}`}
+              href={key === "current" ? "/messages" : `/messages?show=${key}`}
+              className={`rounded-md border px-2.5 py-1 text-xs ${tab === key ? "border-cyan/50 bg-cyan-soft text-cyan" : "border-line text-muted hover:text-ink"}`}
             >
-              {text} <span className="font-mono text-faint">{n}</span>
+              {text} <span className="font-mono text-faint">{counts[key]}</span>
             </Link>
           ))}
         </div>
         {list.length === 0 ? (
           <Empty>
-            {show === "unread"
-              ? "You're all caught up."
-              : "No texts or emails yet."}
+            {tab === "waiting"
+              ? "Nobody is waiting on you."
+              : tab === "current"
+                ? "Nothing going on in the last two weeks. Older conversations are under History."
+                : "No texts or emails yet."}
           </Empty>
         ) : (
           [

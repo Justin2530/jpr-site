@@ -211,3 +211,7 @@ export async function unreadConversations(supabase: DB, userId: string) {
   }
   return unread.size;
 }
+
+// The cutoff for the Messages page's Current tab.
+export const currentSince = (days: number) =>
+  new Date(Date.now() - days * 864e5).toISOString();
