@@ -6,7 +6,8 @@ import { StageSelect } from "@/components/stage-select";
 import { ViewSwitcher } from "@/components/view-switcher";
 import { daysSince, STAGE_LABEL, STAGE_TONE, timeAgo } from "@/lib/format";
 import { Constants, type Enums } from "@/lib/database.types";
-import { moveCandidateJob } from "../pipeline-actions";
+import { clearOldImports, moveCandidateJob } from "../pipeline-actions";
+import { oldImportLinks } from "@/lib/old-imports";
 
 export const metadata = { title: "Pipeline · JPR" };
 
@@ -23,7 +24,8 @@ export default async function PipelinePage({
 }) {
   const { view = "board", job, closed } = await searchParams;
   const showClosed = closed === "1";
-  const { supabase } = await requireStaff();
+  const { supabase, staff } = await requireStaff();
+  const oldImports = staff.role === "owner" ? (await oldImportLinks(supabase)).length : 0;
 
   const [{ data: rows, error }, { data: jobs }, { data: settings }] = await Promise.all([
     (() => {
@@ -85,6 +87,15 @@ export default async function PipelinePage({
           />
         }
       />
+      {oldImports > 0 && (
+        <form action={clearOldImports} className="panel mb-4 flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+          <span className="flex-1 text-muted">
+            {oldImports} people from the old Recruiterflow import are still sitting in Sourced. Remove them from their jobs? They stay in
+            Candidates, and placed people are kept.
+          </span>
+          <button className="btn-quiet">Remove {oldImports} from the pipeline</button>
+        </form>
+      )}
       <form className="mb-4 flex flex-wrap items-center gap-2">
         <input type="hidden" name="view" value={view} />
         <select name="job" defaultValue={job ?? ""} className="field w-auto min-w-56" aria-label="Filter by job">
