@@ -24,6 +24,7 @@ import {
   addGoal,
   deleteGoal,
   setJobStatus,
+  setJobVisibility,
   toggleGoal,
   updateJob,
 } from "../actions";
@@ -205,7 +206,34 @@ export default async function JobDetail({
           </span>
         }
         action={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <form
+              action={setJobVisibility}
+              className="flex items-center gap-1 rounded-lg border border-line p-1"
+              title="Public puts this job on the website job board while it is open. Private and Confidential keep it off the site."
+            >
+              <input type="hidden" name="id" value={job.id} />
+              {(["private", "public", "confidential"] as const).map((v) => (
+                <button
+                  key={v}
+                  name="visibility"
+                  value={v}
+                  className={`rounded-md px-2.5 py-1 text-sm ${job.visibility === v ? "bg-cyan-soft text-cyan" : "text-muted hover:text-ink"}`}
+                >
+                  {label(v)}
+                </button>
+              ))}
+            </form>
+            {job.visibility === "public" && job.status === "open" && (
+              <a
+                href={`https://www.jpeacerecruiting.com/jobs/${job.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-quiet"
+              >
+                View on site
+              </a>
+            )}
             <form action={setJobStatus} className="flex gap-2">
               <input type="hidden" name="id" value={job.id} />
               {job.status !== "open" && (

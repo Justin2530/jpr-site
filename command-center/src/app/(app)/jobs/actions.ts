@@ -63,6 +63,16 @@ export async function setJobStatus(form: FormData) {
   revalidatePath(`/jobs/${id}`);
 }
 
+export async function setJobVisibility(form: FormData) {
+  const { supabase } = await requireStaff();
+  const id = String(form.get("id"));
+  const visibility = text(form, "visibility") as Enums<"job_visibility">;
+  if (!["private", "public", "confidential"].includes(visibility)) throw new Error("Unknown visibility.");
+  const { error } = await supabase.from("jobs").update({ visibility }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/jobs/${id}`);
+}
+
 export async function addGoal(form: FormData) {
   const { supabase } = await requireStaff();
   const jobId = String(form.get("job_id"));
