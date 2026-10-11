@@ -1533,6 +1533,7 @@ export type Database = {
         Returns: undefined;
       };
       release_candidates: { Args: { p_ids: string[] }; Returns: undefined };
+      release_jobs: { Args: { p_ids: string[] }; Returns: undefined };
       manual_submissions_due: { Args: { p_secret: string }; Returns: Json };
       manual_submission_record: {
         Args: {

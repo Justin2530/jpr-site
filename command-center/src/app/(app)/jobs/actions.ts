@@ -136,3 +136,39 @@ export async function readJobFile(form: FormData): Promise<JobRead> {
   if (!job) return { job: { ...EMPTY_JOB, description: body }, error: "Couldn't sort the details out, so the text went into the description. Fill in the rest below." };
   return { job };
 }
+
+// Bulk actions on the Jobs list. Deleting takes the job, its pipeline and screening with it; the texts, emails
+// and calls stay on each person's record.
+export async function deleteJobs(ids: string[]): Promise<{ ok: boolean; message: string }> {
+  const { supabase, staff } = await requireStaff();
+  if (staff.role !== "owner") return { ok: false, message: "Only the owner can delete jobs." };
+  const list = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!list.length) return { ok: false, message: "No job is selected." };
+  const { error: rError } = await supabase.rpc("release_jobs", { p_ids: list });
+  if (rError) return { ok: false, message: `Couldn't delete: ${rError.message}` };
+  const stuck: string[] = [];
+  for (const id of list) {
+    const { error } = await supabase.from("jobs").delete().eq("id", id);
+    if (error) {
+      console.error("Job delete failed", id, error.message);
+      const { data } = await supabase.from("jobs").select("title").eq("id", id).maybeSingle();
+      stuck.push(data?.title ?? "a job");
+    }
+  }
+  revalidatePath("/", "layout");
+  const gone = list.length - stuck.length;
+  return {
+    ok: gone > 0,
+    message: `Deleted ${gone} ${gone === 1 ? "job" : "jobs"}.${stuck.length ? ` Couldn't delete: ${stuck.join(", ")}.` : ""}`,
+  };
+}
+
+export async function setJobsStatus(ids: string[], status: string): Promise<{ ok: boolean; message: string }> {
+  const { supabase } = await requireStaff();
+  const list = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (!list.length || !["open", "on_hold", "filled", "closed"].includes(status)) return { ok: false, message: "Nothing to change." };
+  const { error } = await supabase.from("jobs").update({ status: status as Enums<"job_status"> }).in("id", list);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/jobs");
+  return { ok: true, message: `Moved ${list.length} ${list.length === 1 ? "job" : "jobs"} to ${status.replace("_", " ")}.` };
+}
