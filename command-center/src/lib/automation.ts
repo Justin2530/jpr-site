@@ -1,14 +1,27 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { runBrain } from "@/lib/brain";
 import { runTriage } from "@/lib/triage";
+import { runConversationStates } from "@/lib/conversations";
 import { processReception } from "@/lib/reception";
 import { runScreening } from "@/lib/screening";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { accessToken, googleReady, openToken, sendGmail } from "@/lib/google";
-import { toE164, twilioApi, twilioNumber, twilioReady, webhookUrl } from "@/lib/twilio";
+import {
+  toE164,
+  twilioApi,
+  twilioNumber,
+  twilioReady,
+  webhookUrl,
+} from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
-import { backfillMailbox, findManualSubmissions, labelBackfill, labelMailbox, syncMailbox } from "@/lib/gmail-sync";
+import {
+  backfillMailbox,
+  findManualSubmissions,
+  labelBackfill,
+  labelMailbox,
+  syncMailbox,
+} from "@/lib/gmail-sync";
 import { sendPushes } from "@/lib/push";
 import { runRelay } from "@/lib/relay";
 
@@ -16,7 +29,9 @@ import { runRelay } from "@/lib/relay";
 // never has to be typed, pasted or stored anywhere but here and in Supabase Vault.
 export function automationSecret() {
   const base = process.env.TWILIO_WEBHOOK_SECRET?.trim();
-  return base ? createHmac("sha256", base).update("jpr-automation").digest("hex") : null;
+  return base
+    ? createHmac("sha256", base).update("jpr-automation").digest("hex")
+    : null;
 }
 
 export function validAutomationSecret(given: string | null) {
@@ -28,10 +43,16 @@ export function validAutomationSecret(given: string | null) {
 }
 
 // Tell the database where to knock every minute. Safe to call often; it only refreshes the values.
-export async function registerAutomation(supabase: SupabaseClient<Database>, origin: string) {
+export async function registerAutomation(
+  supabase: SupabaseClient<Database>,
+  origin: string,
+) {
   const secret = automationSecret();
   if (!secret) return;
-  await supabase.rpc("automation_register", { p_secret: secret, p_url: webhookUrl(origin, "/api/automation/tick") });
+  await supabase.rpc("automation_register", {
+    p_secret: secret,
+    p_url: webhookUrl(origin, "/api/automation/tick"),
+  });
 }
 
 type Due = {
@@ -66,7 +87,11 @@ export function nearTown(location: string | null) {
 }
 
 // The first line after "this is Justin with JPR", by how they came to the job (picked at assign).
-export function opener(source: Due["source"], jobTitle: string, location: string | null) {
+export function opener(
+  source: Due["source"],
+  jobTitle: string,
+  location: string | null,
+) {
   const job = `${article(jobTitle)} ${jobTitle} position we're hiring for${nearTown(location)}`;
   switch (source) {
     case "indeed":
@@ -83,23 +108,28 @@ export function opener(source: Due["source"], jobTitle: string, location: string
 }
 
 function fill(template: string, d: Due) {
-  return template
-    .replaceAll("{first_name}", d.full_name.trim().split(/\s+/)[0] ?? "there")
-    .replaceAll("{job_title}", d.job_title)
-    .replaceAll("{near_town}", nearTown(d.location))
-    .replaceAll("{in_location}", d.location ? ` in ${d.location}` : "")
-    .replaceAll("{opener}", opener(d.source, d.job_title, d.location))
-    // Justin 2026-10-09: no "A few details on the job" list in the first email.
-    .replaceAll("{job_details}", "")
-    .replaceAll("{signature}", SIGNATURE);
+  return (
+    template
+      .replaceAll("{first_name}", d.full_name.trim().split(/\s+/)[0] ?? "there")
+      .replaceAll("{job_title}", d.job_title)
+      .replaceAll("{near_town}", nearTown(d.location))
+      .replaceAll("{in_location}", d.location ? ` in ${d.location}` : "")
+      .replaceAll("{opener}", opener(d.source, d.job_title, d.location))
+      // Justin 2026-10-09: no "A few details on the job" list in the first email.
+      .replaceAll("{job_details}", "")
+      .replaceAll("{signature}", SIGNATURE)
+  );
 }
 
 // One pass of the follow-up engine: send every text and email that's due, then check each mailbox.
 export async function runTick(db: SupabaseClient<Database>, origin: string) {
   const secret = automationSecret()!;
   // A day after a missed booked call with no reply, the outreach schedule picks up where it stopped.
-  const { error: resumeError } = await db.rpc("pursuits_resume_due", { p_secret: secret });
-  if (resumeError) console.error("Resuming outreach failed", resumeError.message);
+  const { error: resumeError } = await db.rpc("pursuits_resume_due", {
+    p_secret: secret,
+  });
+  if (resumeError)
+    console.error("Resuming outreach failed", resumeError.message);
   const { data, error } = await db.rpc("automation_due", { p_secret: secret });
   if (error) throw new Error(error.message);
   const steps = (data ?? []) as unknown as Due[];
@@ -109,7 +139,12 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
     const done = (
       status: "sent" | "skipped" | "failed",
       note: string,
-      extra: { summary?: string; externalId?: string; threadId?: string; phone?: string } = {},
+      extra: {
+        summary?: string;
+        externalId?: string;
+        threadId?: string;
+        phone?: string;
+      } = {},
     ) =>
       db.rpc("automation_step_done", {
         p_secret: secret,
@@ -133,7 +168,8 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
         const to = toE164(d.phone);
         if (!to) await done("skipped", "no mobile number on file");
         else if (d.sms_opted_out) await done("skipped", "they replied STOP");
-        else if (!twilioReady()) await done("skipped", "texting isn't connected");
+        else if (!twilioReady())
+          await done("skipped", "texting isn't connected");
         else {
           const msg = await twilioApi("Messages", {
             To: to,
@@ -141,43 +177,72 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
             Body: body,
             StatusCallback: webhookUrl(origin, "/api/twilio/status"),
           });
-          await done("sent", "", { summary: `Automatic text to ${d.full_name}`, externalId: msg.sid, phone: to });
+          await done("sent", "", {
+            summary: `Automatic text to ${d.full_name}`,
+            externalId: msg.sid,
+            phone: to,
+          });
           sent++;
         }
       } else {
         // Someone who replied on Indeed gets every email in their Indeed thread, even once we have their own address.
-        const { data: indeed } = await db.rpc("automation_indeed", { p_secret: secret, p_candidate: d.candidate_id });
-        const relay = indeed as { relay: string; thread_id: string; subject: string | null } | null;
+        const { data: indeed } = await db.rpc("automation_indeed", {
+          p_secret: secret,
+          p_candidate: d.candidate_id,
+        });
+        const relay = indeed as {
+          relay: string;
+          thread_id: string;
+          subject: string | null;
+        } | null;
         const to = relay?.relay ?? d.email?.trim();
         if (!to) await done("skipped", "no email on file");
-        else if (!d.gmail_token || !d.gmail_email || !googleReady()) await done("skipped", "Gmail isn't connected");
+        else if (!d.gmail_token || !d.gmail_email || !googleReady())
+          await done("skipped", "Gmail isn't connected");
         else {
           // Follow-ups reply in the first email's thread, so the whole run reads as one conversation.
           const thread = relay
-            ? { id: relay.thread_id, subject: relay.subject ?? fill("{job_title}{near_town}", d) }
+            ? {
+                id: relay.thread_id,
+                subject: relay.subject ?? fill("{job_title}{near_town}", d),
+              }
             : d.in_thread && d.thread_id && d.thread_subject
               ? { id: d.thread_id, subject: d.thread_subject }
               : null;
-          const subject = thread ? `Re: ${thread.subject.replace(/^Re:\s*/i, "")}` : fill(d.subject ?? "{job_title}{near_town}", d);
-          const res = await sendGmail(await accessToken(openToken(d.gmail_token)), {
-            from: d.gmail_email,
-            to,
-            subject,
-            body,
-            ...(thread ? { threadId: thread.id } : {}),
+          const subject = thread
+            ? `Re: ${thread.subject.replace(/^Re:\s*/i, "")}`
+            : fill(d.subject ?? "{job_title}{near_town}", d);
+          const res = await sendGmail(
+            await accessToken(openToken(d.gmail_token)),
+            {
+              from: d.gmail_email,
+              to,
+              subject,
+              body,
+              ...(thread ? { threadId: thread.id } : {}),
+            },
+          );
+          await done("sent", "", {
+            summary: `Automatic email to ${d.full_name}: ${subject}`,
+            externalId: res.id,
+            threadId: res.threadId,
           });
-          await done("sent", "", { summary: `Automatic email to ${d.full_name}: ${subject}`, externalId: res.id, threadId: res.threadId });
           sent++;
         }
       }
     } catch (e) {
-      await done("failed", e instanceof Error ? e.message.slice(0, 300) : "send failed");
+      await done(
+        "failed",
+        e instanceof Error ? e.message.slice(0, 300) : "send failed",
+      );
     }
   }
 
   let logged = 0;
   if (googleReady()) {
-    const { data: boxes } = await db.rpc("gmail_mailboxes", { p_secret: secret });
+    const { data: boxes } = await db.rpc("gmail_mailboxes", {
+      p_secret: secret,
+    });
     for (const box of (boxes ?? []) as unknown as Mailbox[]) {
       try {
         logged += await syncMailbox(db, secret, box);
@@ -253,13 +318,39 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Triage pass failed", e);
   }
-  return { sent, due: steps.length, logged, leads, brain, relay, cleared, calls, reception };
+  // Where each Messages conversation stands (waiting on Justin, current, done), read by the AI.
+  let conversations = 0;
+  try {
+    conversations = await runConversationStates(db, secret);
+  } catch (e) {
+    console.error("Conversation states pass failed", e);
+  }
+  return {
+    sent,
+    due: steps.length,
+    logged,
+    leads,
+    brain,
+    relay,
+    cleared,
+    calls,
+    reception,
+    conversations,
+  };
 }
 
-async function emailWebsiteLeads(db: SupabaseClient<Database>, secret: string, origin: string) {
+async function emailWebsiteLeads(
+  db: SupabaseClient<Database>,
+  secret: string,
+  origin: string,
+) {
   if (!googleReady()) return 0;
   const { data } = await db.rpc("website_leads_unsent", { p_secret: secret });
-  const items = (data ?? []) as unknown as { id: string; title: string; detail: string | null }[];
+  const items = (data ?? []) as unknown as {
+    id: string;
+    title: string;
+    detail: string | null;
+  }[];
   if (!items.length) return 0;
   const { data: boxes } = await db.rpc("gmail_mailboxes", { p_secret: secret });
   const box = ((boxes ?? []) as unknown as Mailbox[])[0];
@@ -271,11 +362,26 @@ async function emailWebsiteLeads(db: SupabaseClient<Database>, secret: string, o
     const body = `${item.title.replace(/^Hiring request: /, "New hiring request from ")} on jpeacerecruiting.com.\n\n${item.detail ?? ""}\n\n${
       replyTo ? "Reply to this email to answer them directly.\n" : ""
     }It's also on What needs me: ${origin}/`;
-    await sendGmail(token, { from: box.email, to: box.email, replyTo, subject: item.title.replace(/^Hiring request/, "Website hiring request"), body });
-    await db.rpc("website_lead_notified", { p_secret: secret, p_item: item.id });
+    await sendGmail(token, {
+      from: box.email,
+      to: box.email,
+      replyTo,
+      subject: item.title.replace(/^Hiring request/, "Website hiring request"),
+      body,
+    });
+    await db.rpc("website_lead_notified", {
+      p_secret: secret,
+      p_item: item.id,
+    });
     sent++;
   }
   return sent;
 }
 
-export type Mailbox = { staff_id: string; email: string; token: string; connected_at: string; last_synced_at: string | null };
+export type Mailbox = {
+  staff_id: string;
+  email: string;
+  token: string;
+  connected_at: string;
+  last_synced_at: string | null;
+};

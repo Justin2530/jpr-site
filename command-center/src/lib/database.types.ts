@@ -1,5 +1,11 @@
 // Generated from the Supabase project (jpr-local). Regenerate after schema changes.
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 export type Database = {
   __InternalSupabase: {
@@ -267,7 +273,13 @@ export type Database = {
           id: string;
           job_id: string;
           notes: string | null;
-          outreach_source: "indeed" | "applied" | "linkedin" | "referral" | "other" | null;
+          outreach_source:
+            | "indeed"
+            | "applied"
+            | "linkedin"
+            | "referral"
+            | "other"
+            | null;
           automate: boolean;
           stage: Database["public"]["Enums"]["pipeline_stage"];
           stage_changed_at: string;
@@ -279,7 +291,13 @@ export type Database = {
           id?: string;
           job_id: string;
           notes?: string | null;
-          outreach_source?: "indeed" | "applied" | "linkedin" | "referral" | "other" | null;
+          outreach_source?:
+            | "indeed"
+            | "applied"
+            | "linkedin"
+            | "referral"
+            | "other"
+            | null;
           automate?: boolean;
           stage?: Database["public"]["Enums"]["pipeline_stage"];
           stage_changed_at?: string;
@@ -570,10 +588,55 @@ export type Database = {
         Update: { staff_id?: string; who?: string; read_at?: string };
         Relationships: [];
       };
+      conversation_states: {
+        Row: {
+          who: string;
+          state: string;
+          reason: string | null;
+          last_activity_id: string | null;
+          judged_at: string;
+        };
+        Insert: {
+          who: string;
+          state: string;
+          reason?: string | null;
+          last_activity_id?: string | null;
+          judged_at?: string;
+        };
+        Update: {
+          who?: string;
+          state?: string;
+          reason?: string | null;
+          last_activity_id?: string | null;
+          judged_at?: string;
+        };
+        Relationships: [];
+      };
       push_subscriptions: {
-        Row: { endpoint: string; staff_id: string; p256dh: string; auth: string; created_at: string; gone_at: string | null };
-        Insert: { endpoint: string; staff_id: string; p256dh: string; auth: string; created_at?: string; gone_at?: string | null };
-        Update: { endpoint?: string; staff_id?: string; p256dh?: string; auth?: string; created_at?: string; gone_at?: string | null };
+        Row: {
+          endpoint: string;
+          staff_id: string;
+          p256dh: string;
+          auth: string;
+          created_at: string;
+          gone_at: string | null;
+        };
+        Insert: {
+          endpoint: string;
+          staff_id: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+          gone_at?: string | null;
+        };
+        Update: {
+          endpoint?: string;
+          staff_id?: string;
+          p256dh?: string;
+          auth?: string;
+          created_at?: string;
+          gone_at?: string | null;
+        };
         Relationships: [];
       };
       integration_snapshots: {
@@ -660,7 +723,9 @@ export type Database = {
           changed_at?: string | null;
           changed_by?: string | null;
         };
-        Update: Partial<Database["public"]["Tables"]["automation_settings"]["Row"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["automation_settings"]["Row"]
+        >;
         Relationships: [];
       };
       followup_steps: {
@@ -894,7 +959,15 @@ export type Database = {
         Row: {
           id: string;
           candidate_job_id: string;
-          status: "review" | "confirm_asked" | "ready" | "sent" | "countered" | "accepted" | "declined" | "withdrawn";
+          status:
+            | "review"
+            | "confirm_asked"
+            | "ready"
+            | "sent"
+            | "countered"
+            | "accepted"
+            | "declined"
+            | "withdrawn";
           waiting_on: "justin" | "candidate" | "client" | null;
           clear: boolean;
           terms: string;
@@ -910,7 +983,15 @@ export type Database = {
         Insert: {
           id?: string;
           candidate_job_id: string;
-          status?: "review" | "confirm_asked" | "ready" | "sent" | "countered" | "accepted" | "declined" | "withdrawn";
+          status?:
+            | "review"
+            | "confirm_asked"
+            | "ready"
+            | "sent"
+            | "countered"
+            | "accepted"
+            | "declined"
+            | "withdrawn";
           waiting_on?: "justin" | "candidate" | "client" | null;
           clear?: boolean;
           terms?: string;
@@ -1396,52 +1477,136 @@ export type Database = {
     };
     Functions: {
       automation_allowed: { Args: { p_cj: string }; Returns: boolean };
-      set_candidate_automation: { Args: { p_candidate: string; p_on: boolean }; Returns: undefined };
-      automation_pause_candidate: { Args: { p_secret: string; p_candidate: string; p_reason: string }; Returns: undefined };
+      set_candidate_automation: {
+        Args: { p_candidate: string; p_on: boolean };
+        Returns: undefined;
+      };
+      automation_pause_candidate: {
+        Args: { p_secret: string; p_candidate: string; p_reason: string };
+        Returns: undefined;
+      };
       set_ai_calls: { Args: { p_on: boolean }; Returns: undefined };
       set_ai_receptionist: { Args: { p_on: boolean }; Returns: undefined };
       set_inbox_agent: { Args: { p_on: boolean }; Returns: undefined };
       set_inbox_auto_reply: { Args: { p_on: boolean }; Returns: undefined };
       inbox_context: { Args: { p_secret: string }; Returns: Json };
-      inbox_seen: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
+      inbox_seen: {
+        Args: { p_secret: string; p_ids: string[] };
+        Returns: string[];
+      };
       inbox_label_put: {
-        Args: { p_secret: string; p_staff: string; p_thread: string; p_gmail: string; p_from: string; p_name: string; p_kind?: string };
+        Args: {
+          p_secret: string;
+          p_staff: string;
+          p_thread: string;
+          p_gmail: string;
+          p_from: string;
+          p_name: string;
+          p_kind?: string;
+        };
         Returns: undefined;
       };
-      inbox_label_due: { Args: { p_secret: string; p_staff: string }; Returns: { thread_id: string; want: string }[] };
-      inbox_label_done: { Args: { p_secret: string; p_staff: string; p_thread: string; p_state: string }; Returns: undefined };
+      inbox_label_due: {
+        Args: { p_secret: string; p_staff: string };
+        Returns: { thread_id: string; want: string }[];
+      };
+      inbox_label_done: {
+        Args: {
+          p_secret: string;
+          p_staff: string;
+          p_thread: string;
+          p_state: string;
+        };
+        Returns: undefined;
+      };
       inbox_label_backlog: { Args: { p_secret: string }; Returns: string[] };
-      inbox_label_known: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
-      label_backfill_get: { Args: { p_secret: string; p_staff: string }; Returns: Json };
-      label_backfill_set: { Args: { p_secret: string; p_staff: string; p_from: string }; Returns: undefined };
+      inbox_label_known: {
+        Args: { p_secret: string; p_ids: string[] };
+        Returns: string[];
+      };
+      label_backfill_get: {
+        Args: { p_secret: string; p_staff: string };
+        Returns: Json;
+      };
+      label_backfill_set: {
+        Args: { p_secret: string; p_staff: string; p_from: string };
+        Returns: undefined;
+      };
       release_candidates: { Args: { p_ids: string[] }; Returns: undefined };
       manual_submissions_due: { Args: { p_secret: string }; Returns: Json };
       manual_submission_record: {
-        Args: { p_secret: string; p_cj: string; p_thread: string; p_subject: string; p_sent_at: string; p_to: string[] };
+        Args: {
+          p_secret: string;
+          p_cj: string;
+          p_thread: string;
+          p_subject: string;
+          p_sent_at: string;
+          p_to: string[];
+        };
         Returns: string | null;
       };
-      inbox_sender: { Args: { p_secret: string; p_from: string }; Returns: Json };
+      inbox_sender: {
+        Args: { p_secret: string; p_from: string };
+        Returns: Json;
+      };
       inbox_file: { Args: { p_secret: string; p: Json }; Returns: Json };
       inbox_draft_sent: {
-        Args: { p_secret: string; p_draft: string; p_message_id: string; p_thread: string; p_body: string; p_staff: string | null };
+        Args: {
+          p_secret: string;
+          p_draft: string;
+          p_message_id: string;
+          p_thread: string;
+          p_body: string;
+          p_staff: string | null;
+        };
         Returns: undefined;
       };
       inbox_draft_skip: { Args: { p_draft: string }; Returns: undefined };
-      reception_route: { Args: { p_secret: string; p_from: string }; Returns: Json };
-      reception_start_screening: { Args: { p_secret: string; p_cj: string; p_sid: string }; Returns: string };
-      screening_run_inbound: { Args: { p_secret: string; p_run: string }; Returns: boolean };
-      reception_open: { Args: { p_secret: string; p_sid: string; p_from: string }; Returns: Json };
-      reception_get: { Args: { p_secret: string; p_id: string }; Returns: Json };
-      reception_update: { Args: { p_secret: string; p_id: string; p: Json }; Returns: undefined };
-      reception_watch_report: { Args: { p_id: string; p_session: string; p_note: Json }; Returns: boolean };
+      reception_route: {
+        Args: { p_secret: string; p_from: string };
+        Returns: Json;
+      };
+      reception_start_screening: {
+        Args: { p_secret: string; p_cj: string; p_sid: string };
+        Returns: string;
+      };
+      screening_run_inbound: {
+        Args: { p_secret: string; p_run: string };
+        Returns: boolean;
+      };
+      reception_open: {
+        Args: { p_secret: string; p_sid: string; p_from: string };
+        Returns: Json;
+      };
+      reception_get: {
+        Args: { p_secret: string; p_id: string };
+        Returns: Json;
+      };
+      reception_update: {
+        Args: { p_secret: string; p_id: string; p: Json };
+        Returns: undefined;
+      };
+      reception_watch_report: {
+        Args: { p_id: string; p_session: string; p_note: Json };
+        Returns: boolean;
+      };
       reception_to_process: { Args: { p_secret: string }; Returns: Json };
-      reception_complete: { Args: { p_secret: string; p_id: string; p: Json }; Returns: undefined };
+      reception_complete: {
+        Args: { p_secret: string; p_id: string; p: Json };
+        Returns: undefined;
+      };
       set_pilot_only: { Args: { p_on: boolean }; Returns: undefined };
       client_followups_due: { Args: { p_secret: string }; Returns: Json };
       client_call_reminders: { Args: { p_secret: string }; Returns: number };
       relay_pending: { Args: { p_secret: string }; Returns: Json };
-      relay_log: { Args: { p_secret: string; p: Json }; Returns: string | null };
-      relay_apply: { Args: { p_secret: string; p_activity: string | null; p: Json }; Returns: string | null };
+      relay_log: {
+        Args: { p_secret: string; p: Json };
+        Returns: string | null;
+      };
+      relay_apply: {
+        Args: { p_secret: string; p_activity: string | null; p: Json };
+        Returns: string | null;
+      };
       relay_scheduled: { Args: { p_secret: string }; Returns: Json };
       relay_context_staff: { Args: { p_cj: string }; Returns: Json };
       can_access_market: { Args: { m: string }; Returns: boolean };
@@ -1450,34 +1615,119 @@ export type Database = {
       is_staff: { Args: never; Returns: boolean };
       phone_key: { Args: { p: string }; Returns: string };
       set_automated_recruiting: { Args: { p_on: boolean }; Returns: undefined };
-      start_pursuit: { Args: { p_candidate_job_id: string; p_purpose?: string }; Returns: string | null };
-      screening_get: { Args: { p_secret: string; p_run: string }; Returns: Json };
+      start_pursuit: {
+        Args: { p_candidate_job_id: string; p_purpose?: string };
+        Returns: string | null;
+      };
+      screening_get: {
+        Args: { p_secret: string; p_run: string };
+        Returns: Json;
+      };
       screening_due: { Args: { p_secret: string }; Returns: Json };
-      screening_call_now: { Args: { p_candidate_job_id: string }; Returns: string };
-      screening_update: { Args: { p_secret: string; p_run: string; p: Json }; Returns: undefined };
+      screening_call_now: {
+        Args: { p_candidate_job_id: string };
+        Returns: string;
+      };
+      screening_update: {
+        Args: { p_secret: string; p_run: string; p: Json };
+        Returns: undefined;
+      };
       screening_quality_due: { Args: { p_secret: string }; Returns: Json };
-      screening_quality_save: { Args: { p_secret: string; p_run: string; p: Json }; Returns: undefined };
+      screening_quality_save: {
+        Args: { p_secret: string; p_run: string; p: Json };
+        Returns: undefined;
+      };
       screening_reminders_due: { Args: { p_secret: string }; Returns: Json };
-      screening_missed: { Args: { p_secret: string; p_run: string }; Returns: Json };
+      screening_missed: {
+        Args: { p_secret: string; p_run: string };
+        Returns: Json;
+      };
       pursuits_resume_due: { Args: { p_secret: string }; Returns: number };
-      gmail_indeed_link: { Args: { p_secret: string; p_from: string; p_name: string; p_thread: string; p_subject: string }; Returns: string | null };
-      automation_indeed: { Args: { p_secret: string; p_candidate: string }; Returns: Json };
-      screening_awaiting_agent: { Args: { p_secret: string }; Returns: string | null };
+      gmail_indeed_link: {
+        Args: {
+          p_secret: string;
+          p_from: string;
+          p_name: string;
+          p_thread: string;
+          p_subject: string;
+        };
+        Returns: string | null;
+      };
+      automation_indeed: {
+        Args: { p_secret: string; p_candidate: string };
+        Returns: Json;
+      };
+      screening_awaiting_agent: {
+        Args: { p_secret: string };
+        Returns: string | null;
+      };
       screening_to_process: { Args: { p_secret: string }; Returns: Json };
-      screening_complete: { Args: { p_secret: string; p_run: string; p: Json }; Returns: string };
+      screening_complete: {
+        Args: { p_secret: string; p_run: string; p: Json };
+        Returns: string;
+      };
       triage_pending: { Args: { p_secret: string }; Returns: Json };
-      triage_apply: { Args: { p_secret: string; p_item: string; p_needs_justin: boolean; p_note: string }; Returns: undefined };
+      conversations_pending: { Args: { p_secret: string }; Returns: Json };
+      conversation_state_apply: {
+        Args: {
+          p_secret: string;
+          p_who: string;
+          p_state: string;
+          p_reason: string;
+          p_last: string;
+        };
+        Returns: undefined;
+      };
+      triage_apply: {
+        Args: {
+          p_secret: string;
+          p_item: string;
+          p_needs_justin: boolean;
+          p_note: string;
+        };
+        Returns: undefined;
+      };
       brain_pending: { Args: { p_secret: string }; Returns: Json };
-      brain_apply: { Args: { p_secret: string; p_activity: string; p_decision: Json }; Returns: string };
-      gmail_backfill_get: { Args: { p_secret: string; p_staff: string }; Returns: Json };
-      gmail_backfill_set: { Args: { p_secret: string; p_staff: string; p_from: string }; Returns: undefined };
-      push_claim: { Args: { p_secret: string }; Returns: { title: string; body: string; url: string }[] };
-      push_devices: { Args: { p_secret: string }; Returns: { endpoint: string; p256dh: string; auth: string }[] };
-      push_forget: { Args: { p_secret: string; p_endpoint: string }; Returns: undefined };
-      set_outreach: { Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string }; Returns: string };
-      set_job_automation: { Args: { p_job: string; p_on: boolean }; Returns: number };
-      automation_sync: { Args: { p_job?: string; p_cj?: string }; Returns: number };
-      automation_register: { Args: { p_secret: string; p_url: string }; Returns: undefined };
+      brain_apply: {
+        Args: { p_secret: string; p_activity: string; p_decision: Json };
+        Returns: string;
+      };
+      gmail_backfill_get: {
+        Args: { p_secret: string; p_staff: string };
+        Returns: Json;
+      };
+      gmail_backfill_set: {
+        Args: { p_secret: string; p_staff: string; p_from: string };
+        Returns: undefined;
+      };
+      push_claim: {
+        Args: { p_secret: string };
+        Returns: { title: string; body: string; url: string }[];
+      };
+      push_devices: {
+        Args: { p_secret: string };
+        Returns: { endpoint: string; p256dh: string; auth: string }[];
+      };
+      push_forget: {
+        Args: { p_secret: string; p_endpoint: string };
+        Returns: undefined;
+      };
+      set_outreach: {
+        Args: { p_candidate_job_id: string; p_on: boolean; p_purpose?: string };
+        Returns: string;
+      };
+      set_job_automation: {
+        Args: { p_job: string; p_on: boolean };
+        Returns: number;
+      };
+      automation_sync: {
+        Args: { p_job?: string; p_cj?: string };
+        Returns: number;
+      };
+      automation_register: {
+        Args: { p_secret: string; p_url: string };
+        Returns: undefined;
+      };
       automation_due: { Args: { p_secret: string }; Returns: Json };
       automation_step_done: {
         Args: {
@@ -1494,28 +1744,100 @@ export type Database = {
         Returns: undefined;
       };
       gmail_mailboxes: { Args: { p_secret: string }; Returns: Json };
-      gmail_known: { Args: { p_secret: string; p_ids: string[] }; Returns: string[] };
-      gmail_log: { Args: { p_secret: string; p_staff: string; p_me: string; p_msgs: Json; p_synced_at: string }; Returns: number };
-      twilio_inbound_text: { Args: { p_secret: string; p_sid: string; p_from: string; p_to: string; p_body: string }; Returns: undefined };
-      twilio_caller_name: { Args: { p_secret: string; p_from: string }; Returns: string | null };
-      twilio_caller_card: { Args: { p_secret: string; p_from: string }; Returns: string | null };
-      twilio_inbound_call: { Args: { p_secret: string; p_sid: string; p_from: string }; Returns: undefined };
-      twilio_forward_number: { Args: { p_secret: string }; Returns: string | null };
-      twilio_relay_target: { Args: { p_secret: string; p_name?: string }; Returns: { phone: string; name: string }[] };
-      twilio_log_relay: { Args: { p_secret: string; p_sid: string; p_to: string; p_body: string }; Returns: undefined };
-      twilio_status: { Args: { p_secret: string; p_sid: string; p_status: string; p_duration: number | null }; Returns: undefined };
+      gmail_known: {
+        Args: { p_secret: string; p_ids: string[] };
+        Returns: string[];
+      };
+      gmail_log: {
+        Args: {
+          p_secret: string;
+          p_staff: string;
+          p_me: string;
+          p_msgs: Json;
+          p_synced_at: string;
+        };
+        Returns: number;
+      };
+      twilio_inbound_text: {
+        Args: {
+          p_secret: string;
+          p_sid: string;
+          p_from: string;
+          p_to: string;
+          p_body: string;
+        };
+        Returns: undefined;
+      };
+      twilio_caller_name: {
+        Args: { p_secret: string; p_from: string };
+        Returns: string | null;
+      };
+      twilio_caller_card: {
+        Args: { p_secret: string; p_from: string };
+        Returns: string | null;
+      };
+      twilio_inbound_call: {
+        Args: { p_secret: string; p_sid: string; p_from: string };
+        Returns: undefined;
+      };
+      twilio_forward_number: {
+        Args: { p_secret: string };
+        Returns: string | null;
+      };
+      twilio_relay_target: {
+        Args: { p_secret: string; p_name?: string };
+        Returns: { phone: string; name: string }[];
+      };
+      twilio_log_relay: {
+        Args: { p_secret: string; p_sid: string; p_to: string; p_body: string };
+        Returns: undefined;
+      };
+      twilio_status: {
+        Args: {
+          p_secret: string;
+          p_sid: string;
+          p_status: string;
+          p_duration: number | null;
+        };
+        Returns: undefined;
+      };
       website_leads_unsent: { Args: { p_secret: string }; Returns: Json };
-      website_lead_notified: { Args: { p_secret: string; p_item: string }; Returns: undefined };
-      twilio_voicemail: { Args: { p_secret: string; p_sid: string; p_seconds: number; p_text: string }; Returns: undefined };
+      website_lead_notified: {
+        Args: { p_secret: string; p_item: string };
+        Returns: undefined;
+      };
+      twilio_voicemail: {
+        Args: {
+          p_secret: string;
+          p_sid: string;
+          p_seconds: number;
+          p_text: string;
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       action_status: "open" | "done" | "dismissed";
       agreement_status: "draft" | "active" | "ended";
       agreement_type: "subscription" | "contingency";
       billing_cycle: "free" | "monthly" | "yearly" | "usage";
-      candidate_source: "indeed" | "linkedin" | "website" | "referral" | "database" | "direct_outreach" | "inbound" | "other";
+      candidate_source:
+        | "indeed"
+        | "linkedin"
+        | "website"
+        | "referral"
+        | "database"
+        | "direct_outreach"
+        | "inbound"
+        | "other";
       company_status: "prospect" | "client" | "former_client";
-      deal_stage: "lead" | "contacted" | "meeting" | "proposal" | "won" | "lost";
+      deal_stage:
+        | "lead"
+        | "contacted"
+        | "meeting"
+        | "proposal"
+        | "won"
+        | "lost";
       invoice_status: "not_invoiced" | "invoiced" | "paid" | "not_applicable";
       job_status: "open" | "on_hold" | "filled" | "closed";
       job_visibility: "private" | "public" | "confidential";
@@ -1534,10 +1856,20 @@ export type Database = {
         | "passed"
         | "withdrawn"
         | "couldnt_contact";
-      screening_status: "scheduled" | "in_progress" | "completed" | "no_answer" | "failed" | "cancelled";
+      screening_status:
+        | "scheduled"
+        | "in_progress"
+        | "completed"
+        | "no_answer"
+        | "failed"
+        | "cancelled";
       service_status: "active" | "planned" | "cancelled";
       submission_status: "draft" | "sent" | "held" | "passed";
-      staff_role: "owner" | "regional_director" | "market_director" | "recruiter";
+      staff_role:
+        | "owner"
+        | "regional_director"
+        | "market_director"
+        | "recruiter";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1546,12 +1878,15 @@ export type Database = {
 };
 
 type PublicSchema = Database["public"];
-export type Tables<T extends keyof PublicSchema["Tables"] | keyof PublicSchema["Views"]> = T extends keyof PublicSchema["Tables"]
+export type Tables<
+  T extends keyof PublicSchema["Tables"] | keyof PublicSchema["Views"],
+> = T extends keyof PublicSchema["Tables"]
   ? PublicSchema["Tables"][T]["Row"]
   : T extends keyof PublicSchema["Views"]
     ? PublicSchema["Views"][T]["Row"]
     : never;
-export type Enums<T extends keyof PublicSchema["Enums"]> = PublicSchema["Enums"][T];
+export type Enums<T extends keyof PublicSchema["Enums"]> =
+  PublicSchema["Enums"][T];
 
 export const Constants = {
   public: {
@@ -1560,7 +1895,16 @@ export const Constants = {
       agreement_status: ["draft", "active", "ended"],
       agreement_type: ["subscription", "contingency"],
       billing_cycle: ["free", "monthly", "yearly", "usage"],
-      candidate_source: ["indeed", "linkedin", "website", "referral", "database", "direct_outreach", "inbound", "other"],
+      candidate_source: [
+        "indeed",
+        "linkedin",
+        "website",
+        "referral",
+        "database",
+        "direct_outreach",
+        "inbound",
+        "other",
+      ],
       company_status: ["prospect", "client", "former_client"],
       deal_stage: ["lead", "contacted", "meeting", "proposal", "won", "lost"],
       invoice_status: ["not_invoiced", "invoiced", "paid", "not_applicable"],
@@ -1582,10 +1926,22 @@ export const Constants = {
         "withdrawn",
         "couldnt_contact",
       ],
-      screening_status: ["scheduled", "in_progress", "completed", "no_answer", "failed", "cancelled"],
+      screening_status: [
+        "scheduled",
+        "in_progress",
+        "completed",
+        "no_answer",
+        "failed",
+        "cancelled",
+      ],
       service_status: ["active", "planned", "cancelled"],
       submission_status: ["draft", "sent", "held", "passed"],
-      staff_role: ["owner", "regional_director", "market_director", "recruiter"],
+      staff_role: [
+        "owner",
+        "regional_director",
+        "market_director",
+        "recruiter",
+      ],
     },
   },
 } as const;

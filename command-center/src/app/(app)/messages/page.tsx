@@ -52,29 +52,39 @@ export default async function MessagesPage({
 }) {
   const { show } = await searchParams;
   const { supabase, userId } = await requireStaff();
-  const [{ data: rows }, { data: reads }, sole, { data: open }] =
-    await Promise.all([
-      supabase
-        .from("activities")
-        .select(
-          "id, kind, direction, summary, body, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id, brain_status, relay_status",
-        )
-        .in("kind", ["text", "email"])
-        .or("candidate_id.not.is.null,contact_id.not.is.null")
-        .order("occurred_at", { ascending: false })
-        .limit(1000),
-      supabase
-        .from("message_reads")
-        .select("who, read_at")
-        .eq("staff_id", userId),
-      soleJobs(supabase),
-      // Messages the triage kept on What needs me as needing Justin (thank-yous, FYIs and the like are cleared).
-      supabase
-        .from("action_items")
-        .select("candidate_id, contact_id, created_at")
-        .eq("status", "open")
-        .in("kind", ["reply", "inbox"]),
-    ]);
+  const [
+    { data: rows },
+    { data: reads },
+    sole,
+    { data: open },
+    { data: states },
+  ] = await Promise.all([
+    supabase
+      .from("activities")
+      .select(
+        "id, kind, direction, summary, body, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id, brain_status, relay_status",
+      )
+      .in("kind", ["text", "email"])
+      .or("candidate_id.not.is.null,contact_id.not.is.null")
+      .order("occurred_at", { ascending: false })
+      .limit(1000),
+    supabase
+      .from("message_reads")
+      .select("who, read_at")
+      .eq("staff_id", userId),
+    soleJobs(supabase),
+    // Messages the triage kept on What needs me as needing Justin (thank-yous, FYIs and the like are cleared).
+    supabase
+      .from("action_items")
+      .select("candidate_id, contact_id, created_at")
+      .eq("status", "open")
+      .in("kind", ["reply", "inbox"]),
+    // The AI's read of where each conversation stands (lib/conversations.ts).
+    supabase
+      .from("conversation_states")
+      .select("who, state, reason, last_activity_id"),
+  ]);
+  const stateOf = new Map((states ?? []).map((s) => [s.who, s]));
   const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
 
   // One row per conversation (each email thread, each job's texts; see convOf): its latest message, and how many
@@ -128,11 +138,22 @@ export default async function MessagesPage({
       t.who.t?.startsWith("j") &&
       !who.get(baseKey(t.who))?.jobs.some((j) => j.cjId === t.who.t!.slice(1)),
     );
-  const isCurrent = (t: (typeof all)[number]) =>
-    t.unread > 0 || (t.last.occurred_at >= since && !closedJob(t));
+  // The AI's verdict counts once it has read the conversation's newest message; until then, the rules below.
+  const verdict = (t: (typeof all)[number]) => {
+    const v = stateOf.get(whoKey(t.who));
+    return v && v.last_activity_id === t.last.id ? v : null;
+  };
+  const isCurrent = (t: (typeof all)[number]) => {
+    if (t.unread > 0) return true;
+    const v = verdict(t);
+    if (v) return v.state !== "done" && t.last.occurred_at >= currentSince(30);
+    return t.last.occurred_at >= since && !closedJob(t);
+  };
   // Waiting on you: they wrote last, nobody answered it for him (the reply brain or the client relay), and it's
   // still an open item on What needs me, i.e. the triage judged it needs him.
   const isWaiting = (t: (typeof all)[number]) => {
+    const v = verdict(t);
+    if (v) return v.state === "waiting";
     const r = t.last;
     if (
       r.direction !== "in" ||
@@ -221,6 +242,11 @@ export default async function MessagesPage({
             <p className="truncate text-xs font-medium text-ink/80">
               {topic(t, p, about)}
             </p>
+            {verdict(t)?.state === "waiting" && verdict(t)?.reason && (
+              <p className="truncate text-xs text-amber">
+                {verdict(t)!.reason}
+              </p>
+            )}
             <p className="truncate text-xs text-muted">
               {p.jobs.length
                 ? p.jobs
