@@ -9,8 +9,10 @@ import {
   convOf,
   lastRead,
   people,
+  soleJobs,
   whoKey,
   whoPath,
+  type Person,
   type Who,
 } from "@/lib/messages";
 import { STAGE_LABEL, timeAgo } from "@/lib/format";
@@ -26,6 +28,7 @@ type Row = {
   occurred_at: string;
   candidate_id: string | null;
   contact_id: string | null;
+  candidate_job_id: string | null;
   external_thread_id: string | null;
 };
 
@@ -45,11 +48,11 @@ export default async function MessagesPage({
 }) {
   const { show } = await searchParams;
   const { supabase, userId } = await requireStaff();
-  const [{ data: rows }, { data: reads }] = await Promise.all([
+  const [{ data: rows }, { data: reads }, sole] = await Promise.all([
     supabase
       .from("activities")
       .select(
-        "id, kind, direction, summary, body, occurred_at, candidate_id, contact_id",
+        "id, kind, direction, summary, body, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id",
       )
       .in("kind", ["text", "email"])
       .or("candidate_id.not.is.null,contact_id.not.is.null")
@@ -59,11 +62,12 @@ export default async function MessagesPage({
       .from("message_reads")
       .select("who, read_at")
       .eq("staff_id", userId),
+    soleJobs(supabase),
   ]);
   const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
 
-  // One row per person: their latest message, and how many came in since Justin last opened it.
-  // A client's messages are split by topic: each email thread, and texts about each candidate, are their own conversation.
+  // One row per conversation (each email thread, each job's texts; see convOf): its latest message, and how many
+  // came in since Justin last opened it.
   const threads = new Map<
     string,
     {
@@ -72,10 +76,11 @@ export default async function MessagesPage({
       unread: number;
       subject: string | null;
       candidateId: string | null;
+      jobId: string | null;
     }
   >();
   for (const r of (rows ?? []) as Row[]) {
-    const who = convOf(r);
+    const who = convOf(r, sole);
     const key = whoKey(who);
     const t = threads.get(key) ?? {
       who,
@@ -83,11 +88,13 @@ export default async function MessagesPage({
       unread: 0,
       subject: null,
       candidateId: null,
+      jobId: null,
     };
     if (!t.subject && r.kind === "email")
       t.subject = r.summary.replace(/^Email (to|from) [^:]+:\s*/, "");
     if (!t.candidateId && who.kind === "p" && r.candidate_id)
       t.candidateId = r.candidate_id;
+    if (!t.jobId && r.candidate_job_id) t.jobId = r.candidate_job_id;
     const seen = lastRead(readAt, who);
     if (r.direction === "in" && (!seen || r.occurred_at > seen)) t.unread++;
     threads.set(key, t);
@@ -102,6 +109,37 @@ export default async function MessagesPage({
     ),
   ]);
   const unreadCount = [...threads.values()].filter((t) => t.unread > 0).length;
+
+  // What a conversation is about: the email's subject, or the job (or candidate) its texts are about.
+  function topic(
+    t: (typeof list)[number],
+    p: Person,
+    about: Person | null | undefined,
+  ) {
+    const jobOf = (person: Person | null | undefined, cjId: string | null) => {
+      const j =
+        person?.jobs.find((x) => x.cjId === cjId) ??
+        (cjId ? null : person?.jobs[0]);
+      return j
+        ? `${j.title}${j.company ? ` · ${j.company}` : ""} (${STAGE_LABEL[j.stage]})`
+        : null;
+    };
+    const tk = t.who.t ?? "s";
+    if (tk.startsWith("g")) {
+      const job =
+        t.who.kind === "c"
+          ? jobOf(p, t.jobId)
+          : about
+            ? `${about.name}${jobOf(about, null) ? `, ${jobOf(about, null)}` : ""}`
+            : null;
+      return `✉ ${t.subject ?? "Email"}${job ? ` · about ${job}` : ""}`;
+    }
+    if (tk.startsWith("j"))
+      return `Texts about ${jobOf(p, tk.slice(1)) ?? "an earlier job"}`;
+    if (tk.startsWith("c"))
+      return `Texts about ${about?.name ?? "a candidate"}`;
+    return "Texts and calls";
+  }
 
   function row(t: (typeof list)[number]) {
     const p = who.get(baseKey(t.who));
@@ -129,14 +167,9 @@ export default async function MessagesPage({
                 {timeAgo(t.last.occurred_at)}
               </span>
             </div>
-            {t.who.kind === "p" && (
-              <p className="truncate text-xs font-medium text-ink/80">
-                {about
-                  ? `About ${about.name}${about.jobs[0] ? ` · ${about.jobs[0].title} (${STAGE_LABEL[about.jobs[0].stage]})` : ""}`
-                  : (t.subject ?? "General")}
-                {about && t.subject ? ` · ${t.subject}` : ""}
-              </p>
-            )}
+            <p className="truncate text-xs font-medium text-ink/80">
+              {topic(t, p, about)}
+            </p>
             <p className="truncate text-xs text-muted">
               {p.jobs.length
                 ? p.jobs

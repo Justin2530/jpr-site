@@ -11,15 +11,13 @@ export async function savePushSubscription(sub: {
   const { supabase, userId } = await requireStaff();
   if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth)
     throw new Error("That device didn't give a subscription.");
-  const { error } = await supabase
-    .from("push_subscriptions")
-    .upsert({
-      endpoint: sub.endpoint,
-      staff_id: userId,
-      p256dh: sub.keys.p256dh,
-      auth: sub.keys.auth,
-      gone_at: null,
-    });
+  const { error } = await supabase.from("push_subscriptions").upsert({
+    endpoint: sub.endpoint,
+    staff_id: userId,
+    p256dh: sub.keys.p256dh,
+    auth: sub.keys.auth,
+    gone_at: null,
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -36,9 +34,7 @@ export async function markRead(form: FormData) {
   const { supabase, userId } = await requireStaff();
   const who = String(form.get("who") ?? "");
   if (
-    !/^([cp]:[0-9a-f-]{36}|p:[0-9a-f-]{36}:(g[0-9a-z]{1,40}|c[0-9a-f-]{36}|x))$/i.test(
-      who,
-    )
+    !/^[cp]:[0-9a-f-]{36}(:(g[0-9a-z]{1,40}|[jc][0-9a-f-]{36}|s))?$/i.test(who)
   )
     return;
   await supabase

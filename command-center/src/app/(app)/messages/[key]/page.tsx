@@ -3,7 +3,14 @@ import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty } from "@/components/ui";
 import { PhoneIcon } from "@/components/icons";
-import { baseKey, parseWho, people, whoKey } from "@/lib/messages";
+import {
+  baseKey,
+  convOf,
+  parseWho,
+  people,
+  soleJobs,
+  whoKey,
+} from "@/lib/messages";
 import { STAGE_LABEL, STAGE_TONE } from "@/lib/format";
 import { ReplyBox } from "./reply-box";
 
@@ -20,6 +27,8 @@ type Row = {
   external_thread_id: string | null;
   duration_seconds: number | null;
   candidate_id: string | null;
+  contact_id: string | null;
+  candidate_job_id: string | null;
 };
 
 const PROBLEM = ["failed", "undelivered"];
@@ -52,33 +61,16 @@ export default async function ConversationPage({
         const q = supabase
           .from("activities")
           .select(
-            "id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, duration_seconds, candidate_id",
+            "id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, duration_seconds, candidate_id, contact_id, candidate_job_id",
           )
           .eq(col, who.id)
           .in("kind", ["text", "email", "call"]);
-        // A candidate's conversation is with them; emails to and from a client about them live under that client,
-        // split into one conversation per email thread, texts and calls about one candidate, or everything else.
-        if (who.kind === "c")
-          return q
-            .is("contact_id", null)
-            .order("occurred_at", { ascending: false })
-            .limit(200);
-        const t = who.t;
-        const scoped = !t
-          ? q
-          : t.startsWith("g")
-            ? q.eq("external_thread_id", t.slice(1))
-            : t.startsWith("c")
-              ? q.eq("candidate_id", t.slice(1)).is("external_thread_id", null)
-              : q.is("candidate_id", null).is("external_thread_id", null);
-        return scoped.order("occurred_at", { ascending: false }).limit(200);
+        // A candidate's conversation is with them; emails to and from a client about them live under that client.
+        return (who.kind === "c" ? q.is("contact_id", null) : q)
+          .order("occurred_at", { ascending: false })
+          .limit(500);
       })(),
-      people(supabase, [
-        who,
-        ...(who.t?.startsWith("c")
-          ? [{ kind: "c" as const, id: who.t.slice(1) }]
-          : []),
-      ]),
+      people(supabase, [who]),
       who.kind === "c"
         ? supabase
             .from("candidates")
@@ -100,30 +92,44 @@ export default async function ConversationPage({
   if (!person) notFound();
 
   // Opening the conversation marks it read.
-  await supabase
-    .from("message_reads")
-    .upsert({
-      staff_id: userId,
-      who: whoKey(who),
-      read_at: new Date().toISOString(),
-    });
+  await supabase.from("message_reads").upsert({
+    staff_id: userId,
+    who: whoKey(who),
+    read_at: new Date().toISOString(),
+  });
 
-  const list = ((rows ?? []) as Row[]).reverse();
-  // The candidate a client conversation is about, if any.
-  const aboutId = who.t?.startsWith("c")
-    ? who.t.slice(1)
-    : (list.find((r) => r.candidate_id)?.candidate_id ?? null);
+  // Only this conversation's messages: one email thread, or the texts and calls about one job or candidate.
+  const sole = who.t ? await soleJobs(supabase) : new Map<string, string>();
+  const list = ((rows ?? []) as Row[])
+    .reverse()
+    .filter((r) => !who.t || convOf(r, sole).t === who.t);
+  const tk = who.t ?? "";
+  // The candidate a client conversation is about, and the job a candidate conversation is about.
+  const aboutId =
+    who.kind === "p"
+      ? tk.startsWith("c")
+        ? tk.slice(1)
+        : (list.find((r) => r.candidate_id)?.candidate_id ?? null)
+      : null;
+  const jobCj =
+    who.kind === "c"
+      ? tk.startsWith("j")
+        ? tk.slice(1)
+        : (list.find((r) => r.candidate_job_id)?.candidate_job_id ?? null)
+      : null;
   const about = aboutId
-    ? (info.get(`c:${aboutId}`) ??
-      (await people(supabase, [{ kind: "c", id: aboutId }])).get(
-        `c:${aboutId}`,
-      ))
+    ? (await people(supabase, [{ kind: "c", id: aboutId }])).get(`c:${aboutId}`)
     : null;
-  const topic = who.t?.startsWith("g")
-    ? (list
-        .find((r) => r.kind === "email")
-        ?.summary.replace(/^Email (to|from) [^:]+:\s*/, "") ?? null)
-    : null;
+  const job = person.jobs.find((j) => j.cjId === jobCj) ?? null;
+  const topic = tk.startsWith("g")
+    ? `✉ ${list.find((r) => r.kind === "email")?.summary.replace(/^Email (to|from) [^:]+:\s*/, "") ?? "Email"}`
+    : tk.startsWith("j")
+      ? job
+        ? "Texts about this job"
+        : "Texts about an earlier job"
+      : tk
+        ? "Texts and calls"
+        : null;
   const lastEmail = [...list].reverse().find((r) => r.kind === "email");
   const lastIn = [...list]
     .reverse()
@@ -154,9 +160,9 @@ export default async function ConversationPage({
           <Chip tone={person.role.tone}>{person.role.text}</Chip>
         </div>
         {person.detail && <p className="text-sm text-muted">{person.detail}</p>}
-        {who.kind === "p" && who.t && (
+        {who.t && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-            {topic && <span className="font-medium">✉ {topic}</span>}
+            {topic && <span className="font-medium">{topic}</span>}
             {about && (
               <Link
                 href={`/candidates/${about.who.id}`}
@@ -173,9 +179,8 @@ export default async function ConversationPage({
                 )}
               </Link>
             )}
-            {!topic && !about && <span className="text-muted">General</span>}
             <Link
-              href={`/messages/p-${who.id}`}
+              href={`/messages/${who.kind}-${who.id}`}
               className="ml-auto text-xs text-muted hover:text-cyan"
             >
               All with {person.name.split(" ")[0]} ›
@@ -278,7 +283,8 @@ export default async function ConversationPage({
       <ReplyBox
         links={{
           [col]: who.id,
-          ...(who.kind === "p" && aboutId ? { candidate_id: aboutId } : {}),
+          ...(aboutId ? { candidate_id: aboutId } : {}),
+          ...(jobCj ? { candidate_job_id: jobCj } : {}),
         }}
         path={`/messages/${key}`}
         name={person.name}
@@ -298,7 +304,9 @@ export default async function ConversationPage({
         }
         through={viaIndeed ? "Indeed" : null}
         start={
-          who.t?.startsWith("g") || lastIn?.kind === "email" ? "email" : "text"
+          tk.startsWith("g") || (!tk && lastIn?.kind === "email")
+            ? "email"
+            : "text"
         }
         textBlocked={
           optedOut
