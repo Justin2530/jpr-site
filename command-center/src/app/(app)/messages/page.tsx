@@ -7,6 +7,7 @@ import { markRead } from "./actions";
 import {
   baseKey,
   convOf,
+  subjectOf,
   currentSince,
   lastRead,
   people,
@@ -100,8 +101,7 @@ export default async function MessagesPage({
       candidateId: null,
       jobId: null,
     };
-    if (!t.subject && r.kind === "email")
-      t.subject = r.summary.replace(/^Email (to|from) [^:]+:\s*/, "");
+    if (!t.subject && r.kind === "email") t.subject = subjectOf(r);
     if (!t.candidateId && who.kind === "p" && r.candidate_id)
       t.candidateId = r.candidate_id;
     if (!t.jobId && r.candidate_job_id) t.jobId = r.candidate_job_id;

@@ -215,3 +215,12 @@ export async function unreadConversations(supabase: DB, userId: string) {
 // The cutoff for the Messages page's Current tab.
 export const currentSince = (days: number) =>
   new Date(Date.now() - days * 864e5).toISOString();
+
+// An email's real subject: from "Email to/from Name: subject", or the "Subject:" line a submission or relay
+// activity carries in its body. Null when neither is there (e.g. "Reply on X's submission from Y").
+export function subjectOf(r: { summary: string; body: string | null }) {
+  const m = r.summary.match(/^Email (?:to|from) [^:]+:\s*(.+)$/);
+  if (m) return m[1].trim();
+  const b = (r.body ?? "").match(/^\s*Subject:\s*(.+)$/m);
+  return b ? b[1].trim() : null;
+}

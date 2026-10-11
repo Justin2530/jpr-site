@@ -9,6 +9,7 @@ import {
   parseWho,
   people,
   soleJobs,
+  subjectOf,
   whoKey,
 } from "@/lib/messages";
 import { STAGE_LABEL, STAGE_TONE } from "@/lib/format";
@@ -122,7 +123,7 @@ export default async function ConversationPage({
     : null;
   const job = person.jobs.find((j) => j.cjId === jobCj) ?? null;
   const topic = tk.startsWith("g")
-    ? `✉ ${list.find((r) => r.kind === "email")?.summary.replace(/^Email (to|from) [^:]+:\s*/, "") ?? "Email"}`
+    ? `✉ ${list.map((r) => (r.kind === "email" ? subjectOf(r) : null)).find(Boolean) ?? "Email"}`
     : tk.startsWith("j")
       ? job
         ? "Texts about this job"
@@ -297,7 +298,13 @@ export default async function ConversationPage({
         }
         subject={
           lastEmail
-            ? lastEmail.summary.replace(/^Email (to|from) [^:]+:\s*/, "")
+            ? (() => {
+                const sub = [...list]
+                  .reverse()
+                  .map((r) => (r.kind === "email" ? subjectOf(r) : null))
+                  .find(Boolean);
+                return sub ? (/^re:/i.test(sub) ? sub : `Re: ${sub}`) : null;
+              })()
             : viaIndeed
               ? (cand?.indeed_subject ?? null)
               : null
