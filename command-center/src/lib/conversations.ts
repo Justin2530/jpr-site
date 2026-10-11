@@ -14,12 +14,18 @@ type Row = MsgRow & {
   occurred_at: string;
   person: string | null;
   person_kind: string;
+  brain_status: string | null;
+  relay_status: string | null;
 };
 
-const RULES = `You read one conversation (texts or one email thread) between Justin Peace, who runs JPR, a small recruiting firm, and one person: a candidate or a client contact. Messages marked "JPR" were sent by Justin or by JPR's automated assistant on his behalf.
+// Verdicts made before this moment were under older rules and get read again.
+export const RULES_SINCE = "2026-10-11T02:25:00Z";
+
+const RULES = `JPR's automated assistant handles a lot on its own: it answers candidates' scheduling replies ("anytime", "whenever", "now works") by booking screening calls, its AI makes the screening calls, and it follows up with clients about submissions. Anything it already handled or will handle is NOT waiting on Justin.
+You read one conversation (texts or one email thread) between Justin Peace, who runs JPR, a small recruiting firm, and one person: a candidate or a client contact. Messages marked "JPR" were sent by Justin or by JPR's automated assistant on his behalf.
 Decide where the conversation stands:
-- "waiting": Justin owes the next move. The other person asked him something, asked for something, raised a problem, gave a new job or feedback that needs an answer, or proposed something he must confirm, and nothing JPR sent afterwards dealt with it.
-- "current": it's still in motion but not on Justin right now: JPR asked something and is waiting on them, a call or interview is booked, someone said they'll get back, or JPR already answered the last thing they said.
+- "waiting": ONLY when the last message is from the other person AND it needs Justin personally: a question only he can answer (pay, job details the assistant didn't give, a decision), a request, a problem or complaint, new job or candidate feedback from a client, or something he must confirm. Be strict: most conversations are not waiting.
+- "current": still in motion but not on Justin right now: JPR wrote last and is waiting on them; a call, screening or interview is booked; they gave availability (the assistant books it); someone said they'll check and get back; or the assistant already answered.
 - "done": nothing more is expected from anyone: they said thanks / sounds good / ok to something settled, declined or said not interested, the matter is closed, or it was only an FYI or auto-reply.
 When the last message is from the other person and it's only a pleasantry with no ask, choose "current" if something is still pending in the conversation, otherwise "done".
 reason: one short line a busy person can scan (e.g. "Ciarra asked for the pay range; not answered yet").
@@ -43,6 +49,8 @@ async function judge(rows: Row[]): Promise<{ state: string; reason: string }> {
     at: r.occurred_at,
     subject: r.kind === "email" ? subjectOf(r) : undefined,
     text: (r.body ?? r.summary).slice(0, 1200),
+    already_handled_by_assistant:
+      r.brain_status === "done" || r.relay_status === "done" ? true : undefined,
   }));
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -80,7 +88,17 @@ async function judge(rows: Row[]): Promise<{ state: string; reason: string }> {
       (o: { content?: { type: string; text?: string }[] }) => o.content ?? [],
     )
     .find((c: { type: string }) => c.type === "output_text")?.text;
-  return JSON.parse(out);
+  const v = JSON.parse(out) as { state: string; reason: string };
+  // Hard rules on top of the read: if JPR wrote last, or the assistant already answered them, it isn't on Justin.
+  const last = rows[rows.length - 1];
+  if (
+    v.state === "waiting" &&
+    (last.direction === "out" ||
+      last.brain_status === "done" ||
+      last.relay_status === "done")
+  )
+    v.state = "current";
+  return v;
 }
 
 // At most `limit` conversations a tick, newest first, so a backlog spreads over a few minutes.
@@ -97,7 +115,7 @@ export async function runConversationStates(
   const { rows, sole, states } = data as unknown as {
     rows: Row[];
     sole: Record<string, string>;
-    states: Record<string, string>;
+    states: Record<string, { id: string; at: string }>;
   };
   const soleJob = new Map(Object.entries(sole ?? {}));
   const convs = new Map<string, Row[]>();
@@ -106,7 +124,11 @@ export async function runConversationStates(
     convs.set(k, [...(convs.get(k) ?? []), r]);
   }
   const stale = [...convs.entries()]
-    .filter(([k, list]) => states?.[k] !== list[list.length - 1].id)
+    .filter(
+      ([k, list]) =>
+        states?.[k]?.id !== list[list.length - 1].id ||
+        states[k].at < RULES_SINCE,
+    )
     .sort((a, b) =>
       b[1][b[1].length - 1].occurred_at.localeCompare(
         a[1][a[1].length - 1].occurred_at,

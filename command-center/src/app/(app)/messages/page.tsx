@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
+import { RULES_SINCE } from "@/lib/conversations";
 import { Chip, Empty, PageHeader } from "@/components/ui";
 import { ChatIcon, MailIcon } from "@/components/icons";
 import { PushToggle } from "@/components/push-toggle";
@@ -82,7 +83,7 @@ export default async function MessagesPage({
     // The AI's read of where each conversation stands (lib/conversations.ts).
     supabase
       .from("conversation_states")
-      .select("who, state, reason, last_activity_id"),
+      .select("who, state, reason, last_activity_id, judged_at"),
   ]);
   const stateOf = new Map((states ?? []).map((s) => [s.who, s]));
   const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
@@ -141,7 +142,9 @@ export default async function MessagesPage({
   // The AI's verdict counts once it has read the conversation's newest message; until then, the rules below.
   const verdict = (t: (typeof all)[number]) => {
     const v = stateOf.get(whoKey(t.who));
-    return v && v.last_activity_id === t.last.id ? v : null;
+    return v && v.last_activity_id === t.last.id && v.judged_at >= RULES_SINCE
+      ? v
+      : null;
   };
   const isCurrent = (t: (typeof all)[number]) => {
     if (t.unread > 0) return true;

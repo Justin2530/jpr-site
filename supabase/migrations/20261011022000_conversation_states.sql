@@ -51,3 +51,6 @@ begin
 end $$;
 revoke execute on function public.conversation_state_apply(text, text, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.conversation_state_apply(text, text, text, text, uuid) to anon, authenticated;
+
+-- v2 (same day): rows also carry brain_status / relay_status (answered by the assistant), and states carry when
+-- they were judged, so a rules change re-reads them. Applied as conversations_pending_v2.
