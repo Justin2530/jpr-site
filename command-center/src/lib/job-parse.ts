@@ -64,8 +64,10 @@ export async function parseJob(text: string, companies: string[]): Promise<Parse
         "title: the job title only. company_name: the hiring company; if it is one of these companies already on file, use that exact name: " +
         JSON.stringify(companies.slice(0, 400)) +
         ". location: City, ST. compensation: pay as written, e.g. $22-26/hr. schedule: shift and days, e.g. 1st shift, M-F 7am-3:30pm. " +
-        "description: the full original description, kept word for word, tidied only for line breaks and bullets. " +
-        "candidate_description: a short, plain version a recruiter can tell candidates (duties, requirements, pay, schedule, benefits), with no confidential details. " +
+        "description: the full original description, kept word for word; only rejoin lines a PDF broke mid-sentence. " +
+        "candidate_description: the full public job posting, shown word for word on the website. Keep every section, sentence, duty, requirement, benefit and pay detail; never shorten or summarize. " +
+        "Only take out what a candidate must not see: the client company's name and other client identifiers (unless the company is JPR itself), recruiting fees, and internal notes. " +
+        "Format it as plain text: sections separated by a blank line, each section starting with its heading on its own short line, list items as lines starting with \u2022 and a space, and each paragraph on one line. " +
         "internal_notes: anything only the recruiter should know, such as number of openings, hiring contact, fee or start date; empty if nothing. " +
         "screening_questions: 2-4 short yes/no or quick-answer questions specific to this job's must-haves (certifications, machines, lifting, shifts, experience). " +
         "Never ask about pay, interview availability, or whether they worked at the company; those are always covered. Never ask about age, health, religion, family or marital status.",
