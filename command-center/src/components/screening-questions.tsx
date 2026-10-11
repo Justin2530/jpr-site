@@ -39,8 +39,8 @@ export function QuestionInput({
 }
 
 // Add job: the job's own screening questions, or "None". A job can't be saved without one or the other.
-export function ScreeningQuestions() {
-  const [count, setCount] = useState(1);
+export function ScreeningQuestions({ defaults = [] }: { defaults?: string[] }) {
+  const [count, setCount] = useState(Math.max(1, defaults.length));
   const [none, setNone] = useState(false);
   return (
     <fieldset className="space-y-2">
@@ -53,6 +53,7 @@ export function ScreeningQuestions() {
           <QuestionInput
             key={i}
             name="question"
+            defaultValue={defaults[i]}
             required={i === 0}
             label={`Screening question ${i + 1}`}
             placeholder={i === 0 ? "e.g. Can you lift 50 lbs regularly?" : "Another question"}

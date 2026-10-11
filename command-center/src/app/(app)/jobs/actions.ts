@@ -6,6 +6,8 @@ import { requireStaff } from "@/lib/staff";
 import { num, text } from "@/lib/format";
 import { resolveCompany } from "@/lib/company";
 import type { Enums } from "@/lib/database.types";
+import { resumeText } from "@/lib/resume-parse";
+import { EMPTY_JOB, parseJob, type ParsedJob } from "@/lib/job-parse";
 
 function jobFields(form: FormData) {
   return {
@@ -97,4 +99,30 @@ export async function moveJob(id: string, status: string) {
   const { error } = await supabase.from("jobs").update({ status: status as Enums<"job_status"> }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/jobs");
+}
+
+export type JobRead = { job: ParsedJob | null; error?: string };
+
+// Step one of adding a job from a file: read the client's job description and fill in the form. Nothing is saved yet.
+export async function readJobFile(form: FormData): Promise<JobRead> {
+  const { supabase } = await requireStaff();
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { job: null, error: "No file came through." };
+  if (file.size > 10 * 1024 * 1024) return { job: null, error: "That file is over 10MB." };
+  let body = "";
+  try {
+    body = await resumeText(file);
+  } catch (e) {
+    console.error("Couldn't read job file", e);
+  }
+  if (!body) return { job: null, error: "Couldn't read text from that file (it may be a scan or an old .doc). Fill in the job below." };
+  const { data: companies } = await supabase.from("companies").select("name").neq("status", "former_client");
+  let job: ParsedJob | null = null;
+  try {
+    job = await parseJob(body, (companies ?? []).map((c) => c.name));
+  } catch (e) {
+    console.error("Job AI failed", e);
+  }
+  if (!job) return { job: { ...EMPTY_JOB, description: body }, error: "Couldn't sort the details out, so the text went into the description. Fill in the rest below." };
+  return { job };
 }

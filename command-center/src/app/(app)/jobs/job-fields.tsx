@@ -10,21 +10,23 @@ export function JobFields({
   companies,
   contacts,
   companyId,
+  companyName,
 }: {
-  job?: Tables<"jobs">;
+  job?: Partial<Tables<"jobs">>;
   companies: Company[];
   contacts: Contact[];
   companyId?: string;
+  companyName?: string;
 }) {
   const selected = job?.company_id ?? companyId;
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="Job title" name="title" className="sm:col-span-2">
-        <input id="title" name="title" required defaultValue={job?.title} className="field" />
+        <input id="title" name="title" required defaultValue={job?.title ?? ""} className="field" />
       </Field>
       <CompanyInput
         companies={companies}
-        defaultName={companies.find((c) => c.id === selected)?.name ?? ""}
+        defaultName={companyName ?? companies.find((c) => c.id === selected)?.name ?? ""}
         contacts={contacts}
         contactField="hiring_contact_id"
         contactLabel="Hiring contact"
