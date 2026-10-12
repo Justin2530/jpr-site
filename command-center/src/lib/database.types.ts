@@ -1506,6 +1506,19 @@ export type Database = {
         };
         Returns: undefined;
       };
+      inbox_lead_recheck_list: {
+        Args: { p_secret: string; p_staff: string };
+        Returns: { thread_id: string; gmail_id: string }[];
+      };
+      inbox_lead_recheck_done: {
+        Args: {
+          p_secret: string;
+          p_staff: string;
+          p_thread: string;
+          p_keep: boolean;
+        };
+        Returns: undefined;
+      };
       inbox_label_due: {
         Args: { p_secret: string; p_staff: string };
         Returns: { thread_id: string; want: string }[];
@@ -1669,7 +1682,10 @@ export type Database = {
       };
       triage_pending: { Args: { p_secret: string }; Returns: Json };
       conversations_pending: { Args: { p_secret: string }; Returns: Json };
-      conversation_mark: { Args: { p_who: string; p_state: string; p_last: string }; Returns: undefined };
+      conversation_mark: {
+        Args: { p_who: string; p_state: string; p_last: string };
+        Returns: undefined;
+      };
       conversation_state_apply: {
         Args: {
           p_secret: string;

@@ -364,6 +364,23 @@ export async function watchInbox(
   return filed;
 }
 
+// Whether a thread labeled Lead still counts as one under the current rule: a contact on file, or the agent
+// reads it as a business that wants JPR to hire for them (see labelMailbox's recheck).
+export async function stillLead(db: Db, secret: string, m: InboxMessage) {
+  const { data: who } = await db.rpc("inbox_sender", {
+    p_secret: secret,
+    p_from: m.from,
+  });
+  const sender = who as unknown as Sender;
+  if (sender?.kind === "contact") return true;
+  const { data: ctxData } = await db.rpc("inbox_context", { p_secret: secret });
+  const jobs = ((ctxData as unknown as { jobs?: Job[] } | null)?.jobs ??
+    []) as Job[];
+  const r = await read(m, jobs, sender);
+  if (!r) throw new Error("Inbox agent unavailable");
+  return r.kind === "potential_client";
+}
+
 // Labels only, for older mail (see labelBackfill): reads each email the same way and marks candidate and
 // client threads for their Gmail label, but adds, logs and answers nothing.
 export async function labelOnly(

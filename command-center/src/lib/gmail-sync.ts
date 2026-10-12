@@ -10,7 +10,12 @@ import {
   replyOnly,
 } from "@/lib/google";
 import type { Mailbox } from "@/lib/automation";
-import { labelOnly, watchInbox, type InboxMessage } from "@/lib/third-eye";
+import {
+  labelOnly,
+  stillLead,
+  watchInbox,
+  type InboxMessage,
+} from "@/lib/third-eye";
 
 // Pull new mail between one mailbox and known candidates and contacts into the Command Center.
 // The database (gmail_log) decides who each message belongs to; only people already on file are
@@ -233,6 +238,62 @@ export const LABELS = {
 } as const;
 type LabelKey = keyof typeof LABELS;
 
+// Leads labeled before the rule got stricter (2026-10-12) are read once more, a few per run; salespeople and
+// anyone else who isn't a business wanting JPR to hire for them lose the Lead label.
+async function recheckLeads(
+  db: SupabaseClient<Database>,
+  secret: string,
+  box: Mailbox,
+  token: string,
+  leadLabel: string,
+) {
+  const { data } = await db.rpc("inbox_lead_recheck_list", {
+    p_secret: secret,
+    p_staff: box.staff_id,
+  });
+  // Read in parallel so the tick stays short.
+  await Promise.all(
+    (data ?? []).map(async (r) => {
+      try {
+        const msg = await readGmail(token, r.gmail_id).catch(() => null);
+        // Gone from Gmail: nothing to re-read, so leave it as it is.
+        if (!msg) {
+          await db.rpc("inbox_lead_recheck_done", {
+            p_secret: secret,
+            p_staff: box.staff_id,
+            p_thread: r.thread_id,
+            p_keep: true,
+          });
+          return;
+        }
+        const keep = await stillLead(db, secret, {
+          id: msg.id,
+          threadId: msg.threadId,
+          from: msg.from,
+          fromName: msg.fromName,
+          subject: msg.subject,
+          date: msg.date.getTime(),
+          text: msg.text,
+          bulk: msg.bulk,
+        });
+        if (!keep) await labelThread(token, r.thread_id, [], [leadLabel]);
+        await db.rpc("inbox_lead_recheck_done", {
+          p_secret: secret,
+          p_staff: box.staff_id,
+          p_thread: r.thread_id,
+          p_keep: keep,
+        });
+      } catch (e) {
+        console.error(
+          "Lead recheck failed",
+          r.thread_id,
+          e instanceof Error ? e.message : e,
+        );
+      }
+    }),
+  );
+}
+
 export async function labelMailbox(
   db: SupabaseClient<Database>,
   secret: string,
@@ -271,11 +332,6 @@ export async function labelMailbox(
       });
     }
   }
-  const { data: due } = await db.rpc("inbox_label_due", {
-    p_secret: secret,
-    p_staff: box.staff_id,
-  });
-  if (!due?.length) return 0;
   const ids = {} as Record<LabelKey, string>;
   try {
     for (const k of Object.keys(LABELS) as LabelKey[])
@@ -291,15 +347,14 @@ export async function labelMailbox(
       "Gmail labels unavailable",
       e instanceof Error ? e.message : e,
     );
-    for (const r of due)
-      await db.rpc("inbox_label_done", {
-        p_secret: secret,
-        p_staff: box.staff_id,
-        p_thread: r.thread_id,
-        p_state: null as unknown as string,
-      });
     return 0;
   }
+  await recheckLeads(db, secret, box, token, ids.prospect);
+  const { data: due } = await db.rpc("inbox_label_due", {
+    p_secret: secret,
+    p_staff: box.staff_id,
+  });
+  if (!due?.length) return 0;
   let n = 0;
   for (const r of due) {
     const want = (r.want in LABELS ? r.want : "needs") as LabelKey;
