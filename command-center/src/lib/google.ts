@@ -265,6 +265,8 @@ export type GmailMessage = {
   text: string;
   // Newsletters and other mass mail (an unsubscribe header, a bulk/list precedence or an auto-submitted flag).
   bulk: boolean;
+  // An unsent Gmail draft (Gmail saves one every few seconds while he types); never logged as an email.
+  draft: boolean;
 };
 
 async function gmailGet(token: string, path: string) {
@@ -432,6 +434,7 @@ export async function readGmail(
       /bulk|list|junk/i.test(h("precedence")) ||
       /auto-/i.test(h("auto-submitted")),
     ),
+    draft: (m.labelIds ?? []).includes("DRAFT"),
   };
 }
 
