@@ -1,10 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
-import { accessToken, openToken, readGmail, replyOnly } from "@/lib/google";
+import {
+  accessToken,
+  htmlText,
+  openToken,
+  readGmail,
+  replyOnly,
+} from "@/lib/google";
 
 // Emails read before the HTML reader learned to drop styles (Devin Yeaney's Indeed message, 2026-10-12) were
 // stored as the email's CSS. When one of those is on screen, it is read again from Gmail and saved with the
 // sender's actual words, so it only happens once per email.
+const PAD = /(&#\d+;|&shy;|&zwnj;){5,}/;
 const CSS = /^\s*(@import|<style|\/\*)|\{[^}]*!important/;
 
 export async function repairEmailBodies<
@@ -15,6 +22,13 @@ export async function repairEmailBodies<
     external_id?: string | null;
   },
 >(supabase: SupabaseClient<Database>, rows: R[]) {
+  // Invisible padding stored as entity text (&#8199;&#847;&shy;...) made one unbroken line wide enough to push
+  // the page off screen; it's cleaned in place.
+  for (const r of rows) {
+    if (r.kind !== "email" || !r.body || !PAD.test(r.body)) continue;
+    r.body = htmlText(r.body);
+    await supabase.from("activities").update({ body: r.body }).eq("id", r.id);
+  }
   const bad = rows.filter(
     (r) => r.kind === "email" && r.body && CSS.test(r.body.slice(0, 2000)),
   );

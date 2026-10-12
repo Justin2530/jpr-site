@@ -352,20 +352,29 @@ export async function listGmail(
 
 // HTML email (Indeed's, for one) as plain text: styles, scripts and the head go, not just the tags.
 export function htmlText(html: string) {
-  return html
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<(style|script|head|title)[^>]*>[\s\S]*?<\/\1>/gi, "")
-    .replace(/<(br|\/p|\/div|\/tr|\/li|\/h\d)[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    html
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/<(style|script|head|title)[^>]*>[\s\S]*?<\/\1>/gi, "")
+      .replace(/<(br|\/p|\/div|\/tr|\/li|\/h\d)[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+      .replace(/&#x([0-9a-f]+);/gi, (_, n) =>
+        String.fromCodePoint(parseInt(n, 16)),
+      )
+      .replace(/&(shy|zwnj|zwj);/g, "")
+      .replace(/&amp;/g, "&")
+      // Invisible preview padding marketing mail adds after the message (Indeed's runs thousands of characters).
+      .replace(/[\u00ad\u034f\u200b-\u200d\u2007\u2060\ufeff]+/g, "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 function plainText(part: Part): string {
