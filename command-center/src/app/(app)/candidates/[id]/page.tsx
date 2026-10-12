@@ -53,7 +53,7 @@ export default async function CandidateDetail({
     supabase.from("resumes").select("*").eq("candidate_id", id).order("created_at", { ascending: false }),
     supabase
       .from("activities")
-      .select("id, kind, summary, occurred_at, staff(full_name, email)")
+      .select("id, kind, summary, body, occurred_at, staff(full_name, email)")
       .eq("candidate_id", id)
       .order("occurred_at", { ascending: false })
       .limit(50),
@@ -270,6 +270,9 @@ export default async function CandidateDetail({
                         </span>
                       </div>
                       <p className="mt-1 whitespace-pre-wrap text-sm">{a.summary}</p>
+                      {a.body && ["text", "email"].includes(a.kind) && (
+                        <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{a.body}</p>
+                      )}
                     </li>
                   ))}
                 </ol>

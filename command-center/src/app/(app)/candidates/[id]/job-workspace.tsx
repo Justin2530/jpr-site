@@ -83,7 +83,7 @@ export async function JobWorkspace({
       .order("full_name"),
     supabase
       .from("activities")
-      .select("id, kind, summary, occurred_at")
+      .select("id, kind, summary, body, occurred_at")
       .eq("candidate_id", candidate.id)
       // Texts, emails and calls sent from their profile aren't tied to a job, so they show on every job tab.
       .or(`candidate_job_id.eq.${cj.id},job_id.eq.${job.id},and(job_id.is.null,kind.in.(text,email,call))`)
@@ -486,6 +486,9 @@ export async function JobWorkspace({
               <li key={a.id} className="relative">
                 <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border border-cyan/60 bg-void" />
                 <p className="text-sm">{a.summary}</p>
+                {a.body && ["text", "email"].includes(a.kind) && (
+                  <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted">{a.body}</p>
+                )}
                 <p className="font-mono text-[10.5px] text-faint">
                   {label(a.kind)} · {timeAgo(a.occurred_at)}
                 </p>
