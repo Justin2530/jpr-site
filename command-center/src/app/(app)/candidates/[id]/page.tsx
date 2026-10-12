@@ -467,8 +467,8 @@ export default async function CandidateDetail({
         )}
 
         <div className="space-y-6">
-          {conversations}
           <ResumePanel candidateId={c.id} resumes={signed} />
+          {conversations}
 
           <Reminders
             items={reminders ?? []}
