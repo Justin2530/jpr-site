@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConversationsPanel } from "@/components/conversations-panel";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -60,6 +61,28 @@ export default async function CandidateDetail({
     supabase.from("jobs").select("id, title, automation_pilot, companies(name)").eq("status", "open").order("title"),
   ]);
   if (!c) notFound();
+  const { data: msgs } = await supabase
+    .from("activities")
+    .select("id, kind, summary, body, direction, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id")
+    .eq("candidate_id", id)
+    .is("contact_id", null)
+    .in("kind", ["text", "email"])
+    .order("occurred_at", { ascending: false })
+    .limit(500);
+  const openLinks = (links ?? []).filter((l) => !["passed", "withdrawn"].includes(l.stage));
+  const sole = new Map(openLinks.length === 1 ? [[id, openLinks[0].id]] : []);
+  const conversations = (
+    <ConversationsPanel
+      rows={msgs ?? []}
+      sole={sole}
+      label={(r) => {
+        const cj = r.candidate_job_id ?? sole.get(id);
+        const job = (links ?? []).find((l) => l.id === cj)?.jobs?.title;
+        return r.kind === "text" ? (job ? `Texts about ${job}` : "Texts") : "Emails";
+      }}
+      empty={`No texts or emails with ${c.full_name.split(" ")[0]} yet.`}
+    />
+  );
 
   const { data: isProtected } = c.current_employer
     ? await supabase.rpc("is_protected_employer", { employer: c.current_employer })
@@ -282,6 +305,7 @@ export default async function CandidateDetail({
         )}
 
         <div className="space-y-6">
+          {conversations}
           <ResumePanel candidateId={c.id} resumes={signed} />
 
           <Reminders items={reminders ?? []} links={{ candidate_id: c.id }} path={path} />

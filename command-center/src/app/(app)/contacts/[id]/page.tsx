@@ -10,8 +10,8 @@ import { gmailAccount } from "@/lib/gmail-account";
 import { Correspondence } from "@/components/correspondence";
 import { Reminders } from "@/components/reminders";
 import { contactCorrespondence } from "@/lib/correspondence";
-import { DEAL_STAGE_LABEL, DEAL_STAGE_TONE, label, money, timeAgo } from "@/lib/format";
-import { convOf, subjectOf, whoKey, whoPath } from "@/lib/messages";
+import { DEAL_STAGE_LABEL, DEAL_STAGE_TONE, label, money } from "@/lib/format";
+import { ConversationsPanel } from "@/components/conversations-panel";
 import { ContactFields } from "../contact-fields";
 import { removeContact, updateContact } from "../actions";
 
@@ -42,29 +42,6 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
       .order("occurred_at", { ascending: false })
       .limit(500),
   ]);
-  // Each conversation with them, newest first, the same way Messages splits them (one per email thread,
-  // texts per candidate), so a tap opens that one conversation.
-  const conversations = new Map<
-    string,
-    { path: string; topic: string; about: string | null; last: NonNullable<typeof msgs>[number]; count: number }
-  >();
-  for (const r of msgs ?? []) {
-    const w = convOf(r, new Map());
-    const key = whoKey(w);
-    const hit = conversations.get(key);
-    if (hit) {
-      hit.count++;
-      continue;
-    }
-    const subject = r.kind === "email" ? subjectOf(r)?.replace(/^(re|fwd?):\s*/gi, "") : null;
-    conversations.set(key, {
-      path: whoPath(w),
-      topic: subject ? `✉ ${subject}` : r.kind === "text" ? "Texts" : "Emails",
-      about: r.candidates?.full_name ?? null,
-      last: r,
-      count: 1,
-    });
-  }
 
   return (
     <>
@@ -98,34 +75,10 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
-          <Panel title={`Conversations · ${conversations.size}`}>
-            {conversations.size === 0 ? (
-              <Empty>No texts or emails with {c.full_name.split(" ")[0]} yet.</Empty>
-            ) : (
-              <ul className="-my-1 divide-y divide-line">
-                {[...conversations.values()].map((v) => (
-                  <li key={v.path}>
-                    <Link href={v.path} className="flex items-center gap-3 py-2.5 transition hover:bg-white/[0.03]">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">
-                          {v.topic}
-                          {v.about && <span className="text-muted"> · about {v.about}</span>}
-                        </p>
-                        <p className="truncate text-sm text-muted">
-                          {v.last.direction === "out" ? "You: " : ""}
-                          {(v.last.body ?? v.last.summary).replace(/\s+/g, " ").slice(0, 140)}
-                        </p>
-                      </div>
-                      {v.last.direction === "in" && <Chip tone="amber">They wrote last</Chip>}
-                      <span className="shrink-0 font-mono text-[10.5px] text-faint">
-                        {v.count} · {timeAgo(v.last.occurred_at)}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
+          <ConversationsPanel
+            rows={(msgs ?? []).map((r) => ({ ...r, about: r.candidates?.full_name ?? null }))}
+            empty={`No texts or emails with ${c.full_name.split(" ")[0]} yet.`}
+          />
           <Panel title={`Correspondence · ${history.length}`}>
             <Correspondence items={history} />
           </Panel>
