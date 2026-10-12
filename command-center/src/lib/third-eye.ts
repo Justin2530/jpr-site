@@ -47,7 +47,13 @@ type Sender = {
 } | null;
 
 type Reading = {
-  kind: "interested" | "message" | "not_interested" | "job_seeker" | "potential_client" | "other";
+  kind:
+    | "interested"
+    | "message"
+    | "not_interested"
+    | "job_seeker"
+    | "potential_client"
+    | "other";
   name: string;
   email: string;
   phone: string;
@@ -66,7 +72,14 @@ const SCHEMA = {
   properties: {
     kind: {
       type: "string",
-      enum: ["interested", "message", "not_interested", "job_seeker", "potential_client", "other"],
+      enum: [
+        "interested",
+        "message",
+        "not_interested",
+        "job_seeker",
+        "potential_client",
+        "other",
+      ],
     },
     name: { type: "string" },
     email: { type: "string" },
@@ -101,7 +114,8 @@ Most candidates reach Justin through Indeed, from a relay address like conversat
 - "New Message from <Name>" with "You've received a new message from <Name>" and their words in a box. That's kind "message" (a reply, a question, info about themselves), unless they plainly say no to everything.
 - "Feedback from candidate <Name>": "The candidate has indicated that they are not interested at this time." That's kind "not_interested".
 Candidates also email directly, reply to Justin's emails, or send a resume out of the blue. Someone looking for work who isn't answering anything of Justin's is "job_seeker".
-A business that might hire JPR is "potential_client": an employer or manager asking about help hiring, recruiting or staffing, JPR's services or pricing, or answering Justin's sales outreach; or a person writing for their company about open positions they need filled. Not vendors or salespeople selling something to Justin, not marketing, newsletters or cold pitches, not job boards or software companies.
+A business that might hire JPR is "potential_client", and the bar is high: the sender must want people hired for their own company. That means an employer, owner, HR person or manager asking JPR for help hiring, recruiting or staffing, asking about JPR's services or pricing, saying they have positions to fill, or replying with interest to Justin's own sales outreach (his earlier email is quoted below theirs).
+Most business mail Justin gets is people selling to him, and that is never "potential_client", even when it mentions hiring, recruiting, candidates, growth or partnering: lead generation, marketing, SEO, websites, ads, software or AI tools, job boards, staffing or recruiting firms offering candidates or a partnership, outsourcing, offshore help, consultants, coaches, financing, insurance, payroll, background checks, event or directory listings, and "quick question" or "can we chat" cold pitches. If they want Justin to buy, book a demo, sign up or partner, it's "other". When it isn't plain that they want JPR to fill jobs at their company, it's "other".
 Everything else is "other": vendors, Indeed account, billing or marketing mail, newsletters, notifications, personal mail. When it's not clearly a job seeker, candidate or potential client, it's "other". For "potential_client", leave every field but summary empty.
 
 Fields:
@@ -268,7 +282,8 @@ export async function watchInbox(
     }
     const r = await read(m, ctx.jobs, sender);
     if (!r) return;
-    if (["interested", "message", "job_seeker"].includes(r.kind)) await label("candidate");
+    if (["interested", "message", "job_seeker"].includes(r.kind))
+      await label("candidate");
     if (r.kind === "potential_client") {
       await label("business");
       r.kind = "other";
@@ -359,9 +374,12 @@ export async function labelOnly(
 ) {
   if (!process.env.OPENAI_API_KEY?.trim()) return 0;
   const { data: ctxData } = await db.rpc("inbox_context", { p_secret: secret });
-  const jobs = ((ctxData as unknown as { jobs?: Job[] } | null)?.jobs ?? []) as Job[];
+  const jobs = ((ctxData as unknown as { jobs?: Job[] } | null)?.jobs ??
+    []) as Job[];
   const me = box.email.toLowerCase();
-  const todo = messages.filter((m) => m.from !== me && (relayAddress(m.from) || !m.bulk));
+  const todo = messages.filter(
+    (m) => m.from !== me && (relayAddress(m.from) || !m.bulk),
+  );
   let n = 0;
   const one = async (m: InboxMessage) => {
     const put = (kind: "candidate" | "business") =>
@@ -374,14 +392,18 @@ export async function labelOnly(
         p_name: m.fromName,
         p_kind: kind,
       });
-    const { data: who } = await db.rpc("inbox_sender", { p_secret: secret, p_from: m.from });
+    const { data: who } = await db.rpc("inbox_sender", {
+      p_secret: secret,
+      p_from: m.from,
+    });
     const sender = who as unknown as Sender;
     let kind: "candidate" | "business" | null = null;
     if (sender?.kind === "contact") kind = "business";
     else if (sender?.kind === "candidate") kind = "candidate";
     else {
       const r = await read(m, jobs, sender);
-      if (r && ["interested", "message", "job_seeker"].includes(r.kind)) kind = "candidate";
+      if (r && ["interested", "message", "job_seeker"].includes(r.kind))
+        kind = "candidate";
       else if (r?.kind === "potential_client") kind = "business";
     }
     if (!kind) return;
@@ -390,7 +412,11 @@ export async function labelOnly(
   };
   for (let i = 0; i < todo.length; i += 5) {
     await Promise.all(
-      todo.slice(i, i + 5).map((m) => one(m).catch((e) => console.error("Label read failed", m.id, e))),
+      todo
+        .slice(i, i + 5)
+        .map((m) =>
+          one(m).catch((e) => console.error("Label read failed", m.id, e)),
+        ),
     );
   }
   return n;

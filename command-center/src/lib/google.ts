@@ -283,6 +283,30 @@ async function gmailGet(token: string, path: string) {
   return json;
 }
 
+async function gmailFetch(
+  token: string,
+  path: string,
+  method: string,
+  body: unknown,
+) {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/${path}`,
+    {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+  );
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
+  return json;
+}
+
 async function gmailPost(token: string, path: string, body: unknown) {
   const res = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/${path}`,
@@ -307,12 +331,20 @@ export async function gmailLabel(
   token: string,
   name: string,
   color: { backgroundColor: string; textColor: string },
+  was?: string,
 ) {
   const { labels = [] } = (await gmailGet(token, "labels")) as {
     labels?: { id: string; name: string }[];
   };
   const found = labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
   if (found) return found.id;
+  // A label that was renamed: rename the old one in Gmail so its threads keep it.
+  const old =
+    was && labels.find((l) => l.name.toLowerCase() === was.toLowerCase());
+  if (old) {
+    await gmailFetch(token, `labels/${old.id}`, "PATCH", { name });
+    return old.id;
+  }
   const base = {
     name,
     labelListVisibility: "labelShow",

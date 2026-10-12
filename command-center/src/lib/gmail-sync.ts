@@ -225,7 +225,9 @@ export const LABELS = {
     color: { backgroundColor: "#0b804b", textColor: "#ffffff" },
   },
   prospect: {
-    name: "Potential client",
+    name: "Lead",
+    // Renamed in Gmail from what it used to be called (Justin 2026-10-12), so labeled threads keep it.
+    was: "Potential client",
     color: { backgroundColor: "#fad165", textColor: "#000000" },
   },
 } as const;
@@ -277,7 +279,12 @@ export async function labelMailbox(
   const ids = {} as Record<LabelKey, string>;
   try {
     for (const k of Object.keys(LABELS) as LabelKey[])
-      ids[k] = await gmailLabel(token, LABELS[k].name, LABELS[k].color);
+      ids[k] = await gmailLabel(
+        token,
+        LABELS[k].name,
+        LABELS[k].color,
+        (LABELS[k] as { was?: string }).was,
+      );
   } catch (e) {
     // Most likely Gmail was connected before label permission was asked for; reconnecting fixes it.
     console.error(
