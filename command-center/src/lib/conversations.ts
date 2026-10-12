@@ -19,13 +19,14 @@ type Row = MsgRow & {
 };
 
 // Verdicts made before this moment were under older rules and get read again.
-export const RULES_SINCE = "2026-10-11T02:25:00Z";
+export const RULES_SINCE = "2026-10-12T11:40:00Z";
 
 const RULES = `JPR's automated assistant handles a lot on its own: it answers candidates' scheduling replies ("anytime", "whenever", "now works") by booking screening calls, its AI makes the screening calls, and it follows up with clients about submissions. Anything it already handled or will handle is NOT waiting on Justin.
 You read one conversation (texts or one email thread) between Justin Peace, who runs JPR, a small recruiting firm, and one person: a candidate or a client contact. Messages marked "JPR" were sent by Justin or by JPR's automated assistant on his behalf.
 Decide where the conversation stands:
 - "waiting": ONLY when the last message is from the other person AND it needs Justin personally: a question only he can answer (pay, job details the assistant didn't give, a decision), a request, a problem or complaint, new job or candidate feedback from a client, or something he must confirm. Be strict: most conversations are not waiting.
 - "current": still in motion but not on Justin right now: JPR wrote last and is waiting on them; a call, screening or interview is booked; they gave availability (the assistant books it); someone said they'll check and get back; or the assistant already answered.
+- An agreed interview, call, start date or meeting that hasn't happened yet is never "done": choose "current" and name the date and time in the reason (e.g. "Aaron confirmed the interview Thu Oct 15, 10:00am").
 - "done": nothing more is expected from anyone: they said thanks / sounds good / ok to something settled, declined or said not interested, the matter is closed, or it was only an FYI or auto-reply.
 When the last message is from the other person and it's only a pleasantry with no ask, choose "current" if something is still pending in the conversation, otherwise "done".
 reason: one short line a busy person can scan (e.g. "Ciarra asked for the pay range; not answered yet").
