@@ -1,3 +1,4 @@
+import { repairEmailBodies } from "@/lib/email-repair";
 import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
 import { RULES_SINCE } from "@/lib/conversations";
@@ -85,6 +86,7 @@ export default async function MessagesPage({
       .from("conversation_states")
       .select("who, state, reason, last_activity_id, judged_at"),
   ]);
+  await repairEmailBodies(supabase, rows ?? []);
   const stateOf = new Map((states ?? []).map((s) => [s.who, s]));
   const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
 
@@ -298,15 +300,27 @@ export default async function MessagesPage({
             </form>
           )}
           {(() => {
-            const open = tab === "history" ? verdict(t)?.state === "done" : true;
+            const open =
+              tab === "history" ? verdict(t)?.state === "done" : true;
             if (!open) return null;
             const done = tab !== "history";
             return (
               <form action={markConversation}>
                 <input type="hidden" name="who" value={whoKey(t.who)} />
                 <input type="hidden" name="last" value={t.last.id} />
-                <input type="hidden" name="state" value={done ? "done" : "current"} />
-                <button className="btn-quiet py-1 text-xs" title={done ? "Move it to History until they write again" : "Put it back in Current"}>
+                <input
+                  type="hidden"
+                  name="state"
+                  value={done ? "done" : "current"}
+                />
+                <button
+                  className="btn-quiet py-1 text-xs"
+                  title={
+                    done
+                      ? "Move it to History until they write again"
+                      : "Put it back in Current"
+                  }
+                >
                   {done ? "Done" : "Reopen"}
                 </button>
               </form>

@@ -1,3 +1,4 @@
+import { repairEmailBodies } from "@/lib/email-repair";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConversationsPanel } from "@/components/conversations-panel";
@@ -13,7 +14,15 @@ import { gmailAccount } from "@/lib/gmail-account";
 import { Correspondence } from "@/components/correspondence";
 import { Reminders } from "@/components/reminders";
 import { candidateCorrespondence } from "@/lib/correspondence";
-import { OUTREACH_SOURCES, outreachSourceFor, SOURCE_LABEL, STAGE_LABEL, STAGE_TONE, shortDate, timeAgo } from "@/lib/format";
+import {
+  OUTREACH_SOURCES,
+  outreachSourceFor,
+  SOURCE_LABEL,
+  STAGE_LABEL,
+  STAGE_TONE,
+  shortDate,
+  timeAgo,
+} from "@/lib/format";
 import { CandidateFields } from "../candidate-fields";
 import { addNote, deleteCandidate, updateCandidate } from "../actions";
 import { ConfirmSubmit } from "@/components/confirm-submit";
@@ -45,21 +54,37 @@ export default async function CandidateDetail({
   const { id } = await params;
   const { job: jobTab } = await searchParams;
   const { supabase, staff } = await requireStaff();
-  const [{ data: c }, { data: links }, { data: resumes }, { data: activity }, { data: openJobs }] = await Promise.all([
+  const [
+    { data: c },
+    { data: links },
+    { data: resumes },
+    { data: activity },
+    { data: openJobs },
+  ] = await Promise.all([
     supabase.from("candidates").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("candidate_jobs")
-      .select("id, stage, stage_changed_at, assigned_at, jobs(id, title, companies(name))")
+      .select(
+        "id, stage, stage_changed_at, assigned_at, jobs(id, title, companies(name))",
+      )
       .eq("candidate_id", id)
       .order("assigned_at", { ascending: false }),
-    supabase.from("resumes").select("*").eq("candidate_id", id).order("created_at", { ascending: false }),
+    supabase
+      .from("resumes")
+      .select("*")
+      .eq("candidate_id", id)
+      .order("created_at", { ascending: false }),
     supabase
       .from("activities")
       .select("id, kind, summary, body, occurred_at, staff(full_name, email)")
       .eq("candidate_id", id)
       .order("occurred_at", { ascending: false })
       .limit(50),
-    supabase.from("jobs").select("id, title, automation_pilot, companies(name)").eq("status", "open").order("title"),
+    supabase
+      .from("jobs")
+      .select("id, title, automation_pilot, companies(name)")
+      .eq("status", "open")
+      .order("title"),
   ]);
   if (!c) notFound();
   const { data: msgs } = await supabase
@@ -71,11 +96,16 @@ export default async function CandidateDetail({
     .in("kind", ["text", "email"])
     .order("occurred_at", { ascending: false })
     .limit(500);
-  const openLinks = (links ?? []).filter((l) => !["passed", "withdrawn"].includes(l.stage));
+  await repairEmailBodies(supabase, [...(msgs ?? []), ...(activity ?? [])]);
+  const openLinks = (links ?? []).filter(
+    (l) => !["passed", "withdrawn"].includes(l.stage),
+  );
   const sole = new Map(openLinks.length === 1 ? [[id, openLinks[0].id]] : []);
 
   const { data: isProtected } = c.current_employer
-    ? await supabase.rpc("is_protected_employer", { employer: c.current_employer })
+    ? await supabase.rpc("is_protected_employer", {
+        employer: c.current_employer,
+      })
     : { data: false };
 
   const signed = await Promise.all(
@@ -87,10 +117,21 @@ export default async function CandidateDetail({
       // so the screening call and write-up can use it, same as one dropped in here.
       if (r.text_content == null && path.startsWith("website/")) {
         try {
-          const { data: blob } = await supabase.storage.from("resumes").download(path);
-          const text = blob ? (await resumeText(new File([blob], r.file_name, { type: r.mime_type ?? blob.type }))) || "" : null;
+          const { data: blob } = await supabase.storage
+            .from("resumes")
+            .download(path);
+          const text = blob
+            ? (await resumeText(
+                new File([blob], r.file_name, {
+                  type: r.mime_type ?? blob.type,
+                }),
+              )) || ""
+            : null;
           if (text != null) {
-            await supabase.from("resumes").update({ text_content: text }).eq("id", r.id);
+            await supabase
+              .from("resumes")
+              .update({ text_content: text })
+              .eq("id", r.id);
             r = { ...r, text_content: text };
           }
         } catch (e) {
@@ -99,9 +140,15 @@ export default async function CandidateDetail({
       }
       const [view, download] = await Promise.all([
         supabase.storage.from("resumes").createSignedUrl(path, 60 * 30),
-        supabase.storage.from("resumes").createSignedUrl(path, 60 * 30, { download: r.file_name }),
+        supabase.storage
+          .from("resumes")
+          .createSignedUrl(path, 60 * 30, { download: r.file_name }),
       ]);
-      return { ...r, viewUrl: view.data?.signedUrl, downloadUrl: download.data?.signedUrl };
+      return {
+        ...r,
+        viewUrl: view.data?.signedUrl,
+        downloadUrl: download.data?.signedUrl,
+      };
     }),
   );
 
@@ -109,7 +156,10 @@ export default async function CandidateDetail({
   const assignable = (openJobs ?? []).filter((j) => !assignedIds.has(j.id));
   const automation = await automationState(supabase);
   // Assign + automate needs the master switch on and at least one open job with its own switch on.
-  const canAutomate = automation.on && automation.eligible(c.created_at) && assignable.some((j) => j.automation_pilot);
+  const canAutomate =
+    automation.on &&
+    automation.eligible(c.created_at) &&
+    assignable.some((j) => j.automation_pilot);
   const activeTab = (links ?? []).find((l) => l.id === jobTab)?.id;
   // Justin works job first (Jobs > job > candidate), so each job tab shows only that job's conversations: texts
   // about it, their email threads about it, and the client's emails about them for it. A conversation that never
@@ -117,7 +167,8 @@ export default async function CandidateDetail({
   const jobOf = new Map<string, string | null>();
   for (const r of msgs ?? []) {
     const key = whoKey(convOf(r, sole));
-    const cj = r.candidate_job_id ?? (r.contact_id ? null : (sole.get(id) ?? null));
+    const cj =
+      r.candidate_job_id ?? (r.contact_id ? null : (sole.get(id) ?? null));
     if (!jobOf.get(key)) jobOf.set(key, cj);
   }
   const shown = (msgs ?? []).filter((r) => {
@@ -127,14 +178,25 @@ export default async function CandidateDetail({
   });
   const conversations = (
     <ConversationsPanel
-      rows={shown.map((r) => ({ ...r, about: r.contacts?.full_name ? `with ${r.contacts.full_name}` : null }))}
+      rows={shown.map((r) => ({
+        ...r,
+        about: r.contacts?.full_name ? `with ${r.contacts.full_name}` : null,
+      }))}
       sole={sole}
       label={(r) => {
         const cj = r.candidate_job_id ?? sole.get(id);
         const job = (links ?? []).find((l) => l.id === cj)?.jobs?.title;
-        return r.kind === "text" ? (job && !activeTab ? `Texts about ${job}` : "Texts") : "Emails";
+        return r.kind === "text"
+          ? job && !activeTab
+            ? `Texts about ${job}`
+            : "Texts"
+          : "Emails";
       }}
-      empty={activeTab ? "No texts or emails about this job yet." : `No texts or emails with ${c.full_name.split(" ")[0]} yet.`}
+      empty={
+        activeTab
+          ? "No texts or emails about this job yet."
+          : `No texts or emails with ${c.full_name.split(" ")[0]} yet.`
+      }
     />
   );
   const path = `/candidates/${c.id}`;
@@ -159,7 +221,14 @@ export default async function CandidateDetail({
         title={c.full_name}
         sub={
           <span className="flex flex-wrap items-center gap-2">
-            <span>{[c.current_title, c.current_employer && `at ${c.current_employer}`].filter(Boolean).join(" ")}</span>
+            <span>
+              {[
+                c.current_title,
+                c.current_employer && `at ${c.current_employer}`,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            </span>
             <Chip>{SOURCE_LABEL[c.source]}</Chip>
           </span>
         }
@@ -167,7 +236,11 @@ export default async function CandidateDetail({
           <ReachOut
             phone={c.phone}
             email={c.email ?? c.indeed_relay}
-            indeed={!c.email && c.indeed_relay ? { thread: c.indeed_thread_id, subject: c.indeed_subject } : undefined}
+            indeed={
+              !c.email && c.indeed_relay
+                ? { thread: c.indeed_thread_id, subject: c.indeed_subject }
+                : undefined
+            }
             name={c.full_name}
             links={{ candidate_id: c.id }}
             path={path}
@@ -182,16 +255,22 @@ export default async function CandidateDetail({
         <div className="mb-6 flex items-start gap-3 rounded-xl border border-rose/40 bg-rose/10 px-4 py-3 text-sm">
           <ShieldIcon className="mt-0.5 h-5 w-5 shrink-0 text-rose" />
           <p>
-            <span className="font-medium text-rose">Works at an active client.</span>{" "}
+            <span className="font-medium text-rose">
+              Works at an active client.
+            </span>{" "}
             <span className="text-ink/90">
-              We recruit for our clients, not from them. Don&apos;t reach out proactively while that agreement is active.
+              We recruit for our clients, not from them. Don&apos;t reach out
+              proactively while that agreement is active.
             </span>
           </p>
         </div>
       )}
 
       {(links ?? []).length > 0 && (
-        <nav className="-mx-1 mb-6 flex gap-1 overflow-x-auto px-1 pb-1" aria-label="Jobs for this candidate">
+        <nav
+          className="-mx-1 mb-6 flex gap-1 overflow-x-auto px-1 pb-1"
+          aria-label="Jobs for this candidate"
+        >
           <Link
             href={`/candidates/${c.id}`}
             className={`shrink-0 rounded-lg border px-3 py-2 text-sm ${!activeTab ? "border-cyan/50 bg-cyan-soft text-cyan" : "border-line text-muted hover:text-ink"}`}
@@ -217,21 +296,39 @@ export default async function CandidateDetail({
         ) : (
           <div className="space-y-6">
             <Panel title="Jobs">
-              <form action={assignToJob} className="mb-4 flex flex-wrap gap-2 sm:flex-nowrap">
+              <form
+                action={assignToJob}
+                className="mb-4 flex flex-wrap gap-2 sm:flex-nowrap"
+              >
                 <input type="hidden" name="candidate_id" value={c.id} />
-                <select name="job_id" required defaultValue="" className="field" aria-label="Job to assign">
+                <select
+                  name="job_id"
+                  required
+                  defaultValue=""
+                  className="field"
+                  aria-label="Job to assign"
+                >
                   <option value="" disabled>
-                    {assignable.length ? "Choose an open job…" : "No other open jobs"}
+                    {assignable.length
+                      ? "Choose an open job…"
+                      : "No other open jobs"}
                   </option>
                   {assignable.map((j) => (
                     <option key={j.id} value={j.id}>
                       {j.title} · {j.companies?.name}
-                      {canAutomate && j.automation_pilot ? " · automation on" : ""}
+                      {canAutomate && j.automation_pilot
+                        ? " · automation on"
+                        : ""}
                     </option>
                   ))}
                 </select>
                 {canAutomate && (
-                  <select name="outreach_source" defaultValue={outreachSourceFor(c.source)} className="field sm:w-auto" aria-label="How they came to this job">
+                  <select
+                    name="outreach_source"
+                    defaultValue={outreachSourceFor(c.source)}
+                    className="field sm:w-auto"
+                    aria-label="How they came to this job"
+                  >
                     {OUTREACH_SOURCES.map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
@@ -239,11 +336,21 @@ export default async function CandidateDetail({
                     ))}
                   </select>
                 )}
-                <SubmitButton className={canAutomate ? "btn-quiet shrink-0" : "btn shrink-0"} pendingText="Assigning…">
+                <SubmitButton
+                  className={
+                    canAutomate ? "btn-quiet shrink-0" : "btn shrink-0"
+                  }
+                  pendingText="Assigning…"
+                >
                   Assign only
                 </SubmitButton>
                 {canAutomate && (
-                  <SubmitButton className="btn shrink-0" name="automate" value="on" pendingText="Assigning…">
+                  <SubmitButton
+                    className="btn shrink-0"
+                    name="automate"
+                    value="on"
+                    pendingText="Assigning…"
+                  >
                     Assign + automate
                   </SubmitButton>
                 )}
@@ -253,22 +360,34 @@ export default async function CandidateDetail({
               ) : (
                 <ul className="-mb-1 divide-y divide-line">
                   {links!.map((l) => (
-                    <li key={l.id} className="flex flex-wrap items-center gap-3 py-3">
+                    <li
+                      key={l.id}
+                      className="flex flex-wrap items-center gap-3 py-3"
+                    >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <Link href={`/candidates/${c.id}?job=${l.id}`} className="link font-medium">
+                          <Link
+                            href={`/candidates/${c.id}?job=${l.id}`}
+                            className="link font-medium"
+                          >
                             {l.jobs?.title}
                           </Link>
-                          <Chip tone={STAGE_TONE[l.stage]}>{STAGE_LABEL[l.stage]}</Chip>
+                          <Chip tone={STAGE_TONE[l.stage]}>
+                            {STAGE_LABEL[l.stage]}
+                          </Chip>
                         </div>
                         <p className="text-sm text-muted">
-                          {l.jobs?.companies?.name} · assigned {shortDate(l.assigned_at)}
+                          {l.jobs?.companies?.name} · assigned{" "}
+                          {shortDate(l.assigned_at)}
                         </p>
                       </div>
                       <StageSelect id={l.id} stage={l.stage} />
                       <form action={unassign}>
                         <input type="hidden" name="id" value={l.id} />
-                        <button className="text-xs text-faint hover:text-rose" aria-label="Remove from job">
+                        <button
+                          className="text-xs text-faint hover:text-rose"
+                          aria-label="Remove from job"
+                        >
                           ✕
                         </button>
                       </form>
@@ -279,19 +398,33 @@ export default async function CandidateDetail({
             </Panel>
 
             <Panel title={`Correspondence · ${history.length}`}>
-              <Correspondence items={history} person={c.full_name.split(" ")[0]} />
+              <Correspondence
+                items={history}
+                person={c.full_name.split(" ")[0]}
+              />
             </Panel>
 
             <Panel title="Timeline">
               <form action={addNote} className="mb-5 flex flex-wrap gap-2">
                 <input type="hidden" name="candidate_id" value={c.id} />
-                <select name="kind" defaultValue="note" className="field w-28" aria-label="Type">
+                <select
+                  name="kind"
+                  defaultValue="note"
+                  className="field w-28"
+                  aria-label="Type"
+                >
                   <option value="note">Note</option>
                   <option value="call">Call</option>
                   <option value="text">Text</option>
                   <option value="email">Email</option>
                 </select>
-                <input name="summary" required placeholder="What happened?" className="field min-w-0 flex-1" aria-label="Timeline entry" />
+                <input
+                  name="summary"
+                  required
+                  placeholder="What happened?"
+                  className="field min-w-0 flex-1"
+                  aria-label="Timeline entry"
+                />
                 <SubmitButton className="btn-quiet">Log</SubmitButton>
               </form>
               {(activity ?? []).length === 0 ? (
@@ -302,15 +435,28 @@ export default async function CandidateDetail({
                     <li key={a.id} className="relative">
                       <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border border-cyan/60 bg-void" />
                       <div className="flex flex-wrap items-center gap-2">
-                        <Chip tone={a.kind === "stage" || a.kind === "assigned" ? "cyan" : "muted"}>{KIND_LABEL[a.kind] ?? a.kind}</Chip>
+                        <Chip
+                          tone={
+                            a.kind === "stage" || a.kind === "assigned"
+                              ? "cyan"
+                              : "muted"
+                          }
+                        >
+                          {KIND_LABEL[a.kind] ?? a.kind}
+                        </Chip>
                         <span className="font-mono text-[10.5px] text-faint">
                           {timeAgo(a.occurred_at)}
-                          {a.staff && ` · ${a.staff.full_name ?? a.staff.email.split("@")[0]}`}
+                          {a.staff &&
+                            ` · ${a.staff.full_name ?? a.staff.email.split("@")[0]}`}
                         </span>
                       </div>
-                      <p className="mt-1 whitespace-pre-wrap text-sm">{a.summary}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm">
+                        {a.summary}
+                      </p>
                       {a.body && ["text", "email"].includes(a.kind) && (
-                        <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{a.body}</p>
+                        <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap text-sm text-muted">
+                          {a.body}
+                        </p>
                       )}
                     </li>
                   ))}
@@ -324,7 +470,11 @@ export default async function CandidateDetail({
           {conversations}
           <ResumePanel candidateId={c.id} resumes={signed} />
 
-          <Reminders items={reminders ?? []} links={{ candidate_id: c.id }} path={path} />
+          <Reminders
+            items={reminders ?? []}
+            links={{ candidate_id: c.id }}
+            path={path}
+          />
 
           <Panel title="Contact">
             <dl>
@@ -342,11 +492,17 @@ export default async function CandidateDetail({
                   </a>
                 )}
               </Row>
-              <Row label="Location">{[c.city, c.state].filter(Boolean).join(", ")}</Row>
+              <Row label="Location">
+                {[c.city, c.state].filter(Boolean).join(", ")}
+              </Row>
               <Row label="LinkedIn">
                 {c.linkedin_url && (
                   <a
-                    href={c.linkedin_url.startsWith("http") ? c.linkedin_url : `https://${c.linkedin_url}`}
+                    href={
+                      c.linkedin_url.startsWith("http")
+                        ? c.linkedin_url
+                        : `https://${c.linkedin_url}`
+                    }
                     target="_blank"
                     rel="noreferrer"
                     className="link"
@@ -355,19 +511,30 @@ export default async function CandidateDetail({
                   </a>
                 )}
               </Row>
-              <Row label="Notes">{c.notes && <span className="whitespace-pre-wrap">{c.notes}</span>}</Row>
+              <Row label="Notes">
+                {c.notes && (
+                  <span className="whitespace-pre-wrap">{c.notes}</span>
+                )}
+              </Row>
             </dl>
             <details className="mt-3">
-              <summary className="cursor-pointer text-sm text-cyan">Edit candidate</summary>
+              <summary className="cursor-pointer text-sm text-cyan">
+                Edit candidate
+              </summary>
               <form action={updateCandidate} className="mt-3 space-y-4">
                 <input type="hidden" name="id" value={c.id} />
                 <CandidateFields c={c} />
                 <SubmitButton>Save changes</SubmitButton>
               </form>
               {staff.role === "owner" && (
-                <form action={deleteCandidate} className="mt-4 border-t border-line pt-4">
+                <form
+                  action={deleteCandidate}
+                  className="mt-4 border-t border-line pt-4"
+                >
                   <input type="hidden" name="id" value={c.id} />
-                  <ConfirmSubmit question={`Delete ${c.full_name} everywhere? Their jobs, messages and files go too. This can't be undone.`}>
+                  <ConfirmSubmit
+                    question={`Delete ${c.full_name} everywhere? Their jobs, messages and files go too. This can't be undone.`}
+                  >
                     Delete candidate
                   </ConfirmSubmit>
                 </form>

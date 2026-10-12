@@ -1,3 +1,4 @@
+import { repairEmailBodies } from "@/lib/email-repair";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
@@ -62,7 +63,7 @@ export default async function ConversationPage({
         const q = supabase
           .from("activities")
           .select(
-            "id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, duration_seconds, candidate_id, contact_id, candidate_job_id",
+            "id, kind, direction, summary, body, occurred_at, external_status, external_thread_id, external_id, duration_seconds, candidate_id, contact_id, candidate_job_id",
           )
           .eq(col, who.id)
           .in("kind", ["text", "email", "call"]);
@@ -89,6 +90,7 @@ export default async function ConversationPage({
             .maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
+  await repairEmailBodies(supabase, rows ?? []);
   const person = info.get(baseKey(who));
   if (!person) notFound();
 

@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
 
 // Gmail through Google's REST APIs (no SDK). The OAuth client lives in Vercel env vars; each staff member's
 // refresh token is stored encrypted in google_accounts with a key derived from the client secret.
@@ -44,27 +49,50 @@ async function tokenRequest(params: Record<string, string>) {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId!, client_secret: clientSecret!, ...params }),
+    body: new URLSearchParams({
+      client_id: clientId!,
+      client_secret: clientSecret!,
+      ...params,
+    }),
     cache: "no-store",
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Google: ${json.error_description ?? json.error ?? res.statusText}`);
-  return json as { access_token: string; refresh_token?: string; id_token?: string; scope?: string };
+  if (!res.ok)
+    throw new Error(
+      `Google: ${json.error_description ?? json.error ?? res.statusText}`,
+    );
+  return json as {
+    access_token: string;
+    refresh_token?: string;
+    id_token?: string;
+    scope?: string;
+  };
 }
 
 export function exchangeCode(origin: string, code: string) {
-  return tokenRequest({ code, grant_type: "authorization_code", redirect_uri: redirectUri(origin) });
+  return tokenRequest({
+    code,
+    grant_type: "authorization_code",
+    redirect_uri: redirectUri(origin),
+  });
 }
 
 export async function accessToken(refreshToken: string) {
-  return (await tokenRequest({ refresh_token: refreshToken, grant_type: "refresh_token" })).access_token;
+  return (
+    await tokenRequest({
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    })
+  ).access_token;
 }
 
 // The id_token comes straight from Google's token endpoint over TLS, so its payload can be read as is.
 export function idTokenEmail(idToken: string | undefined) {
   if (!idToken) return null;
   try {
-    const payload = JSON.parse(Buffer.from(idToken.split(".")[1], "base64url").toString("utf8"));
+    const payload = JSON.parse(
+      Buffer.from(idToken.split(".")[1], "base64url").toString("utf8"),
+    );
     return typeof payload.email === "string" ? payload.email : null;
   } catch {
     return null;
@@ -72,21 +100,29 @@ export function idTokenEmail(idToken: string | undefined) {
 }
 
 function key() {
-  return createHash("sha256").update(`jpr-gmail-token:${clientSecret}`).digest();
+  return createHash("sha256")
+    .update(`jpr-gmail-token:${clientSecret}`)
+    .digest();
 }
 
 export function sealToken(token: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), iv);
   const data = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
-  return [iv, cipher.getAuthTag(), data].map((b) => b.toString("base64url")).join(".");
+  return [iv, cipher.getAuthTag(), data]
+    .map((b) => b.toString("base64url"))
+    .join(".");
 }
 
 export function openToken(sealed: string) {
-  const [iv, tag, data] = sealed.split(".").map((p) => Buffer.from(p, "base64url"));
+  const [iv, tag, data] = sealed
+    .split(".")
+    .map((p) => Buffer.from(p, "base64url"));
   const decipher = createDecipheriv("aes-256-gcm", key(), iv);
   decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  return Buffer.concat([decipher.update(data), decipher.final()]).toString(
+    "utf8",
+  );
 }
 
 export type Attachment = { filename: string; mimeType: string; data: Buffer };
@@ -101,12 +137,19 @@ type Message = {
   threadId?: string;
 };
 
-const b64lines = (b: Buffer) => b.toString("base64").replace(/(.{76})/g, "$1\r\n");
-const header = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`);
+const b64lines = (b: Buffer) =>
+  b.toString("base64").replace(/(.{76})/g, "$1\r\n");
+const header = (s: string) =>
+  /^[\x20-\x7e]*$/.test(s)
+    ? s
+    : `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=`;
 
 // The plain-text body as simple HTML: same words and line breaks, with web addresses as short links.
 function htmlBody(body: string) {
-  const esc = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const esc = body
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   const linked = esc.replace(/\b(https?:\/\/[^\s<]+|www\.[^\s<]+)/g, (m) => {
     const url = m.replace(/[.,)]+$/, "");
     const rest = m.slice(url.length);
@@ -118,9 +161,24 @@ function htmlBody(body: string) {
 
 // RFC 2822 message, base64url-encoded the way the Gmail send endpoint wants it. Plain text, plus
 // a multipart/mixed wrapper when there are attachments (a resume on a submission).
-function mime({ from, to, cc, replyTo, subject, body, attachments = [] }: Message) {
+function mime({
+  from,
+  to,
+  cc,
+  replyTo,
+  subject,
+  body,
+  attachments = [],
+}: Message) {
   const reply = replyTo?.replace(/[\r\n]/g, "");
-  const top = [`From: ${from}`, `To: ${to}`, ...(cc ? [`Cc: ${cc}`] : []), ...(reply ? [`Reply-To: ${reply}`] : []), `Subject: ${header(subject)}`, "MIME-Version: 1.0"];
+  const top = [
+    `From: ${from}`,
+    `To: ${to}`,
+    ...(cc ? [`Cc: ${cc}`] : []),
+    ...(reply ? [`Reply-To: ${reply}`] : []),
+    `Subject: ${header(subject)}`,
+    "MIME-Version: 1.0",
+  ];
   // Plain text plus an HTML copy, so a link (the website in the signature) shows as its short name. Outlook's
   // Safe Links rewrites every link a client receives, and in a plain-text email that long rewritten address
   // is what they see.
@@ -145,7 +203,13 @@ function mime({ from, to, cc, replyTo, subject, body, attachments = [] }: Messag
     lines = [...top, ...text];
   } else {
     const boundary = `jpr-${crypto.randomUUID()}`;
-    lines = [...top, `Content-Type: multipart/mixed; boundary="${boundary}"`, "", `--${boundary}`, ...text];
+    lines = [
+      ...top,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      ...text,
+    ];
     for (const a of attachments) {
       const name = header(a.filename.replace(/["\r\n]/g, ""));
       lines.push(
@@ -163,18 +227,33 @@ function mime({ from, to, cc, replyTo, subject, body, attachments = [] }: Messag
 }
 
 export async function sendGmail(token: string, message: Message) {
-  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ raw: mime(message), ...(message.threadId ? { threadId: message.threadId } : {}) }),
-    cache: "no-store",
-  });
+  const res = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        raw: mime(message),
+        ...(message.threadId ? { threadId: message.threadId } : {}),
+      }),
+      cache: "no-store",
+    },
+  );
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
+  if (!res.ok)
+    throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
   return json as { id: string; threadId: string };
 }
 
-type Part = { mimeType?: string; body?: { data?: string }; parts?: Part[]; headers?: { name: string; value: string }[] };
+type Part = {
+  mimeType?: string;
+  body?: { data?: string };
+  parts?: Part[];
+  headers?: { name: string; value: string }[];
+};
 export type GmailMessage = {
   id: string;
   threadId: string;
@@ -189,33 +268,54 @@ export type GmailMessage = {
 };
 
 async function gmailGet(token: string, path: string) {
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/${path}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    },
+  );
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
+  if (!res.ok)
+    throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
   return json;
 }
 
 async function gmailPost(token: string, path: string, body: unknown) {
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/${path}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+  );
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
+  if (!res.ok)
+    throw new Error(`Gmail: ${json.error?.message ?? res.statusText}`);
   return json;
 }
 
 // The id of a label by name, made (in the given colors) the first time it's needed.
-export async function gmailLabel(token: string, name: string, color: { backgroundColor: string; textColor: string }) {
-  const { labels = [] } = (await gmailGet(token, "labels")) as { labels?: { id: string; name: string }[] };
+export async function gmailLabel(
+  token: string,
+  name: string,
+  color: { backgroundColor: string; textColor: string },
+) {
+  const { labels = [] } = (await gmailGet(token, "labels")) as {
+    labels?: { id: string; name: string }[];
+  };
   const found = labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
   if (found) return found.id;
-  const base = { name, labelListVisibility: "labelShow", messageListVisibility: "show" };
+  const base = {
+    name,
+    labelListVisibility: "labelShow",
+    messageListVisibility: "show",
+  };
   try {
     return (await gmailPost(token, "labels", { ...base, color })).id as string;
   } catch {
@@ -223,29 +323,58 @@ export async function gmailLabel(token: string, name: string, color: { backgroun
   }
 }
 
-export async function labelThread(token: string, threadId: string, add: string[], remove: string[]) {
-  await gmailPost(token, `threads/${threadId}/modify`, { addLabelIds: add, removeLabelIds: remove });
+export async function labelThread(
+  token: string,
+  threadId: string,
+  add: string[],
+  remove: string[],
+) {
+  await gmailPost(token, `threads/${threadId}/modify`, {
+    addLabelIds: add,
+    removeLabelIds: remove,
+  });
 }
 
 // Ids of messages matching a Gmail search, newest first.
-export async function listGmail(token: string, q: string, max = 50): Promise<{ id: string; threadId: string }[]> {
-  const json = await gmailGet(token, `messages?maxResults=${max}&q=${encodeURIComponent(q)}`);
+export async function listGmail(
+  token: string,
+  q: string,
+  max = 50,
+): Promise<{ id: string; threadId: string }[]> {
+  const json = await gmailGet(
+    token,
+    `messages?maxResults=${max}&q=${encodeURIComponent(q)}`,
+  );
   return json.messages ?? [];
 }
 
+// HTML email (Indeed's, for one) as plain text: styles, scripts and the head go, not just the tags.
+export function htmlText(html: string) {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(style|script|head|title)[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<(br|\/p|\/div|\/tr|\/li|\/h\d)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function plainText(part: Part): string {
-  if (part.mimeType === "text/plain" && part.body?.data) return Buffer.from(part.body.data, "base64url").toString("utf8");
+  if (part.mimeType === "text/plain" && part.body?.data)
+    return Buffer.from(part.body.data, "base64url").toString("utf8");
   for (const p of part.parts ?? []) {
     const t = plainText(p);
     if (t) return t;
   }
   if (part.mimeType === "text/html" && part.body?.data) {
-    return Buffer.from(part.body.data, "base64url")
-      .toString("utf8")
-      .replace(/<(br|\/p|\/div)[^>]*>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&");
+    return htmlText(Buffer.from(part.body.data, "base64url").toString("utf8"));
   }
   return "";
 }
@@ -267,12 +396,18 @@ export function replyOnly(text: string) {
     .trim();
 }
 
-export async function readGmail(token: string, id: string): Promise<GmailMessage> {
+export async function readGmail(
+  token: string,
+  id: string,
+): Promise<GmailMessage> {
   const m = await gmailGet(token, `messages/${id}?format=full`);
   const headers: { name: string; value: string }[] = m.payload?.headers ?? [];
-  const h = (n: string) => headers.find((x) => x.name.toLowerCase() === n)?.value ?? "";
+  const h = (n: string) =>
+    headers.find((x) => x.name.toLowerCase() === n)?.value ?? "";
   const fromRaw = h("from");
-  const email = (fromRaw.match(/<([^>]+)>/)?.[1] ?? fromRaw).trim().toLowerCase();
+  const email = (fromRaw.match(/<([^>]+)>/)?.[1] ?? fromRaw)
+    .trim()
+    .toLowerCase();
   const fromName =
     fromRaw
       .replace(/<[^>]+>/, "")
@@ -292,24 +427,47 @@ export async function readGmail(token: string, id: string): Promise<GmailMessage
     subject: h("subject"),
     date: new Date(Number(m.internalDate) || Date.now()),
     text: plainText(m.payload ?? {}) || m.snippet || "",
-    bulk: Boolean(h("list-unsubscribe") || /bulk|list|junk/i.test(h("precedence")) || /auto-/i.test(h("auto-submitted"))),
+    bulk: Boolean(
+      h("list-unsubscribe") ||
+      /bulk|list|junk/i.test(h("precedence")) ||
+      /auto-/i.test(h("auto-submitted")),
+    ),
   };
 }
 
 // The PDFs attached to one message (an offer letter), ready to attach to another email.
-export async function gmailPdfs(token: string, id: string): Promise<Attachment[]> {
-  type Att = Part & { filename?: string; body?: { data?: string; attachmentId?: string } };
+export async function gmailPdfs(
+  token: string,
+  id: string,
+): Promise<Attachment[]> {
+  type Att = Part & {
+    filename?: string;
+    body?: { data?: string; attachmentId?: string };
+  };
   const m = await gmailGet(token, `messages/${id}?format=full`);
   const found: Att[] = [];
   const walk = (p: Att) => {
-    if (p.filename && p.body?.attachmentId && (/pdf/i.test(p.mimeType ?? "") || /\.pdf$/i.test(p.filename))) found.push(p);
+    if (
+      p.filename &&
+      p.body?.attachmentId &&
+      (/pdf/i.test(p.mimeType ?? "") || /\.pdf$/i.test(p.filename))
+    )
+      found.push(p);
     for (const c of (p.parts ?? []) as Att[]) walk(c);
   };
   walk(m.payload ?? {});
   const out: Attachment[] = [];
   for (const p of found.slice(0, 3)) {
-    const a = await gmailGet(token, `messages/${id}/attachments/${p.body!.attachmentId}`);
-    if (a.data) out.push({ filename: p.filename!, mimeType: "application/pdf", data: Buffer.from(a.data, "base64url") });
+    const a = await gmailGet(
+      token,
+      `messages/${id}/attachments/${p.body!.attachmentId}`,
+    );
+    if (a.data)
+      out.push({
+        filename: p.filename!,
+        mimeType: "application/pdf",
+        data: Buffer.from(a.data, "base64url"),
+      });
   }
   return out;
 }
