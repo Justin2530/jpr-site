@@ -197,3 +197,43 @@ export async function bulkUnassign(
   revalidatePath("/", "layout");
   return { ok: true, message: `Removed ${data.length} from the job.` };
 }
+
+// Justin types in (or changes) the interview time himself (2026-10-12). Saved as a confirmed interview, so it shows
+// on the candidate and on the job; reminders and the client check-in still only go out when the three switches are on.
+export async function setInterviewTime(cjId: string, iso: string, details: string): Promise<{ ok: boolean; message: string }> {
+  const { supabase } = await requireStaff();
+  if (!/^[0-9a-f-]{36}$/i.test(cjId)) return { ok: false, message: "Unknown candidate." };
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return { ok: false, message: "Pick a date and time." };
+  const note = details.trim().slice(0, 500) || null;
+  const { data: current } = await supabase
+    .from("interviews")
+    .select("id, scheduled_at, status")
+    .eq("candidate_job_id", cjId)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const fields = {
+    status: "confirmed" as const,
+    waiting_on: null,
+    scheduled_at: at.toISOString(),
+    details: note,
+    confirmed_at: new Date().toISOString(),
+    // A new time gets its own reminder and check-in.
+    ...(current?.scheduled_at !== at.toISOString() ? { reminder_sent_at: null, checkin_sent_at: null } : {}),
+  };
+  const { error } =
+    current && current.status !== "done"
+      ? await supabase.from("interviews").update(fields).eq("id", current.id)
+      : await supabase.from("interviews").insert({ candidate_job_id: cjId, ...fields });
+  if (error) return { ok: false, message: error.message };
+  const { data: cj } = await supabase.from("candidate_jobs").select("stage, candidate_id, job_id").eq("id", cjId).single();
+  if (cj && !["interviewing", "offer", "placed"].includes(cj.stage)) {
+    await supabase.from("candidate_jobs").update({ stage: "interviewing" }).eq("id", cjId);
+  }
+  revalidatePath(`/candidates/${cj?.candidate_id}`);
+  revalidatePath(`/jobs/${cj?.job_id}`);
+  revalidatePath("/pipeline");
+  return { ok: true, message: "Saved." };
+}

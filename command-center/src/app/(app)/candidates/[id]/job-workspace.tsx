@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
 import { Chip, Empty, Panel } from "@/components/ui";
 import { StageSelect } from "@/components/stage-select";
+import { InterviewTime } from "@/components/interview-time";
 import { SubmissionEditor } from "@/components/submission-editor";
 import { draftSubmission, emailName } from "@/lib/submission";
 import { gmailAccount } from "@/lib/gmail-account";
@@ -172,6 +173,14 @@ export async function JobWorkspace({
         </div>
         <Chip tone={STAGE_TONE[cj.stage]}>{STAGE_LABEL[cj.stage]}</Chip>
         <StageSelect id={cj.id} stage={cj.stage} />
+        {(cj.stage === "interviewing" || interview?.scheduled_at) && (
+          <InterviewTime
+            key={interview?.scheduled_at ?? "none"}
+            cjId={cj.id}
+            at={interview?.status === "proposing" ? null : (interview?.scheduled_at ?? null)}
+            details={interview?.details ?? null}
+          />
+        )}
       </div>
 
       {candidate.automation_paused_at && automation.on && automation.eligible(candidate.created_at) && (

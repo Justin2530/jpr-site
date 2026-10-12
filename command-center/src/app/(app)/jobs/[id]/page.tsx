@@ -14,6 +14,7 @@ import {
   STAGE_LABEL,
   STAGE_TONE,
   timeAgo,
+  interviewWhen,
 } from "@/lib/format";
 import { Board } from "@/components/board";
 import { ViewSwitcher } from "@/components/view-switcher";
@@ -62,7 +63,7 @@ export default async function JobDetail({
     supabase
       .from("candidate_jobs")
       .select(
-        "id, stage, stage_changed_at, candidates(id, full_name, current_title, current_employer, phone)",
+        "id, stage, stage_changed_at, candidates(id, full_name, current_title, current_employer, phone), interviews(status, scheduled_at, created_at)",
       )
       .eq("job_id", id)
       .order("stage_changed_at", { ascending: false }),
@@ -133,6 +134,16 @@ export default async function JobDetail({
             </span>
           )}
           <Chip tone={STAGE_TONE[r.stage]}>{STAGE_LABEL[r.stage]}</Chip>
+          {(() => {
+            const next = (r.interviews ?? [])
+              .filter((i) => i.scheduled_at && ["confirmed", "done"].includes(i.status))
+              .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+            return next?.scheduled_at && ["interviewing", "offer"].includes(r.stage) ? (
+              <span className="text-sm font-medium text-amber">
+                Interview {interviewWhen(next.scheduled_at)}
+              </span>
+            ) : null;
+          })()}
         </div>
         <p className="truncate text-sm text-muted">
           {[r.candidates?.current_title, r.candidates?.current_employer]

@@ -128,3 +128,15 @@ export function outreachSourceFor(source: Enums<"candidate_source">): OutreachSo
   if (source === "website" || source === "inbound") return "applied";
   return "other";
 }
+
+// An interview time as Justin reads it: "Tue, Oct 13, 10:00 AM" (Eastern).
+export function interviewWhen(iso: string) {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
