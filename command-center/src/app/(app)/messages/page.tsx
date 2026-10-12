@@ -4,7 +4,7 @@ import { RULES_SINCE } from "@/lib/conversations";
 import { Chip, Empty, PageHeader } from "@/components/ui";
 import { ChatIcon, MailIcon } from "@/components/icons";
 import { PushToggle } from "@/components/push-toggle";
-import { markRead } from "./actions";
+import { markConversation, markRead } from "./actions";
 import {
   baseKey,
   convOf,
@@ -276,12 +276,29 @@ export default async function MessagesPage({
             </span>
           )}
         </Link>
-        {t.unread > 0 && (
-          <form action={markRead} className="shrink-0 pr-3">
-            <input type="hidden" name="who" value={whoKey(t.who)} />
-            <button className="btn-quiet py-1 text-xs">Mark read</button>
-          </form>
-        )}
+        <div className="flex shrink-0 flex-col gap-1 pr-3 sm:flex-row">
+          {t.unread > 0 && (
+            <form action={markRead}>
+              <input type="hidden" name="who" value={whoKey(t.who)} />
+              <button className="btn-quiet py-1 text-xs">Mark read</button>
+            </form>
+          )}
+          {(() => {
+            const open = tab === "history" ? verdict(t)?.state === "done" : true;
+            if (!open) return null;
+            const done = tab !== "history";
+            return (
+              <form action={markConversation}>
+                <input type="hidden" name="who" value={whoKey(t.who)} />
+                <input type="hidden" name="last" value={t.last.id} />
+                <input type="hidden" name="state" value={done ? "done" : "current"} />
+                <button className="btn-quiet py-1 text-xs" title={done ? "Move it to History until they write again" : "Put it back in Current"}>
+                  {done ? "Done" : "Reopen"}
+                </button>
+              </form>
+            );
+          })()}
+        </div>
       </li>
     );
   }

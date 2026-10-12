@@ -1669,6 +1669,7 @@ export type Database = {
       };
       triage_pending: { Args: { p_secret: string }; Returns: Json };
       conversations_pending: { Args: { p_secret: string }; Returns: Json };
+      conversation_mark: { Args: { p_who: string; p_state: string; p_last: string }; Returns: undefined };
       conversation_state_apply: {
         Args: {
           p_secret: string;
