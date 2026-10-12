@@ -82,7 +82,7 @@ export function Correspondence({ items, person }: { items: CorrItem[]; person?: 
                   </summary>
                   {hasMore && (
                     <div className="border-t border-line px-3 py-3">
-                      {i.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/90">{i.body}</p>}
+                      {i.body && <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink/90">{i.body}</p>}
                       {i.transcript && i.transcript.length > 0 && (
                         <ol className={`max-h-[26rem] space-y-2 overflow-auto ${i.body ? "mt-3 border-t border-line pt-3" : ""}`}>
                           {i.transcript.map((l, n) => (

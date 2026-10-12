@@ -100,7 +100,7 @@ export default async function DealDetail({ params }: { params: Promise<{ id: str
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <Panel title={`Correspondence${deal.contacts ? ` with ${deal.contacts.full_name}` : ""} · ${history.length}`}>
             <Correspondence items={history} />

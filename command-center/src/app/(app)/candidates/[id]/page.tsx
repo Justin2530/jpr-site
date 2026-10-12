@@ -290,7 +290,7 @@ export default async function CandidateDetail({
         </nav>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         {activeTab ? (
           <JobWorkspace supabase={supabase} candidate={c} cjId={activeTab} />
         ) : (
@@ -450,11 +450,11 @@ export default async function CandidateDetail({
                             ` · ${a.staff.full_name ?? a.staff.email.split("@")[0]}`}
                         </span>
                       </div>
-                      <p className="mt-1 whitespace-pre-wrap text-sm">
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm">
                         {a.summary}
                       </p>
                       {a.body && ["text", "email"].includes(a.kind) && (
-                        <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap text-sm text-muted">
+                        <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words break-words text-sm text-muted">
                           {a.body}
                         </p>
                       )}

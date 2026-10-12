@@ -207,7 +207,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Panel
           title="What needs me"
           action={

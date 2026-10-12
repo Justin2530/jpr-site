@@ -487,7 +487,7 @@ export async function JobWorkspace({
                 <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border border-cyan/60 bg-void" />
                 <p className="text-sm">{a.summary}</p>
                 {a.body && ["text", "email"].includes(a.kind) && (
-                  <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted">{a.body}</p>
+                  <p className="line-clamp-3 whitespace-pre-wrap break-words break-words text-sm text-muted">{a.body}</p>
                 )}
                 <p className="font-mono text-[10.5px] text-faint">
                   {label(a.kind)} · {timeAgo(a.occurred_at)}

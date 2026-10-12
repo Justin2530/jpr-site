@@ -73,7 +73,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
           />
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <ConversationsPanel
             rows={(msgs ?? []).map((r) => ({ ...r, about: r.candidates?.full_name ? `about ${r.candidates.full_name}` : null }))}

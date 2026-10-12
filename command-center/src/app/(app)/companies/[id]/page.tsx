@@ -77,7 +77,7 @@ export default async function ClientDetail({ params }: { params: Promise<{ id: s
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <Panel title="Jobs">
             {(jobs ?? []).length === 0 ? (
