@@ -49,7 +49,7 @@ export function ConversationsPanel({
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
                     {v.topic}
-                    {v.about && <span className="text-muted"> · about {v.about}</span>}
+                    {v.about && <span className="text-muted"> · {v.about}</span>}
                   </p>
                   <p className="truncate text-sm text-muted">
                     {v.last.direction === "out" ? "You: " : ""}

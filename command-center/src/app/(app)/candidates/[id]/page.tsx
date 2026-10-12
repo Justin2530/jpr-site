@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConversationsPanel } from "@/components/conversations-panel";
+import { convOf, whoKey } from "@/lib/messages";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader, Panel, Row } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -63,26 +64,15 @@ export default async function CandidateDetail({
   if (!c) notFound();
   const { data: msgs } = await supabase
     .from("activities")
-    .select("id, kind, summary, body, direction, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id")
+    .select(
+      "id, kind, summary, body, direction, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id, contacts(full_name)",
+    )
     .eq("candidate_id", id)
-    .is("contact_id", null)
     .in("kind", ["text", "email"])
     .order("occurred_at", { ascending: false })
     .limit(500);
   const openLinks = (links ?? []).filter((l) => !["passed", "withdrawn"].includes(l.stage));
   const sole = new Map(openLinks.length === 1 ? [[id, openLinks[0].id]] : []);
-  const conversations = (
-    <ConversationsPanel
-      rows={msgs ?? []}
-      sole={sole}
-      label={(r) => {
-        const cj = r.candidate_job_id ?? sole.get(id);
-        const job = (links ?? []).find((l) => l.id === cj)?.jobs?.title;
-        return r.kind === "text" ? (job ? `Texts about ${job}` : "Texts") : "Emails";
-      }}
-      empty={`No texts or emails with ${c.full_name.split(" ")[0]} yet.`}
-    />
-  );
 
   const { data: isProtected } = c.current_employer
     ? await supabase.rpc("is_protected_employer", { employer: c.current_employer })
@@ -121,6 +111,32 @@ export default async function CandidateDetail({
   // Assign + automate needs the master switch on and at least one open job with its own switch on.
   const canAutomate = automation.on && automation.eligible(c.created_at) && assignable.some((j) => j.automation_pilot);
   const activeTab = (links ?? []).find((l) => l.id === jobTab)?.id;
+  // Justin works job first (Jobs > job > candidate), so each job tab shows only that job's conversations: texts
+  // about it, their email threads about it, and the client's emails about them for it. A conversation that never
+  // names a job shows on every tab; the Overview shows them all.
+  const jobOf = new Map<string, string | null>();
+  for (const r of msgs ?? []) {
+    const key = whoKey(convOf(r, sole));
+    const cj = r.candidate_job_id ?? (r.contact_id ? null : (sole.get(id) ?? null));
+    if (!jobOf.get(key)) jobOf.set(key, cj);
+  }
+  const shown = (msgs ?? []).filter((r) => {
+    if (!activeTab) return true;
+    const cj = jobOf.get(whoKey(convOf(r, sole)));
+    return !cj || cj === activeTab;
+  });
+  const conversations = (
+    <ConversationsPanel
+      rows={shown.map((r) => ({ ...r, about: r.contacts?.full_name ? `with ${r.contacts.full_name}` : null }))}
+      sole={sole}
+      label={(r) => {
+        const cj = r.candidate_job_id ?? sole.get(id);
+        const job = (links ?? []).find((l) => l.id === cj)?.jobs?.title;
+        return r.kind === "text" ? (job && !activeTab ? `Texts about ${job}` : "Texts") : "Emails";
+      }}
+      empty={activeTab ? "No texts or emails about this job yet." : `No texts or emails with ${c.full_name.split(" ")[0]} yet.`}
+    />
+  );
   const path = `/candidates/${c.id}`;
   const [history, { data: reminders }] = await Promise.all([
     candidateCorrespondence(supabase, c.id),
