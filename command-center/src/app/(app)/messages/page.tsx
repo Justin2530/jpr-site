@@ -77,7 +77,7 @@ export default async function MessagesPage({
     // Messages the triage kept on What needs me as needing Justin (thank-yous, FYIs and the like are cleared).
     supabase
       .from("action_items")
-      .select("candidate_id, contact_id, created_at")
+      .select("candidate_id, contact_id, candidate_job_id, created_at")
       .eq("status", "open")
       .in("kind", ["reply", "inbox"]),
     // The AI's read of where each conversation stands (lib/conversations.ts).
@@ -156,8 +156,22 @@ export default async function MessagesPage({
   // still an open item on What needs me, i.e. the triage judged it needs him.
   const isWaiting = (t: (typeof all)[number]) => {
     const v = verdict(t);
-    if (v) return v.state === "waiting";
     const r = t.last;
+    // Still open on What needs me for this exact conversation (they wrote last about this candidate): it waits on
+    // him whatever the AI thought, so Messages and What needs me never disagree.
+    if (
+      r.direction === "in" &&
+      r.contact_id &&
+      r.candidate_job_id &&
+      (open ?? []).some(
+        (i) =>
+          i.contact_id === r.contact_id &&
+          i.candidate_job_id === r.candidate_job_id &&
+          Date.parse(i.created_at) >= Date.parse(r.occurred_at) - 6e4,
+      )
+    )
+      return true;
+    if (v) return v.state === "waiting";
     if (
       r.direction !== "in" ||
       r.brain_status === "done" ||
