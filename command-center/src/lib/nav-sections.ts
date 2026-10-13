@@ -2,6 +2,7 @@
 // It lives outside nav.tsx because a server page can't read plain data out of a "use client" file.
 import {
   BoardIcon,
+  CalendarIcon,
   CandidatesIcon,
   ChatIcon,
   ClientsIcon,
@@ -24,6 +25,7 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
     items: [
       { href: "/", label: "What needs me", Icon: HomeIcon },
       { href: "/dashboard", label: "Dashboard", Icon: BoardIcon },
+      { href: "/calendar", label: "Calendar", Icon: CalendarIcon },
       { href: "/messages", label: "Messages", Icon: ChatIcon },
     ],
   },

@@ -1,3 +1,4 @@
+import { pushCalendar } from "@/lib/calendar";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { runBrain } from "@/lib/brain";
 import { runTriage } from "@/lib/triage";
@@ -325,7 +326,15 @@ export async function runTick(db: SupabaseClient<Database>, origin: string) {
   } catch (e) {
     console.error("Conversation states pass failed", e);
   }
+  // Interviews, calls, tasks and sales dates onto Justin's Google Calendar (only what changed).
+  let calendar = 0;
+  try {
+    calendar = await pushCalendar(db, secret);
+  } catch (e) {
+    console.error("Calendar push failed", e);
+  }
   return {
+    calendar,
     sent,
     due: steps.length,
     logged,

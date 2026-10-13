@@ -6,6 +6,6 @@ import { googleReady } from "@/lib/google";
 export const gmailAccount = cache(async () => {
   if (!googleReady()) return null;
   const { supabase, userId } = await getStaff();
-  const { data } = await supabase.from("google_accounts").select("email, connected_at").eq("staff_id", userId).maybeSingle();
+  const { data } = await supabase.from("google_accounts").select("email, connected_at, scopes").eq("staff_id", userId).maybeSingle();
   return data;
 });

@@ -17,6 +17,8 @@ export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   // Only to put JPR's candidate labels on threads; nothing is deleted or moved.
   "https://www.googleapis.com/auth/gmail.modify",
+  // The Command Center calendar puts interviews, calls and tasks on his Google Calendar and shows his own events.
+  "https://www.googleapis.com/auth/calendar.events",
 ];
 
 // The Command Center address registered as the redirect in Google Cloud (JPR Command Center web client).

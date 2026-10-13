@@ -1706,6 +1706,18 @@ export type Database = {
         Returns: undefined;
       };
       brain_pending: { Args: { p_secret: string }; Returns: Json };
+      calendar_events: {
+        Args: { p_from: string; p_to: string };
+        Returns: Json;
+      };
+      calendar_feed: {
+        Args: { p_secret: string };
+        Returns: Json;
+      };
+      calendar_link_save: {
+        Args: { p_secret: string; p_staff: string; p_key: string; p_event: string; p_fp: string; p_removed: boolean };
+        Returns: undefined;
+      };
       candidate_phone_fill: {
         Args: { p_secret: string; p_candidate: string; p_phone: string };
         Returns: undefined;

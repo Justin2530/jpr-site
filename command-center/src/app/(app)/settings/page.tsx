@@ -259,8 +259,17 @@ export default async function SettingsPage({
                 ? "Sign in with your JPR Google Workspace account so emails send from your own mailbox and land on each person's history."
                 : "Waiting on the Google keys in Vercel (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)."}
           </p>
+          {gmail && !gmail.scopes?.includes("calendar") && (
+            <p className="text-sm text-amber">
+              Press Reconnect Gmail once more and allow Google Calendar, so the Command Center calendar can put
+              interviews and calls on your Google Calendar.
+            </p>
+          )}
           {googleReady() && (
-            <a href="/api/google/start" className={gmail ? "btn-quiet" : "btn"}>
+            <a
+              href="/api/google/start"
+              className={gmail && gmail.scopes?.includes("calendar") ? "btn-quiet" : "btn"}
+            >
               {gmail ? "Reconnect Gmail" : "Connect Gmail"}
             </a>
           )}
