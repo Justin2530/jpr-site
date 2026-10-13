@@ -172,3 +172,19 @@ export async function setJobsStatus(ids: string[], status: string): Promise<{ ok
   revalidatePath("/jobs");
   return { ok: true, message: `Moved ${list.length} ${list.length === 1 ? "job" : "jobs"} to ${status.replace("_", " ")}.` };
 }
+
+// The job description page's own Edit (Justin 2026-10-13: "i need to be able to edit them or delete and replace them").
+export async function saveDescription(form: FormData) {
+  const { supabase } = await requireStaff();
+  const id = String(form.get("id"));
+  const share = form.get("v") === "share";
+  const value = text(form, "text");
+  const { error } = await supabase
+    .from("jobs")
+    .update(share ? { candidate_description: value } : { description: value })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/jobs/${id}`);
+  revalidatePath(`/jobs/${id}/description`);
+  redirect(`/jobs/${id}/description${share ? "?v=share" : ""}`);
+}

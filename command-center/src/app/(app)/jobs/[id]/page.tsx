@@ -227,7 +227,9 @@ export default async function JobDetail({
                 Job description
               </Link>
             ) : (
-              <span className="chip border-rose/40 bg-rose/10 text-rose">No job description yet</span>
+              <Link href={`/jobs/${job.id}/description?edit=1`} className="chip border-rose/40 bg-rose/10 text-rose">
+                No job description yet · Add one
+              </Link>
             )}
           </span>
         }

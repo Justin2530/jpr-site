@@ -4,6 +4,8 @@ import { requireStaff } from "@/lib/staff";
 import { Empty, PageHeader } from "@/components/ui";
 import { JobDescription } from "@/components/job-description";
 import { PrintButton } from "@/components/print-button";
+import { SubmitButton } from "@/components/submit-button";
+import { saveDescription } from "../../actions";
 
 export const metadata = { title: "Job description · JPR" };
 
@@ -14,10 +16,11 @@ export default async function JobDescriptionPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ v?: string }>;
+  searchParams: Promise<{ v?: string; edit?: string }>;
 }) {
   const { id } = await params;
-  const { v } = await searchParams;
+  const { v, edit } = await searchParams;
+  const editing = edit === "1";
   const share = v === "share";
   const { supabase } = await requireStaff();
   const { data: job } = await supabase
@@ -40,6 +43,11 @@ export default async function JobDescriptionPage({
         sub={[job.title, job.companies?.name, job.location].filter(Boolean).join(" · ")}
         action={
           <span className="flex flex-wrap gap-2 print:hidden">
+            {!editing && (
+              <Link href={`/jobs/${job.id}/description?${share ? "v=share&" : ""}edit=1`} className="btn">
+                Edit
+              </Link>
+            )}
             <Link href={`/jobs/${job.id}/description${share ? "" : "?v=share"}`} className="btn-quiet">
               {share ? "Full description" : "What candidates can be told"}
             </Link>
@@ -47,12 +55,30 @@ export default async function JobDescriptionPage({
           </span>
         }
       />
-      {text.trim() ? (
+      {editing ? (
+        <form action={saveDescription} className="panel max-w-3xl space-y-3 px-6 py-6 sm:px-10">
+          <input type="hidden" name="id" value={job.id} />
+          {share && <input type="hidden" name="v" value="share" />}
+          <p className="text-sm text-muted">
+            Change it right here, or select all (Ctrl+A), delete, and paste in the new one.
+            {share ? " This version is what the website and candidates see, so leave out the company's name." : ""}
+          </p>
+          <textarea name="text" defaultValue={text} rows={28} className="field font-[inherit] leading-relaxed" autoFocus />
+          <div className="flex gap-2">
+            <SubmitButton className="btn" pendingText="Saving…">
+              Save
+            </SubmitButton>
+            <Link href={`/jobs/${job.id}/description${share ? "?v=share" : ""}`} className="btn-quiet">
+              Cancel
+            </Link>
+          </div>
+        </form>
+      ) : text.trim() ? (
         <article className="panel max-w-3xl px-6 py-6 sm:px-10 sm:py-8">
           <JobDescription text={text} />
         </article>
       ) : (
-        <Empty>Nothing written here yet. Add it under Edit job on the job page.</Empty>
+        <Empty>Nothing written here yet. Press Edit to add it.</Empty>
       )}
     </>
   );
