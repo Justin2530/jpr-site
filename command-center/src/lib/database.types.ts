@@ -1706,6 +1706,10 @@ export type Database = {
         Returns: undefined;
       };
       brain_pending: { Args: { p_secret: string }; Returns: Json };
+      candidate_phone_fill: {
+        Args: { p_secret: string; p_candidate: string; p_phone: string };
+        Returns: undefined;
+      };
       brain_apply: {
         Args: { p_secret: string; p_activity: string; p_decision: Json };
         Returns: string;

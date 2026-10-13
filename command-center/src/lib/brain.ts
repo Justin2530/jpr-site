@@ -96,11 +96,17 @@ When in doubt, choose needs_justin. Saying nothing is always safe; a wrong reply
 Questions you can't answer: if they ask something the job facts don't cover (benefits that aren't listed, exact address, overtime, the company's name, anything you'd be guessing), never guess. Say Justin will get them that answer (or that he can go over it on the call) and put the question in open_question so Justin sees it. Still answer what you can and keep moving toward booking the call. The hiring company's name is confidential before the call: say it's a local employer and Justin will share the details on the call.
 
 reply: the message to send back, written as Justin. Warm, short, plain, like a real local recruiter texting. No emojis, no exclamation-point spam, no corporate phrases.
-- When booking, confirm the day and time in words (e.g. "Tuesday at 11am") and say you'll call the number they're texting from or the number on file.
+- When booking, confirm the day and time in words (e.g. "Tuesday at 11am") and say you'll call the number they're texting from or the number on file. If phone_number_on_file is false, still book it, and ask for the best number to reach them in the same reply.
 - not_interested: thank them in one sentence and say you'll keep them in mind.
 For a text keep it under 300 characters and don't sign it. For an email write 2-5 short sentences starting with "Hi {first name}," and no signature (it's added).
 Never invent facts about the job, pay, benefits or company. Never promise an interview or a job.
 summary: one short line for Justin's dashboard saying what they said and what you did (e.g. "Booked screening Tue 11am" or "Asked about pay, answered, offered Mon 10am / 2pm").`;
+
+// A US phone number written in a message ("Here is my number 724-388-3400"), as +1XXXXXXXXXX.
+function numberIn(text: string | null) {
+  const m = (text ?? "").match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/);
+  return m ? toE164(m[0]) : null;
+}
 
 async function decide(p: Pending): Promise<Decision | null> {
   const key = process.env.OPENAI_API_KEY?.trim();
@@ -110,6 +116,7 @@ async function decide(p: Pending): Promise<Decision | null> {
     candidate: p.full_name,
     their_latest_reply: { channel: p.channel, text: p.body ?? p.summary },
     call_already_booked_for: p.booked_for,
+    phone_number_on_file: Boolean(p.phone || p.from_phone || numberIn(p.body ?? p.summary)),
     earlier_messages: p.history,
     job: {
       title: p.job_title,
@@ -155,6 +162,12 @@ export async function runBrain(db: SupabaseClient<Database>, secret: string, ori
     const apply = (d: Record<string, string>) =>
       db.rpc("brain_apply", { p_secret: secret, p_activity: p.activity_id, p_decision: { candidate_job_id: p.candidate_job_id, ...d } });
     try {
+      // A number they give in a message is saved when none is on file, so a booked call can be placed.
+      const given = !p.phone && !p.from_phone ? numberIn(p.body ?? p.summary) : null;
+      if (given) {
+        await db.rpc("candidate_phone_fill", { p_secret: secret, p_candidate: p.candidate_id, p_phone: given });
+        p.phone = given;
+      }
       const d = await decide(p);
       if (!d) continue;
       const extra: Record<string, string> = {};

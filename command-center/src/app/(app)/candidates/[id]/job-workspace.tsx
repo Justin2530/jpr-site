@@ -7,7 +7,7 @@ import { InterviewTime } from "@/components/interview-time";
 import { SubmissionEditor } from "@/components/submission-editor";
 import { draftSubmission, emailName } from "@/lib/submission";
 import { gmailAccount } from "@/lib/gmail-account";
-import { callNow, setOutreach } from "@/app/(app)/pipeline-actions";
+import { callMyself, callNow, setOutreach } from "@/app/(app)/pipeline-actions";
 import { setCandidateAutomation } from "@/app/(app)/relay-actions";
 import { OfferCard, RelayMessageCard } from "@/components/offer-card";
 import { liveReady } from "@/lib/live";
@@ -412,7 +412,7 @@ export async function JobWorkspace({
               </p>
             )}
             {run.status === "scheduled" && run.scheduled_for && (
-              <p className="rounded-md border border-cyan/30 bg-cyan/5 px-3 py-2 text-sm">
+              <div className="rounded-md border border-cyan/30 bg-cyan/5 px-3 py-2 text-sm">
                 <span className="text-cyan">Booked for </span>
                 {new Date(run.scheduled_for).toLocaleString("en-US", {
                   timeZone: "America/New_York",
@@ -423,7 +423,13 @@ export async function JobWorkspace({
                   minute: "2-digit",
                 })}{" "}
                 ET
-              </p>
+                <form action={callMyself} className="mt-2">
+                  <input type="hidden" name="run" value={run.id} />
+                  <SubmitButton className="btn-quiet py-1 text-xs" pendingText="…">
+                    I&apos;ll call them myself
+                  </SubmitButton>
+                </form>
+              </div>
             )}
             {run.summary && <p className="text-sm leading-relaxed">{run.summary}</p>}
             {[

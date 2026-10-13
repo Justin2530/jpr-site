@@ -532,6 +532,7 @@ const NOTES_SCHEMA = {
       ],
     },
     callback_at_local: { type: "string" },
+    wants_justin: { type: "boolean" },
     summary: { type: "string" },
     facts: {
       type: "array",
@@ -555,6 +556,7 @@ const NOTES_SCHEMA = {
   required: [
     "outcome",
     "callback_at_local",
+    "wants_justin",
     "summary",
     "facts",
     "candidate_questions",
@@ -613,6 +615,7 @@ async function writeUp(c: CallContext, transcript: Line[]) {
       reasoning: { effort: "medium" },
       instructions: `You turn a recorded recruiting call into notes for Justin Peace (JPR). Use only what was actually said on the call and what the resume shows. Never invent anything.
 outcome: interested (they want to move forward), not_interested, callback (they asked to talk at another time; put it in callback_at_local as "YYYY-MM-DD HH:MM" Eastern, else ""), voicemail (the call reached voicemail or an automated message, not the person), or incomplete (call cut short, declined recording, wrong person, or too little was covered).
+wants_justin: true when they asked to talk with Justin himself (a person, not the assistant), including declining the recording; then the callback time is for Justin to call them.
 summary: 2-4 plain sentences for Justin: who they are, fit for the job, pay and interview availability, and anything to watch. Start the summary with any of these that came up, each as its own short sentence: they've worked at, applied to or spoken with the company about this job before (and how it went); their pay ask is above the job's pay; they asked to talk with Justin directly (and when); they asked never to be called again.
 facts: one entry per screening question that got an answer, with goal_id set to that question's id and label a short name (e.g. "Lifting", "Forklift"); value is their answer in a short plain sentence. Always add entries with goal_id "" for "Prior contact with ${c.company}", "Pay" and "Interview availability" when they came up, plus other useful facts (current pay, certifications, machines, years). Skip questions that weren't answered.
 candidate_questions: questions they asked that Justin should follow up on, including anything the assistant said Justin would get back to them on. concerns: anything that could be a problem for the employer. unresolved: required questions not covered.
@@ -644,6 +647,7 @@ ${SUBMISSION_STYLE}`,
   return {
     outcome: n.outcome,
     callback_at_local: n.callback_at_local,
+    wants_justin: Boolean(n.wants_justin),
     summary: n.summary,
     facts: n.facts,
     candidate_questions: n.candidate_questions,

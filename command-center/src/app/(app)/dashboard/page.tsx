@@ -115,21 +115,26 @@ export default async function Dashboard() {
     supabase.from("pursuits").select("candidate_job_id").eq("status", "active").is("paused_at", null),
   ]);
 
-  // Last text, email or call with each active candidate on each job, to tell who has gone quiet.
+  // Last text, email or call with each active candidate on each job, to tell who has gone quiet. Many replies
+  // (Indeed emails, texts to the main line) aren't tagged to a job, so those count for each of that person's jobs.
   const activeRows = (active.data ?? []) as unknown as (CJ & { stage_changed_at: string })[];
   const { data: touches } = activeRows.length
     ? await supabase
         .from("activities")
-        .select("candidate_job_id, occurred_at, direction")
-        .in("candidate_job_id", activeRows.map((r) => r.id))
+        .select("candidate_id, candidate_job_id, occurred_at, direction")
+        .in("candidate_id", [...new Set(activeRows.map((r) => r.candidate_id))])
         .in("kind", ["text", "email", "call"])
         .order("occurred_at", { ascending: false })
         .limit(3000)
     : { data: [] };
   const lastTouch = new Map<string, { at: string; direction: string | null }>();
-  for (const t of touches ?? [])
-    if (t.candidate_job_id && !lastTouch.has(t.candidate_job_id))
-      lastTouch.set(t.candidate_job_id, { at: t.occurred_at, direction: t.direction });
+  for (const t of touches ?? []) {
+    const jobs = t.candidate_job_id
+      ? [t.candidate_job_id]
+      : activeRows.filter((r) => r.candidate_id === t.candidate_id).map((r) => r.id);
+    for (const id of jobs)
+      if (!lastTouch.has(id)) lastTouch.set(id, { at: t.occurred_at, direction: t.direction });
+  }
   const automated = new Set((pursuits.data ?? []).map((p) => p.candidate_job_id));
 
   const cols: Record<ColKey, Card[]> = {

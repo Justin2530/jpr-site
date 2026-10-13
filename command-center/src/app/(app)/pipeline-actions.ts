@@ -5,7 +5,7 @@ import { requireStaff } from "@/lib/staff";
 import { Constants, type Enums } from "@/lib/database.types";
 import { beginOutreach } from "@/lib/outreach";
 import { oldImportLinks } from "@/lib/old-imports";
-import { OUTREACH_SOURCES, type OutreachSource } from "@/lib/format";
+import { OUTREACH_SOURCES, interviewWhen, type OutreachSource } from "@/lib/format";
 
 const outreachSource = (form: FormData) => {
   const v = String(form.get("outreach_source") ?? "");
@@ -123,6 +123,45 @@ export async function callNow(form: FormData) {
     .single();
   if (data) revalidatePath(`/candidates/${data.candidate_id}`);
   revalidatePath("/");
+}
+
+// Justin takes a booked call himself (2026-10-13, Timothy Cox asked to talk with him directly): the AI call is
+// cancelled and a reminder to call them at that time lands on What needs me.
+export async function callMyself(form: FormData) {
+  const { supabase, userId } = await requireStaff();
+  const runId = String(form.get("run") ?? "");
+  const { data: run } = await supabase
+    .from("screening_runs")
+    .select("id, scheduled_for, status, candidate_job_id, candidate_jobs(candidate_id, candidates(full_name), jobs(id, title, company_id, market_id))")
+    .eq("id", runId)
+    .single();
+  if (!run || run.status !== "scheduled") return;
+  const { error } = await supabase.from("screening_runs").update({ status: "cancelled" }).eq("id", run.id).eq("status", "scheduled");
+  if (error) throw new Error(error.message);
+  const cj = run.candidate_jobs as unknown as {
+    candidate_id: string;
+    candidates: { full_name: string } | null;
+    jobs: { id: string; title: string; company_id: string; market_id: string } | null;
+  } | null;
+  const when = run.scheduled_for ? interviewWhen(run.scheduled_for) : "";
+  await supabase.from("action_items").insert({
+    kind: "task",
+    title: `Call ${cj?.candidates?.full_name ?? "them"}${when ? ` · ${when}` : ""}`,
+    detail: `${cj?.jobs?.title ?? ""}. You're taking this call yourself; the AI assistant won't call.`,
+    priority: 1,
+    created_by: userId,
+    due_on: run.scheduled_for
+      ? new Date(run.scheduled_for).toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+      : null,
+    candidate_id: cj?.candidate_id ?? null,
+    candidate_job_id: run.candidate_job_id,
+    job_id: cj?.jobs?.id ?? null,
+    company_id: cj?.jobs?.company_id ?? null,
+    market_id: cj?.jobs?.market_id ?? null,
+  });
+  if (cj) revalidatePath(`/candidates/${cj.candidate_id}`);
+  revalidatePath("/");
+  revalidatePath("/dashboard");
 }
 
 // The job's Automated recruiting switch: off pauses everyone on this job where they are, on picks them back up.
