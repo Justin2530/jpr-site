@@ -33,7 +33,7 @@ export function InterviewTime({ cjId, at, details }: { cjId: string; at: string 
     });
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-2 border-t border-line pt-3 text-sm">
+    <div id="interview" className="flex w-full scroll-mt-20 flex-wrap items-center gap-2 border-t border-line pt-3 text-sm">
       <span className="font-mono text-[11px] uppercase tracking-wider text-faint">Interview</span>
       {!editing && at ? (
         <>

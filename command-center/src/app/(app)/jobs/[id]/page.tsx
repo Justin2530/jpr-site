@@ -142,6 +142,13 @@ export default async function JobDetail({
               <span className="text-sm font-medium text-amber">
                 Interview {interviewWhen(next.scheduled_at)}
               </span>
+            ) : r.stage === "interviewing" ? (
+              <Link
+                href={`/candidates/${r.candidates?.id}?job=${r.id}#interview`}
+                className="btn py-1 text-xs"
+              >
+                Set interview time
+              </Link>
             ) : null;
           })()}
         </div>

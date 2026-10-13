@@ -1,6 +1,7 @@
 // The menu, shared by the sidebar (a client component) and the phone Menu page (a server page).
 // It lives outside nav.tsx because a server page can't read plain data out of a "use client" file.
 import {
+  BoardIcon,
   CandidatesIcon,
   ChatIcon,
   ClientsIcon,
@@ -22,6 +23,7 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
     title: null,
     items: [
       { href: "/", label: "What needs me", Icon: HomeIcon },
+      { href: "/dashboard", label: "Dashboard", Icon: BoardIcon },
       { href: "/messages", label: "Messages", Icon: ChatIcon },
     ],
   },
