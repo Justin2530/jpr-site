@@ -55,8 +55,8 @@ function cardFor(cj: CJ | null, rest: Omit<Card, "href" | "name" | "sub">): Card
 
 const COLUMNS = [
   { key: "upcoming", title: "Interviews coming up", bar: "bg-amber", text: "text-amber", empty: "No client interviews booked." },
+  { key: "past", title: "Recent interviews", bar: "bg-rose", text: "text-rose", empty: "No interviews in the last 2 weeks." },
   { key: "screening", title: "Screening calls", bar: "bg-cyan", text: "text-cyan", empty: "No screening calls booked." },
-  { key: "past", title: "Past interviews", bar: "bg-rose", text: "text-rose", empty: "No interviews in the last 3 weeks." },
   { key: "conversation", title: "In conversation", bar: "bg-cyan", text: "text-cyan", empty: "Nobody in conversation right now." },
   { key: "followup", title: "Needs follow-up", bar: "bg-rose", text: "text-rose", empty: `Everyone has been touched in the last ${QUIET_DAYS} days.` },
   { key: "submitted", title: "Submitted, waiting on client", bar: "bg-amber", text: "text-amber", empty: "No submissions waiting on a client." },
@@ -69,7 +69,7 @@ export default async function Dashboard() {
   const { supabase } = await requireStaff();
   const now = new Date();
   const nowIso = now.toISOString();
-  const pastFrom = new Date(now.getTime() - 21 * 86_400_000).toISOString();
+  const pastFrom = new Date(now.getTime() - 14 * 86_400_000).toISOString();
   const screeningFrom = new Date(now.getTime() - 2 * 3600_000).toISOString();
 
   const [interviews, screenings, active, submissions, offers, deals, pursuits] = await Promise.all([
