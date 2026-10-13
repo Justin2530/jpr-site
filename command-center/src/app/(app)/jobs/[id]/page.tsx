@@ -221,6 +221,14 @@ export default async function JobDetail({
                 .filter(Boolean)
                 .join(" · ")}
             </span>
+            {/* Justin 2026-10-13: the description has to stand out, not sit in Details. */}
+            {job.description ? (
+              <Link href={`/jobs/${job.id}/description`} className="btn py-1 text-sm">
+                Job description
+              </Link>
+            ) : (
+              <span className="chip border-rose/40 bg-rose/10 text-rose">No job description yet</span>
+            )}
           </span>
         }
         action={
