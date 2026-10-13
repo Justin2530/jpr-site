@@ -200,15 +200,19 @@ export default async function Dashboard() {
   }
   cols.conversation.sort((a, b) => (a.when ?? "").localeCompare(b.when ?? ""));
 
-  for (const s of submissions.data ?? [])
+  for (const s of submissions.data ?? []) {
+    const cj = s.candidate_jobs as unknown as CJ | null;
+    // Once they're interviewing or further along, the client has answered in practice.
+    if (cj?.stage !== "submitted") continue;
     push(
       "submitted",
-      cardFor(s.candidate_jobs as unknown as CJ | null, {
+      cardFor(cj, {
         key: `u${s.id}`,
         when: `Sent ${timeAgo(s.sent_at)}`,
         chip: daysSince(s.sent_at) >= 3 ? { text: "Follow up", tone: "rose" } : undefined,
       }),
     );
+  }
 
   const OFFER_LABEL: Record<string, string> = {
     review: "Needs your review",
