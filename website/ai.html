@@ -69,7 +69,7 @@ table{width:100%;border-collapse:collapse}td{padding:13px 0;border-bottom:1px so
 <footer class="foot"><div class="wrap"><span>© 2026 J-Peace Recruiting LLC · Based in Punxsutawney, PA, working with businesses locally and beyond</span><span><a href="/">Recruiting</a> · <a href="/usa">Manufacturing, Nationwide</a> · <a href="/privacy-policy">Privacy</a> · <a href="/terms-and-conditions">Terms</a></span></div></footer>
 <script>
 // The audit system isn't connected yet; until it is, the form doesn't send anything.
-const ENDPOINT="";
+const ENDPOINT="https://jpr-ai.vercel.app/api/intake";
 const f=document.getElementById("audit"),out=f.querySelector(".result");
 f.addEventListener("submit",async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));out.hidden=false;out.className="result";
  if(!d.name.trim()||!d.company.trim()||!d.email.trim()){out.className="result err";out.textContent="Please include your name, business name and email.";return}
