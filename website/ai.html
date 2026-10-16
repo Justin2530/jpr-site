@@ -76,5 +76,5 @@ f.addEventListener("submit",async e=>{e.preventDefault();const d=Object.fromEntr
  if(!d.calls_ok){out.className="result err";out.textContent="Please check the box so we can send the interview links.";return}
  if(!ENDPOINT){out.className="result err";out.textContent="Preview only: this form isn't connected yet.";return}
  const btn=f.querySelector("button");btn.disabled=true;out.textContent="Sending…";
- try{const r=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});if(!r.ok)throw new Error("Something went wrong. Please email us instead.");f.reset();out.textContent="Thanks! Check your email for next steps."}catch(err){out.className="result err";out.textContent=err.message}finally{btn.disabled=false}});
+ try{const r=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Something went wrong. Please email us instead.");if(j.checkout_url){out.textContent="Taking you to secure checkout…";location.href=j.checkout_url;return}f.reset();out.textContent="Thanks! Check your email for next steps."}catch(err){out.className="result err";out.textContent=err.message}finally{btn.disabled=false}});
 </script></body></html>
