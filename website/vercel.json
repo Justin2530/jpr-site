@@ -3,6 +3,18 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/ai/i/:path*",
+      "destination": "https://jpr-ai.vercel.app/i/:path*"
+    },
+    {
+      "source": "/ai/s/:path*",
+      "destination": "https://jpr-ai.vercel.app/s/:path*"
+    },
+    {
+      "source": "/ai/api/i/:path*",
+      "destination": "https://jpr-ai.vercel.app/api/i/:path*"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap"
     },
