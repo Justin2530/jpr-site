@@ -3,3 +3,4 @@ Allow: /
 Disallow: /api/
 
 Sitemap: https://www.jpeacerecruiting.com/sitemap.xml
+Sitemap: https://www.jpeacerecruiting.com/job-board/sitemap.xml

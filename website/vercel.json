@@ -3,6 +3,14 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/job-board",
+      "destination": "https://jpr-job-board.vercel.app/job-board"
+    },
+    {
+      "source": "/job-board/:path*",
+      "destination": "https://jpr-job-board.vercel.app/job-board/:path*"
+    },
+    {
       "source": "/ai/i/:path*",
       "destination": "https://jpr-ai.vercel.app/i/:path*"
     },

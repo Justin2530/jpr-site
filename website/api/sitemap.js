@@ -7,6 +7,7 @@ const PAGES = [
   { loc: "/jobs", priority: "0.8", changefreq: "daily" },
   { loc: "/blog", priority: "0.6", changefreq: "weekly" },
   { loc: "/usa", priority: "0.8", changefreq: "monthly" },
+  { loc: "/job-board", priority: "0.8", changefreq: "daily" },
   { loc: "/privacy-policy", priority: "0.2", changefreq: "yearly" },
   { loc: "/terms-and-conditions", priority: "0.2", changefreq: "yearly" },
 ];
