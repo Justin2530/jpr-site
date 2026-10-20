@@ -12,13 +12,18 @@ export default async function MenuPage() {
     <>
       <PageHeader title="Menu" />
       <div className="space-y-6">
-        {SECTIONS.map((s) => (
+        {SECTIONS.filter((s) => s.items.some((i) => owner || !i.ownerOnly)).map((s) => (
           <div key={s.title ?? "home"}>
             {s.title && <p className="panel-title mb-2">{s.title}</p>}
             <div className="grid grid-cols-2 gap-2">
               {s.items
                 .filter((i) => owner || !i.ownerOnly)
-                .map(({ href, label, Icon }) => (
+                .map(({ href, label, Icon, external }) => external ? (
+                  <a key={href} href={href} className="panel flex items-center gap-3 px-4 py-3 text-sm hover:border-line-strong">
+                    <Icon className="h-5 w-5 text-cyan" />
+                    {label}
+                  </a>
+                ) : (
                   <Link key={href} href={href} className="panel flex items-center gap-3 px-4 py-3 text-sm hover:border-line-strong">
                     <Icon className="h-5 w-5 text-cyan" />
                     {label}

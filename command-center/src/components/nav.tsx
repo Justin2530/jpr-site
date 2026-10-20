@@ -79,7 +79,15 @@ export function Nav({ mobile = false, owner = false }: { mobile?: boolean; owner
           <div key={section.title ?? "home"}>
             {section.title && <p className="panel-title mb-1.5 px-3 text-[10px] text-faint">{section.title}</p>}
             <div className="space-y-0.5">
-              {items.map(({ href, label, Icon }) => {
+              {items.map(({ href, label, Icon, external }) => {
+                if (external)
+                  return (
+                    <a key={href} href={href} className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm text-muted transition hover:bg-white/[0.03] hover:text-ink">
+                      <Icon />
+                      {label}
+                      <span className="ml-auto text-faint">↗</span>
+                    </a>
+                  );
                 const on = isActive(path, href);
                 return (
                   <Link

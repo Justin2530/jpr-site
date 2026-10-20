@@ -11,13 +11,14 @@ import {
   HomeIcon,
   JobsIcon,
   SettingsIcon,
+  SparkIcon,
   PipelineIcon,
   PlacementIcon,
   ReportsIcon,
   ToolsIcon,
 } from "@/components/icons";
 
-type Item = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactElement; ownerOnly?: boolean };
+type Item = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactElement; ownerOnly?: boolean; external?: boolean };
 
 export const SECTIONS: { title: string | null; items: Item[] }[] = [
   {
@@ -54,5 +55,9 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
       { href: "/settings", label: "Settings", Icon: SettingsIcon },
     ],
   },
+  {
+    // Separate systems, linked only by a button: nothing is shared between them.
+    title: "Other systems",
+    items: [{ href: "https://jpr-ai.vercel.app", label: "AI Command Center", Icon: SparkIcon, ownerOnly: true, external: true }],
+  },
 ];
-

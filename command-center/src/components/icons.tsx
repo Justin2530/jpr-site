@@ -161,3 +161,9 @@ export const CalendarIcon = (p: P) => (
     <path d="M3.5 10h17M8 3v4M16 3v4" />
   </S>
 );
+export const SparkIcon = (p: P) => (
+  <S {...p}>
+    <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" />
+    <path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7Z" />
+  </S>
+);
