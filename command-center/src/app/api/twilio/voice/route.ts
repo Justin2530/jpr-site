@@ -106,6 +106,12 @@ export async function POST(request: Request) {
   }
 
   const secret = process.env.TWILIO_WEBHOOK_SECRET ?? "";
+  // Blocked numbers (robocallers) are turned away before anything rings, answers or gets logged.
+  const { data: blocked } = await db.rpc("twilio_caller_blocked", { p_secret: secret, p_from: from });
+  if (blocked) {
+    console.info("Blocked caller turned away", p.CallSid);
+    return twiml('<Reject reason="busy"/>');
+  }
   const [{ data }, r] = await Promise.all([
     db.rpc("twilio_forward_number", { p_secret: secret }),
     route(),

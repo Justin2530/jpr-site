@@ -1814,6 +1814,10 @@ export type Database = {
         Args: { p_secret: string; p_sid: string; p_from: string };
         Returns: undefined;
       };
+      twilio_caller_blocked: {
+        Args: { p_from: string; p_secret: string };
+        Returns: boolean;
+      };
       twilio_forward_number: {
         Args: { p_secret: string };
         Returns: string | null;
