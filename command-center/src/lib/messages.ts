@@ -189,10 +189,9 @@ export async function unreadConversations(supabase: DB, userId: string) {
     supabase
       .from("activities")
       .select(
-        "kind, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id",
+        "kind, direction, occurred_at, candidate_id, contact_id, candidate_job_id, external_thread_id",
       )
       .in("kind", ["text", "email"])
-      .eq("direction", "in")
       .or("candidate_id.not.is.null,contact_id.not.is.null")
       .order("occurred_at", { ascending: false })
       .limit(1000),
@@ -204,10 +203,15 @@ export async function unreadConversations(supabase: DB, userId: string) {
   ]);
   const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
   const unread = new Set<string>();
+  // Newest first: a conversation Justin has written in since counts as read.
+  const replied = new Set<string>();
   for (const r of rows ?? []) {
     const w = convOf(r, sole);
+    const key = whoKey(w);
+    if (r.direction === "out") replied.add(key);
+    if (r.direction !== "in" || replied.has(key)) continue;
     const seen = lastRead(readAt, w);
-    if (!seen || r.occurred_at > seen) unread.add(whoKey(w));
+    if (!seen || r.occurred_at > seen) unread.add(key);
   }
   return unread.size;
 }

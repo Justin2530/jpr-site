@@ -101,6 +101,7 @@ export default async function MessagesPage({
       subject: string | null;
       candidateId: string | null;
       jobId: string | null;
+      replied: boolean;
     }
   >();
   for (const r of (rows ?? []) as Row[]) {
@@ -113,13 +114,17 @@ export default async function MessagesPage({
       subject: null,
       candidateId: null,
       jobId: null,
+      replied: false,
     };
     if (!t.subject && r.kind === "email") t.subject = subjectOf(r);
     if (!t.candidateId && who.kind === "p" && r.candidate_id)
       t.candidateId = r.candidate_id;
     if (!t.jobId && r.candidate_job_id) t.jobId = r.candidate_job_id;
+    // Newest first, so once we pass a message Justin sent, everything older in the conversation has been read.
+    if (r.direction === "out") t.replied = true;
     const seen = lastRead(readAt, who);
-    if (r.direction === "in" && (!seen || r.occurred_at > seen)) t.unread++;
+    if (r.direction === "in" && !t.replied && (!seen || r.occurred_at > seen))
+      t.unread++;
     threads.set(key, t);
   }
   const all = [...threads.values()];
@@ -131,8 +136,9 @@ export default async function MessagesPage({
     ),
   ]);
 
-  // Three tabs (Justin 2026-10-11): Waiting on you (they wrote last), Current (anything in the last two weeks, or
-  // unread) and History (everything, so nothing is lost). A job conversation whose job is closed for them
+  // Tabs: Unread (the default; Justin 2026-10-23: "I just need to see the messages I haven't read yet"), Waiting on
+  // you (they wrote last), Current (anything in the last two weeks, or unread) and History (everything, so nothing
+  // is lost). A job conversation whose job is closed for them
   // (passed, withdrawn) only stays current while it has something unread.
   const CURRENT_DAYS = 14;
   const since = currentSince(CURRENT_DAYS);
@@ -190,8 +196,13 @@ export default async function MessagesPage({
         Date.parse(i.created_at) <= at + 3 * 36e5,
     );
   };
-  const tab = show === "history" || show === "waiting" ? show : "current";
+  const isUnread = (t: (typeof all)[number]) => t.unread > 0;
+  const tab =
+    show === "history" || show === "waiting" || show === "current"
+      ? show
+      : "unread";
   const counts = {
+    unread: all.filter(isUnread).length,
     waiting: all.filter(isWaiting).length,
     current: all.filter(isCurrent).length,
     history: all.length,
@@ -199,7 +210,9 @@ export default async function MessagesPage({
   const list =
     tab === "history"
       ? all
-      : all.filter(tab === "waiting" ? isWaiting : isCurrent);
+      : all.filter(
+          tab === "waiting" ? isWaiting : tab === "current" ? isCurrent : isUnread,
+        );
 
   // What a conversation is about: the email's subject, or the job (or candidate) its texts are about.
   function topic(
@@ -303,6 +316,7 @@ export default async function MessagesPage({
             const open =
               tab === "history" ? verdict(t)?.state === "done" : true;
             if (!open) return null;
+            if (tab === "unread") return null;
             const done = tab !== "history";
             return (
               <form action={markConversation}>
@@ -342,6 +356,7 @@ export default async function MessagesPage({
         <div className="flex gap-1.5">
           {(
             [
+              ["unread", "Unread"],
               ["waiting", "Waiting on you"],
               ["current", "Current"],
               ["history", "History"],
@@ -349,7 +364,7 @@ export default async function MessagesPage({
           ).map(([key, text]) => (
             <Link
               key={key}
-              href={key === "current" ? "/messages" : `/messages?show=${key}`}
+              href={key === "unread" ? "/messages" : `/messages?show=${key}`}
               className={`rounded-md border px-2.5 py-1 text-xs ${tab === key ? "border-cyan/50 bg-cyan-soft text-cyan" : "border-line text-muted hover:text-ink"}`}
             >
               {text} <span className="font-mono text-faint">{counts[key]}</span>
@@ -358,7 +373,9 @@ export default async function MessagesPage({
         </div>
         {list.length === 0 ? (
           <Empty>
-            {tab === "waiting"
+            {tab === "unread"
+              ? "You're all caught up. Nothing unread."
+              : tab === "waiting"
               ? "Nobody is waiting on you."
               : tab === "current"
                 ? "Nothing going on in the last two weeks. Older conversations are under History."
