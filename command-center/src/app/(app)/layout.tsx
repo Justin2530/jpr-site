@@ -6,7 +6,7 @@ import { SearchHotkey } from "@/components/search-hotkey";
 import { EmailSync } from "@/components/email-sync";
 import { BrowserButtons } from "@/components/browser-buttons";
 import { PhoneStart } from "@/components/phone-start";
-import { PlusIcon, SearchIcon } from "@/components/icons";
+import { SearchIcon, TargetIcon } from "@/components/icons";
 import { label } from "@/lib/format";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -30,20 +30,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         <Nav owner={staff.role === "owner"} />
 
-        <div className="mt-6 space-y-1 border-t border-line pt-4">
-          <p className="panel-title mb-2 px-3">Quick add</p>
-          {[
-            ["/candidates/new", "Candidate"],
-            ["/jobs/new", "Job"],
-            ["/deals/new", "Deal"],
-            ["/companies/new", "Company"],
-          ].map(([href, text]) => (
-            <Link key={href} href={href} className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm text-muted hover:text-cyan">
-              <PlusIcon className="h-4 w-4" />
-              {text}
+        {staff.role === "owner" && (
+          <div className="mt-6 border-t border-line pt-4">
+            <Link
+              href="/leads"
+              className="flex items-center gap-2.5 rounded-lg border border-cyan/40 bg-cyan-soft px-3 py-2 text-sm font-medium text-cyan transition hover:border-cyan/70"
+            >
+              <TargetIcon className="h-4 w-4" />
+              Lead Engine
             </Link>
-          ))}
-        </div>
+          </div>
+        )}
 
         <div className="mt-auto rounded-lg border border-line p-3">
           <p className="truncate text-sm text-ink">{name}</p>

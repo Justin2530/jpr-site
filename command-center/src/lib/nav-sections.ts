@@ -19,7 +19,7 @@ import {
   ToolsIcon,
 } from "@/components/icons";
 
-type Item = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactElement; ownerOnly?: boolean; external?: boolean };
+type Item = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactElement; ownerOnly?: boolean; external?: boolean; notInSidebar?: boolean };
 
 export const SECTIONS: { title: string | null; items: Item[] }[] = [
   {
@@ -46,7 +46,8 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
       { href: "/deals", label: "Deals", Icon: DealsIcon },
       { href: "/companies", label: "Companies", Icon: ClientsIcon },
       { href: "/contacts", label: "Contacts", Icon: ContactsIcon },
-      { href: "/leads", label: "Lead Engine", Icon: TargetIcon, ownerOnly: true },
+      // The sidebar shows it as its own button below the menu (Justin 2026-10-24); the phone menu lists it here.
+      { href: "/leads", label: "Lead Engine", Icon: TargetIcon, ownerOnly: true, notInSidebar: true },
     ],
   },
   {

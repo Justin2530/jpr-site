@@ -73,7 +73,7 @@ export function Nav({ mobile = false, owner = false }: { mobile?: boolean; owner
   return (
     <nav className="space-y-5">
       {SECTIONS.map((section) => {
-        const items = section.items.filter((i) => owner || !i.ownerOnly);
+        const items = section.items.filter((i) => (owner || !i.ownerOnly) && !i.notInSidebar);
         if (items.length === 0) return null;
         return (
           <div key={section.title ?? "home"}>
