@@ -213,18 +213,23 @@ async function siteEmails(website: string) {
     const alt = website.startsWith("https://") ? website.replace("https://", "http://") : null;
     if (alt) first = await getPage(alt).catch(() => null);
   }
-  if (!first) return { emails: [] as string[], facebook: null as string | null, reached: false };
+  if (!first) return { emails: [] as string[], facebook: null as string | null, reached: false, source: new Map<string, string>() };
   const emails = new Set(emailsIn(first.html));
+  // Where each email was found, like WellThree's "email source" column.
+  const source = new Map<string, string>([...emails].map((e) => [e, "website"]));
   let facebook = facebookIn(first.html);
   const links = contactLinks(first.html, first.url);
   if (!links.length) links.push(new URL("/contact", first.url).toString(), new URL("/contact-us", first.url).toString());
   for (const link of links.slice(0, 3)) {
     const page = await getPage(link).catch(() => null);
     if (!page) continue;
-    for (const e of emailsIn(page.html)) emails.add(e);
+    for (const e of emailsIn(page.html)) {
+      emails.add(e);
+      if (!source.has(e)) source.set(e, "contact page");
+    }
     facebook ??= facebookIn(page.html);
   }
-  return { emails: [...emails], facebook, reached: true };
+  return { emails: [...emails], facebook, reached: true, source };
 }
 
 const GOOD_LOCAL = /^(info|contact|office|hello|general|admin|sales|hr|careers|jobs|hiring|mail|inquir|enquir|service|customerservice)/i;
@@ -299,6 +304,120 @@ export async function paOwner(name: string, county: string | null) {
   return { name: titleCase(`${best.first_name} ${best.last_name}`.trim()), title: best.party_type?.trim() || null };
 }
 
+// ---------------------------------------------------------------- Bouncer (mailbox check)
+
+// Bouncer pay-as-you-go: about $8 per 1,000 checks.
+export const BOUNCER_COST = 0.008;
+
+async function runBouncer(db: DB, secret: string, key: string, more: () => boolean) {
+  let done = 0;
+  const spend = new Map<string | null, number>();
+  try {
+    while (more()) {
+      const { data: batch, error } = await db.rpc("leads_claim_verify", { p_secret: secret, p_limit: 20 });
+      if (error) throw new Error(error.message);
+      if (!batch?.length) break;
+      let stop = false;
+      await pool(batch, 5, async (b) => {
+        if (stop) {
+          await db.rpc("leads_verify_failed", { p_secret: secret, p_id: b.id });
+          return;
+        }
+        try {
+          const url = new URL("https://api.usebouncer.com/v1.1/email/verify");
+          url.searchParams.set("email", b.email);
+          url.searchParams.set("timeout", "10");
+          const res = await fetch(url, { headers: { "x-api-key": key }, signal: AbortSignal.timeout(20000) });
+          if ([401, 402, 403, 429].includes(res.status)) {
+            stop = true;
+            throw new Error(`Bouncer ${res.status}: ${(await res.text()).slice(0, 150)}`);
+          }
+          if (!res.ok) throw new Error(`Bouncer ${res.status}`);
+          const body = (await res.json()) as { status?: string; reason?: string };
+          const status = ["deliverable", "risky", "undeliverable", "unknown"].includes(body.status ?? "") ? body.status! : "unknown";
+          await db.rpc("leads_save_verify", { p_secret: secret, p_id: b.id, p_email: b.email, p_result: status, p_reason: body.reason ?? null });
+          spend.set(b.search_id, (spend.get(b.search_id) ?? 0) + 1);
+          done++;
+        } catch (e) {
+          await db.rpc("leads_verify_failed", { p_secret: secret, p_id: b.id });
+          if (stop) throw e;
+        }
+      }).catch((e) => {
+        stop = true;
+        throw e;
+      });
+      if (stop) break;
+    }
+  } finally {
+    for (const [search, units] of spend)
+      await db.rpc("leads_log_spend", { p_secret: secret, p_service: "bouncer", p_units: units, p_cost: units * BOUNCER_COST, p_search: search });
+  }
+  return done;
+}
+
+// ---------------------------------------------------------------- Bright Data (Facebook page emails)
+
+// Bright Data's Facebook Pages scraper: about $1.50 per 1,000 pages.
+export const BRIGHTDATA_COST = 0.0015;
+const FB_DATASET = "gd_mf124a0511bauquyow";
+
+type FbRecord = {
+  url?: string;
+  input?: { url?: string };
+  emails?: string[] | null;
+  email?: string | null;
+  contact_and_basic_info?: { contact_info?: { emails?: string[] | null } | null } | null;
+};
+
+async function runFacebook(db: DB, secret: string, key: string) {
+  const auth = { Authorization: `Bearer ${key}` };
+  let started = 0;
+  let finished = 0;
+  // Collect what earlier ticks sent.
+  const { data: snaps } = await db.rpc("leads_fb_snapshots", { p_secret: secret });
+  for (const s of snaps ?? []) {
+    const prog = await fetch(`https://api.brightdata.com/datasets/v3/progress/${encodeURIComponent(s.snapshot_id)}`, { headers: auth, signal: AbortSignal.timeout(15000) });
+    const p = prog.ok ? ((await prog.json()) as { status?: string }) : { status: prog.status === 404 ? "failed" : "unknown" };
+    const old = Date.now() - new Date(s.started_at).getTime() > 2 * 3600_000;
+    if (p.status === "ready") {
+      const res = await fetch(`https://api.brightdata.com/datasets/v3/snapshot/${encodeURIComponent(s.snapshot_id)}?format=json`, { headers: auth, signal: AbortSignal.timeout(30000) });
+      if (!res.ok) continue;
+      const rows = (await res.json()) as FbRecord[];
+      for (const r of Array.isArray(rows) ? rows : []) {
+        const url = r.input?.url ?? r.url;
+        if (!url) continue;
+        const found = emailsIn([...(r.emails ?? []), r.email ?? "", ...(r.contact_and_basic_info?.contact_info?.emails ?? [])].join(" "));
+        await db.rpc("leads_fb_save", { p_secret: secret, p_snapshot: s.snapshot_id, p_url: url, p_emails: found, p_primary: pickPrimary(found, null, null) });
+      }
+      await db.rpc("leads_fb_close", { p_secret: secret, p_snapshot: s.snapshot_id, p_failed: false });
+      await db.rpc("leads_log_spend", { p_secret: secret, p_service: "brightdata", p_units: Array.isArray(rows) ? rows.length : 0, p_cost: (Array.isArray(rows) ? rows.length : 0) * BRIGHTDATA_COST, p_search: null });
+      finished++;
+    } else if (p.status === "failed" || p.status === "canceled" || old) {
+      await db.rpc("leads_fb_close", { p_secret: secret, p_snapshot: s.snapshot_id, p_failed: true });
+    }
+  }
+  // Send the next batch.
+  const { data: batch, error } = await db.rpc("leads_claim_fb", { p_secret: secret, p_limit: 50 });
+  if (error) throw new Error(error.message);
+  if (batch?.length) {
+    let snapshot: string | null = null;
+    try {
+      const res = await fetch(`https://api.brightdata.com/datasets/v3/trigger?dataset_id=${FB_DATASET}&include_errors=true`, {
+        method: "POST",
+        headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ input: batch.map((b) => ({ url: b.facebook_url })) }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (res.ok) snapshot = ((await res.json()) as { snapshot_id?: string }).snapshot_id ?? null;
+      else console.error("Bright Data trigger failed", res.status, (await res.text()).slice(0, 200));
+    } finally {
+      await db.rpc("leads_fb_started", { p_secret: secret, p_ids: batch.map((b) => b.id), p_snapshot: snapshot });
+    }
+    if (snapshot) started = batch.length;
+  }
+  return `${started} sent, ${finished} batches back`;
+}
+
 // ---------------------------------------------------------------- The tick
 
 async function pool<T>(items: T[], size: number, fn: (item: T) => Promise<void>) {
@@ -313,7 +432,7 @@ async function pool<T>(items: T[], size: number, fn: (item: T) => Promise<void>)
 export async function runLeadsTick(db: DB, secret: string) {
   const started = Date.now();
   const elapsed = () => Date.now() - started;
-  const report = { searches: 0, held: false, enriched: 0, errors: [] as string[] };
+  const report = { searches: 0, held: false, enriched: 0, verified: 0, facebook: "", errors: [] as string[] };
 
   // 1. Google Maps searches, three at a time, for up to ~45 seconds.
   const key = process.env.SERPER_API_KEY?.trim();
@@ -350,9 +469,9 @@ export async function runLeadsTick(db: DB, secret: string) {
     );
   }
 
-  // 2. Websites and owner names, six at a time, until ~2 minutes in.
+  // 2. Websites and owner names, six at a time, until ~100 seconds in.
   const mx = new Map<string, Promise<boolean>>();
-  while (elapsed() < 110_000) {
+  while (elapsed() < 100_000) {
     const { data: batch, error } = await db.rpc("leads_claim_enrich", { p_secret: secret, p_limit: 12 });
     if (error) {
       report.errors.push(`enrich claim: ${error.message}`);
@@ -361,7 +480,7 @@ export async function runLeadsTick(db: DB, secret: string) {
     if (!batch?.length) break;
     await pool(batch, 6, async (b) => {
       try {
-        const site = b.website ? await siteEmails(b.website) : { emails: [], facebook: null, reached: false };
+        const site = b.website ? await siteEmails(b.website) : { emails: [], facebook: null, reached: false, source: new Map<string, string>() };
         let owner: Awaited<ReturnType<typeof paOwner>> = null;
         if (b.state === "PA") owner = await paOwner(b.name, b.county).catch(() => null);
         const primary = pickPrimary(site.emails, b.domain, owner?.name ?? null);
@@ -380,6 +499,7 @@ export async function runLeadsTick(db: DB, secret: string) {
           p_owner_name: owner?.name ?? null,
           p_owner_title: owner?.title ?? null,
           p_error: null,
+          p_source: primary ? (site.source.get(primary) ?? "website") : null,
         });
         if (e2) report.errors.push(`enrich save: ${e2.message}`);
         else report.enriched++;
@@ -394,12 +514,43 @@ export async function runLeadsTick(db: DB, secret: string) {
           p_owner_name: null,
           p_owner_title: null,
           p_error: e instanceof Error ? e.message : String(e),
+          p_source: null,
         });
       }
     });
   }
 
-  // 3. Once an hour, re-check every lead against Companies (a prospect may have become a client).
+  // 3. The free domain check for emails that came from Facebook pages.
+  const { data: needMx } = await db.rpc("leads_needs_mx", { p_secret: secret, p_limit: 50 });
+  await pool(needMx ?? [], 8, async (r) => {
+    const status = await hasMx(r.email.split("@")[1], mx).then(
+      (ok) => (ok ? "mx_ok" : "no_mx"),
+      () => "unchecked",
+    );
+    await db.rpc("leads_set_email_status", { p_secret: secret, p_id: r.id, p_status: status });
+  });
+
+  // 4. Bouncer: does the mailbox itself exist? (WellThree's "verified" emails.)
+  const bouncer = process.env.BOUNCER_API_KEY?.trim();
+  if (bouncer && elapsed() < 130_000) {
+    try {
+      report.verified = await runBouncer(db, secret, bouncer, () => elapsed() < 140_000);
+    } catch (e) {
+      report.errors.push(`bouncer: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // 5. Bright Data: emails off the Facebook pages of businesses whose website had none.
+  const brightdata = process.env.BRIGHTDATA_API_KEY?.trim();
+  if (brightdata) {
+    try {
+      report.facebook = await runFacebook(db, secret, brightdata);
+    } catch (e) {
+      report.errors.push(`facebook: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // 6. Once an hour, re-check every lead against Companies (a prospect may have become a client).
   if (new Date().getUTCMinutes() < 2) {
     const { error } = await db.rpc("leads_recheck_companies", { p_secret: secret });
     if (error) report.errors.push(`recheck: ${error.message}`);

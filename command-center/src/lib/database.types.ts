@@ -1351,6 +1351,16 @@ export type Database = {
       };
       lead_businesses: {
         Row: {
+          email_source: string | null;
+          email_verification: string | null;
+          email_verify_reason: string | null;
+          email_verified_at: string | null;
+          verify_attempts: number;
+          verify_locked_at: string | null;
+          fb_status: string | null;
+          fb_snapshot_id: string | null;
+          fb_attempts: number;
+          fb_checked_at: string | null;
           id: string;
           place_key: string;
           name: string;
@@ -1386,6 +1396,16 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          email_source?: string | null;
+          email_verification?: string | null;
+          email_verify_reason?: string | null;
+          email_verified_at?: string | null;
+          verify_attempts?: number;
+          verify_locked_at?: string | null;
+          fb_status?: string | null;
+          fb_snapshot_id?: string | null;
+          fb_attempts?: number;
+          fb_checked_at?: string | null;
           id?: string;
           place_key: string;
           name: string;
@@ -1433,6 +1453,7 @@ export type Database = {
       };
       lead_list_members: {
         Row: {
+          campaign: string | null;
           business_id: string;
           line: Database["public"]["Enums"]["lead_line"];
           status: Database["public"]["Enums"]["lead_status"];
@@ -1443,6 +1464,7 @@ export type Database = {
           created_at: string;
         };
         Insert: {
+          campaign?: string | null;
           business_id: string;
           line: Database["public"]["Enums"]["lead_line"];
           status?: Database["public"]["Enums"]["lead_status"];
@@ -1462,6 +1484,26 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      lead_spend: {
+        Row: {
+          cost_usd: number;
+          created_at: string;
+          id: number;
+          search_id: string | null;
+          service: string;
+          units: number;
+        };
+        Insert: {
+          cost_usd: number;
+          created_at?: string;
+          id?: number;
+          search_id?: string | null;
+          service: string;
+          units: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["lead_spend"]["Row"]>;
+        Relationships: [];
       };
       lead_search_tasks: {
         Row: {
@@ -1501,6 +1543,8 @@ export type Database = {
       };
       lead_searches: {
         Row: {
+          target_count: number | null;
+          spend_usd: number;
           id: string;
           line: Database["public"]["Enums"]["lead_line"];
           name: string;
@@ -1521,6 +1565,8 @@ export type Database = {
           finished_at: string | null;
         };
         Insert: {
+          target_count?: number | null;
+          spend_usd?: number;
           id?: string;
           line: Database["public"]["Enums"]["lead_line"];
           name: string;
@@ -2008,6 +2054,54 @@ export type Database = {
         Args: { p_secret: string; p_sid: string; p_from: string };
         Returns: undefined;
       };
+      lead_overview: {
+        Args: { p_line: Database["public"]["Enums"]["lead_line"] };
+        Returns: Json;
+      };
+      leads_claim_fb: {
+        Args: { p_limit: number; p_secret: string };
+        Returns: { facebook_url: string; id: string }[];
+      };
+      leads_claim_verify: {
+        Args: { p_limit: number; p_secret: string };
+        Returns: { email: string; id: string; search_id: string | null }[];
+      };
+      leads_fb_close: {
+        Args: { p_failed: boolean; p_secret: string; p_snapshot: string };
+        Returns: undefined;
+      };
+      leads_fb_save: {
+        Args: { p_emails: string[]; p_primary: string | null; p_secret: string; p_snapshot: string; p_url: string };
+        Returns: number;
+      };
+      leads_fb_snapshots: {
+        Args: { p_secret: string };
+        Returns: { snapshot_id: string; started_at: string }[];
+      };
+      leads_fb_started: {
+        Args: { p_ids: string[]; p_secret: string; p_snapshot: string | null };
+        Returns: undefined;
+      };
+      leads_log_spend: {
+        Args: { p_cost: number; p_search: string | null; p_secret: string; p_service: string; p_units: number };
+        Returns: undefined;
+      };
+      leads_needs_mx: {
+        Args: { p_limit: number; p_secret: string };
+        Returns: { email: string; id: string }[];
+      };
+      leads_save_verify: {
+        Args: { p_email: string; p_id: string; p_reason: string | null; p_result: string; p_secret: string };
+        Returns: undefined;
+      };
+      leads_set_email_status: {
+        Args: { p_id: string; p_secret: string; p_status: string };
+        Returns: undefined;
+      };
+      leads_verify_failed: {
+        Args: { p_id: string; p_secret: string };
+        Returns: undefined;
+      };
       leads_claim_enrich: {
         Args: { p_limit: number; p_secret: string };
         Returns: { city: string | null; county: string | null; domain: string | null; id: string; name: string; state: string | null; website: string | null; zip: string | null }[];
@@ -2031,6 +2125,7 @@ export type Database = {
           p_owner_title: string | null;
           p_primary: string | null;
           p_secret: string;
+          p_source: string | null;
         };
         Returns: undefined;
       };

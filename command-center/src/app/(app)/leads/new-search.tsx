@@ -137,6 +137,11 @@ export function NewSearch({ line: startLine, hasKey, creditsUsed, freeCredits }:
         </select>
       </label>
 
+      <label className="block text-sm">
+        <span className="mb-1 block text-muted">Stop after finding this many businesses (optional, blank = cover everything picked)</span>
+        <input name="target" type="number" min={1} placeholder="No limit" className="field w-40" />
+      </label>
+
       <div className="rounded border border-line bg-white/[0.02] p-3 text-sm">
         <p>
           <span className="readout text-ink">{tasks.toLocaleString()}</span> Google Maps searches ({kw.length} keywords × {picked.size} counties), at most{" "}
@@ -146,7 +151,7 @@ export function NewSearch({ line: startLine, hasKey, creditsUsed, freeCredits }:
           {paid === 0
             ? `Covered by your free credits (${freeLeft.toLocaleString()} of ${freeCredits.toLocaleString()} left).`
             : `About $${(paid * DOLLARS_PER_CREDIT).toFixed(2)} beyond your free credits ($1 per 1,000 on Serper's $50 pack).`}{" "}
-          Reading websites and the PA registry is free.
+          Reading websites and the PA registry is free. Once their keys are in, Bouncer adds about $8 per 1,000 emails checked and Bright Data about $1.50 per 1,000 Facebook pages.
         </p>
         {tooBig && <p className="mt-1 text-rose">Too big for one run. Keep it under {MAX_TASKS_PER_SEARCH.toLocaleString()} searches.</p>}
         {!hasKey && <p className="mt-1 text-amber">The Serper key isn&apos;t in Vercel yet, so searches wait until it is.</p>}

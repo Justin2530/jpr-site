@@ -39,6 +39,8 @@ export async function startSearch(form: FormData) {
   }
   if (!areas.length) throw new Error("Pick at least one county.");
   const pages = Math.min(3, Math.max(1, Number(text(form, "pages") ?? 2) || 2));
+  // WellThree's "stop after finding this many businesses" (blank = cover everything picked).
+  const target = Math.floor(Number(text(form, "target") ?? "") || 0) || null;
   const tasks = keywords.length * areas.length;
   if (tasks > MAX_TASKS_PER_SEARCH)
     throw new Error(`That's ${tasks.toLocaleString()} searches. Keep one run under ${MAX_TASKS_PER_SEARCH.toLocaleString()} (fewer keywords or counties).`);
@@ -51,7 +53,7 @@ export async function startSearch(form: FormData) {
     }`;
   const { data: search, error } = await supabase
     .from("lead_searches")
-    .insert({ line, name, keywords, areas, max_pages: pages, task_count: tasks, max_credits: tasks * pages, created_by: userId })
+    .insert({ line, name, keywords, areas, max_pages: pages, task_count: tasks, max_credits: tasks * pages, target_count: target && target > 0 ? target : null, created_by: userId })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
