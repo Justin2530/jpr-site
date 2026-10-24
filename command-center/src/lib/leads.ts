@@ -1,0 +1,408 @@
+import { resolveMx } from "node:dns/promises";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
+import { normName } from "@/lib/leads-shared";
+
+// The Lead Engine's background work (Sales > Lead Engine). Each tick:
+// 1. runs queued Google Maps searches through Serper (one county x keyword x page per credit), and
+// 2. reads each new business's website for emails (plus a free mail-server check) and, in PA, looks the
+//    business up in the state's free business registry for an owner name.
+// Everything goes through the secret-checked lead functions in the database; nothing here sends anything.
+
+type DB = SupabaseClient<Database>;
+export * from "@/lib/leads-shared";
+
+// Hosts Google sometimes lists as a business's "website" that aren't the business's own site.
+const NOT_OWN_SITE = /(^|\.)(facebook\.com|fb\.com|instagram\.com|linkedin\.com|yelp\.com|twitter\.com|x\.com|tiktok\.com|youtube\.com|linktr\.ee|google\.com|goo\.gl|g\.page|nextdoor\.com|bbb\.org|yellowpages\.com|mapquest\.com)$/i;
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------- Google Maps search (Serper)
+
+export type Place = {
+  key: string;
+  name: string;
+  category: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  phone: string | null;
+  website: string | null;
+  facebook: string | null;
+  rating: number | null;
+  reviews: number | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : null);
+
+// "123 Main St, Punxsutawney, PA 15767" -> city, state, zip
+export function splitAddress(address: string | null) {
+  const m = (address ?? "").match(/,\s*([^,]+?),\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?\s*(?:,\s*(?:USA|United States))?\s*$/);
+  return m ? { city: m[1].trim(), state: m[2], zip: m[3] } : { city: null, state: null, zip: null };
+}
+
+export function parsePlace(raw: Record<string, unknown>): Place | null {
+  const name = str(raw.title) ?? str(raw.name);
+  if (!name) return null;
+  const address = str(raw.address);
+  const id = str(raw.cid) ?? str(raw.placeId) ?? str(raw.fid) ?? (typeof raw.cid === "number" ? String(raw.cid) : null);
+  const key = id ? `g:${id}` : `n:${normName(name)}|${(address ?? "").toLowerCase().replace(/\s+/g, " ")}`;
+  let website = str(raw.website);
+  let facebook: string | null = null;
+  if (website && !/^https?:\/\//i.test(website)) website = `https://${website}`;
+  const host = website ? hostOf(website) : null;
+  if (website && (!host || NOT_OWN_SITE.test(host))) {
+    if (host && /facebook\.com$|fb\.com$/.test(host)) facebook = website;
+    website = null;
+  }
+  const parts = splitAddress(address);
+  const rawCategory = str(raw.category) ?? (Array.isArray(raw.types) ? str(raw.types[0]) : null) ?? str(raw.type);
+  const reviews = num(raw.ratingCount) ?? num(raw.reviews) ?? num(raw.reviewsCount);
+  return {
+    key,
+    name,
+    category: rawCategory,
+    address,
+    ...parts,
+    phone: str(raw.phoneNumber) ?? str(raw.phone),
+    website,
+    facebook,
+    rating: num(raw.rating),
+    reviews: reviews === null ? null : Math.round(reviews),
+    lat: num(raw.latitude),
+    lng: num(raw.longitude),
+  };
+}
+
+// The text Google gets: "machine shop in Jefferson County, PA".
+export const searchQuery = (keyword: string, county: string, state: string) => `${keyword} in ${county}, ${state}`;
+
+class Hold extends Error {}
+
+async function serperPlaces(key: string, q: string, page: number) {
+  const res = await fetch("https://google.serper.dev/places", {
+    method: "POST",
+    headers: { "X-API-KEY": key, "Content-Type": "application/json" },
+    body: JSON.stringify({ q, gl: "us", hl: "en", ...(page > 1 ? { page } : {}) }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    const msg = `Serper ${res.status}: ${text.slice(0, 200)}`;
+    // A bad key, no credits left or too many calls: every search would fail the same way, so stop and say so.
+    if ([401, 402, 403, 429].includes(res.status) || /credit|api key|unauthori/i.test(text)) throw new Hold(msg);
+    throw new Error(msg);
+  }
+  const body = JSON.parse(text) as { places?: Record<string, unknown>[] };
+  const raw = Array.isArray(body.places) ? body.places : [];
+  return { places: raw.map(parsePlace).filter((p): p is Place => p !== null), rawCount: raw.length };
+}
+
+// ---------------------------------------------------------------- Website emails
+
+const EMAIL = /[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,24}/gi;
+const JUNK_EMAIL_DOMAIN = /(^|\.)(example\.(com|org|net)|sentry\.io|wixpress\.com|sentry-next\.wixpress\.com|godaddy\.com|squarespace\.com|wix\.com|domain\.com|yourdomain\.com|email\.com|website\.com|mysite\.com|company\.com|test\.com|sentry\.wixpress\.com|wordpress\.(com|org)|schema\.org|w3\.org|jquery\.com|googleapis\.com)$/i;
+const JUNK_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|user|username|name|email|yourname|your\.?name|john\.?doe|jane\.?doe|first\.?last|example|test|filler)$/i;
+const FILE_TLD = /\.(png|jpe?g|gif|svg|webp|avif|css|js|ico|bmp|tiff?|mp4|pdf)$/i;
+export const FREE_MAIL = /^(gmail|yahoo|ymail|hotmail|outlook|live|msn|aol|icloud|me|mac|comcast|verizon|att|sbcglobal|windstream|atlanticbb|frontier|frontiernet|zoominfo|protonmail|proton|mail|gmx|earthlink|cox|charter|spectrum|centurylink|bellsouth|juno|netzero|embarqmail|ptd|penn)\.(com|net|me)$/i;
+
+function decodeEntities(html: string) {
+  return html
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&commat;|&#64;/gi, "@")
+    .replace(/&period;/gi, ".")
+    .replace(/&amp;/gi, "&");
+}
+
+// Cloudflare hides emails as data-cfemail="<hex>"; the first byte is the key.
+function cloudflareEmails(html: string) {
+  const out: string[] = [];
+  for (const m of html.matchAll(/data-cfemail="([0-9a-f]{4,})"/gi)) {
+    const hex = m[1];
+    const k = parseInt(hex.slice(0, 2), 16);
+    let s = "";
+    for (let i = 2; i + 1 < hex.length; i += 2) s += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ k);
+    out.push(s);
+  }
+  return out;
+}
+
+export function emailsIn(html: string) {
+  const text = decodeEntities(html).replace(/\s*(\[at\]|\(at\))\s*/gi, "@").replace(/\s*(\[dot\]|\(dot\))\s*/gi, ".");
+  const found = new Set<string>();
+  const hidden = cloudflareEmails(html).filter((e) => (e.match(EMAIL) ?? [])[0] === e);
+  for (const e of [...(text.match(EMAIL) ?? []), ...hidden]) {
+    const email = e.toLowerCase().replace(/^mailto:/, "").replace(/^(?:u00[0-9a-f]{2}|%20|%3c|%3e)/i, "").replace(/\.+$/, "");
+    const [local, domain] = email.split("@");
+    if (!local || !domain || email.length > 80) continue;
+    if (FILE_TLD.test(email) || /@\d+x\./.test(email) || JUNK_EMAIL_DOMAIN.test(domain) || JUNK_LOCAL.test(local)) continue;
+    if (/^[0-9a-f]{16,}$/.test(local)) continue; // tracking ids
+    found.add(email);
+  }
+  return [...found];
+}
+
+// Links on the page worth reading for an email: contact, about, team, staff, same site only.
+function contactLinks(html: string, base: URL) {
+  const out: string[] = [];
+  for (const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]{0,200}?)<\/a>/gi)) {
+    const href = m[1];
+    const label = m[2].replace(/<[^>]+>/g, " ");
+    if (!/contact|about|team|staff|leadership|our-people|location/i.test(href + " " + label)) continue;
+    try {
+      const u = new URL(href, base);
+      if (!/^https?:$/.test(u.protocol) || u.hostname.replace(/^www\./, "") !== base.hostname.replace(/^www\./, "")) continue;
+      u.hash = "";
+      if (!out.includes(u.toString()) && u.toString() !== base.toString()) out.push(u.toString());
+    } catch {}
+  }
+  return out;
+}
+
+function facebookIn(html: string) {
+  const m = html.match(/https?:\/\/(?:www\.|m\.)?facebook\.com\/(?!sharer|share|plugins|dialog|tr\?|login)[A-Za-z0-9._\-/%?=]+/i);
+  return m ? m[0].replace(/["'<>].*$/, "") : null;
+}
+
+const PRIVATE_HOST = /^(localhost|.*\.local|.*\.internal|\d+\.\d+\.\d+\.\d+|\[.*\])$/i;
+
+async function getPage(url: string) {
+  const u = new URL(url);
+  if (!/^https?:$/.test(u.protocol) || PRIVATE_HOST.test(u.hostname)) return null;
+  const res = await fetch(u, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(8000),
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; JPRLeadEngine/1.0)", Accept: "text/html,application/xhtml+xml" },
+  });
+  if (!res.ok || !(res.headers.get("content-type") ?? "text/html").includes("html")) {
+    await res.body?.cancel().catch(() => {});
+    return null;
+  }
+  // Read at most ~1.5 MB.
+  const reader = res.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (size < 1_500_000) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    size += value.length;
+  }
+  await reader.cancel().catch(() => {});
+  return { html: new TextDecoder().decode(Buffer.concat(chunks)), url: new URL(res.url || u.toString()) };
+}
+
+async function siteEmails(website: string) {
+  let first: Awaited<ReturnType<typeof getPage>> = null;
+  try {
+    first = await getPage(website);
+  } catch {
+    // Some small-business sites only answer on http, or only without "www".
+    const alt = website.startsWith("https://") ? website.replace("https://", "http://") : null;
+    if (alt) first = await getPage(alt).catch(() => null);
+  }
+  if (!first) return { emails: [] as string[], facebook: null as string | null, reached: false };
+  const emails = new Set(emailsIn(first.html));
+  let facebook = facebookIn(first.html);
+  const links = contactLinks(first.html, first.url);
+  if (!links.length) links.push(new URL("/contact", first.url).toString(), new URL("/contact-us", first.url).toString());
+  for (const link of links.slice(0, 3)) {
+    const page = await getPage(link).catch(() => null);
+    if (!page) continue;
+    for (const e of emailsIn(page.html)) emails.add(e);
+    facebook ??= facebookIn(page.html);
+  }
+  return { emails: [...emails], facebook, reached: true };
+}
+
+const GOOD_LOCAL = /^(info|contact|office|hello|general|admin|sales|hr|careers|jobs|hiring|mail|inquir|enquir|service|customerservice)/i;
+
+// The address a campaign should use: the business's own domain first, a named person or info@ over others,
+// a free-mail address only when the site shows nothing else.
+export function pickPrimary(emails: string[], domain: string | null, owner: string | null) {
+  const ownerWords = normName(owner).split(" ").filter((w) => w.length > 2);
+  const score = (e: string) => {
+    const [local, d] = e.split("@");
+    let s = 0;
+    if (domain && (d === domain || d.endsWith(`.${domain}`) || domain.endsWith(`.${d}`))) s += 100;
+    else if (FREE_MAIL.test(d)) s += 40;
+    if (ownerWords.some((w) => local.includes(w))) s += 20;
+    if (GOOD_LOCAL.test(local)) s += 15;
+    if (/^(webmaster|privacy|legal|abuse|postmaster|billing|accounts?payable|ap|invoice)/.test(local)) s -= 30;
+    return s;
+  };
+  // An address on some other company's domain (their web designer, a supplier) doesn't count.
+  const usable = emails.filter((e) => score(e) >= 40 || !domain);
+  return usable.sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
+async function hasMx(domain: string, cache: Map<string, Promise<boolean>>) {
+  if (!cache.has(domain))
+    cache.set(
+      domain,
+      Promise.race([
+        resolveMx(domain).then((r) => r.length > 0),
+        new Promise<boolean>((_, rej) => setTimeout(() => rej(new Error("dns timeout")), 5000)),
+      ]).catch((e: NodeJS.ErrnoException) => {
+        if (e?.code === "ENOTFOUND" || e?.code === "ENODATA") return false;
+        throw e;
+      }),
+    );
+  return cache.get(domain)!;
+}
+
+// ---------------------------------------------------------------- PA business registry (owner names)
+
+const TITLE_RANK = ["owner", "president", "ceo", "managing member", "principal", "member", "manager", "governor", "partner", "director", "officer", "vice president", "secretary", "treasurer"];
+
+function titleRank(t: string) {
+  const l = t.toLowerCase();
+  const i = TITLE_RANK.findIndex((r) => l.includes(r));
+  return i === -1 ? 99 : i;
+}
+
+const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (_, a, b) => a + b.toUpperCase()).replace(/\bMc([a-z])/g, (_, c) => "Mc" + c.toUpperCase());
+
+type RegistryRow = { business_name?: string; party_type?: string; first_name?: string; last_name?: string; shortcountyname?: string };
+
+// Pennsylvania's free business registry (data.pa.gov): the owner or officer on file for this business name.
+export async function paOwner(name: string, county: string | null) {
+  const want = normName(name);
+  if (!want) return null;
+  const url = new URL("https://data.pa.gov/resource/xvd7-5r2c.json");
+  url.searchParams.set("$q", want);
+  url.searchParams.set("$where", "first_name IS NOT NULL");
+  url.searchParams.set("$select", "business_name,party_type,first_name,last_name,shortcountyname");
+  url.searchParams.set("$limit", "100");
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`PA registry ${res.status}`);
+  const rows = ((await res.json()) as RegistryRow[]).filter((r) => normName(r.business_name) === want && r.first_name && r.last_name);
+  if (!rows.length) return null;
+  // The same name registered in more than one county is ambiguous unless one is the county we searched.
+  const countyName = (county ?? "").replace(/\s+county$/i, "").toLowerCase();
+  const counties = new Set(rows.map((r) => (r.shortcountyname ?? "").toLowerCase()));
+  const pool = counties.size === 1 ? rows : rows.filter((r) => (r.shortcountyname ?? "").toLowerCase() === countyName);
+  if (!pool.length) return null;
+  const best = pool.sort((a, b) => titleRank(a.party_type ?? "") - titleRank(b.party_type ?? ""))[0];
+  return { name: titleCase(`${best.first_name} ${best.last_name}`.trim()), title: best.party_type?.trim() || null };
+}
+
+// ---------------------------------------------------------------- The tick
+
+async function pool<T>(items: T[], size: number, fn: (item: T) => Promise<void>) {
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(size, items.length) }, async () => {
+      while (i < items.length) await fn(items[i++]);
+    }),
+  );
+}
+
+export async function runLeadsTick(db: DB, secret: string) {
+  const started = Date.now();
+  const elapsed = () => Date.now() - started;
+  const report = { searches: 0, held: false, enriched: 0, errors: [] as string[] };
+
+  // 1. Google Maps searches, three at a time, for up to ~45 seconds.
+  const key = process.env.SERPER_API_KEY?.trim();
+  if (key) {
+    let stop = false;
+    await Promise.all(
+      Array.from({ length: 3 }, async () => {
+        while (!stop && elapsed() < 45_000 && report.searches < 45) {
+          const { data, error } = await db.rpc("leads_claim_task", { p_secret: secret });
+          if (error) {
+            report.errors.push(`claim: ${error.message}`);
+            stop = true;
+            return;
+          }
+          const task = data?.[0];
+          if (!task) return;
+          report.searches++;
+          try {
+            const { places, rawCount } = await serperPlaces(key, searchQuery(task.keyword, task.county, task.state), task.page);
+            const r = await db.rpc("leads_save_task", { p_secret: secret, p_task: task.id, p_places: places, p_full: rawCount >= 10, p_error: null });
+            if (r.error) report.errors.push(`save: ${r.error.message}`);
+          } catch (e) {
+            const held = e instanceof Hold;
+            if (held) {
+              report.held = true;
+              stop = true;
+            }
+            const msg = e instanceof Error ? e.message : String(e);
+            const r = await db.rpc("leads_save_task", { p_secret: secret, p_task: task.id, p_places: [], p_full: false, p_error: held ? `HOLD: ${msg}` : msg });
+            if (r.error) report.errors.push(`save error: ${r.error.message}`);
+          }
+        }
+      }),
+    );
+  }
+
+  // 2. Websites and owner names, six at a time, until ~2 minutes in.
+  const mx = new Map<string, Promise<boolean>>();
+  while (elapsed() < 110_000) {
+    const { data: batch, error } = await db.rpc("leads_claim_enrich", { p_secret: secret, p_limit: 12 });
+    if (error) {
+      report.errors.push(`enrich claim: ${error.message}`);
+      break;
+    }
+    if (!batch?.length) break;
+    await pool(batch, 6, async (b) => {
+      try {
+        const site = b.website ? await siteEmails(b.website) : { emails: [], facebook: null, reached: false };
+        let owner: Awaited<ReturnType<typeof paOwner>> = null;
+        if (b.state === "PA") owner = await paOwner(b.name, b.county).catch(() => null);
+        const primary = pickPrimary(site.emails, b.domain, owner?.name ?? null);
+        let status: string | null = null;
+        if (primary) status = await hasMx(primary.split("@")[1], mx).then(
+            (ok) => (ok ? "mx_ok" : "no_mx"),
+            () => "unchecked",
+          );
+        const { error: e2 } = await db.rpc("leads_save_enrich", {
+          p_secret: secret,
+          p_id: b.id,
+          p_emails: site.emails.slice(0, 20),
+          p_primary: primary,
+          p_email_status: status,
+          p_facebook: site.facebook,
+          p_owner_name: owner?.name ?? null,
+          p_owner_title: owner?.title ?? null,
+          p_error: null,
+        });
+        if (e2) report.errors.push(`enrich save: ${e2.message}`);
+        else report.enriched++;
+      } catch (e) {
+        await db.rpc("leads_save_enrich", {
+          p_secret: secret,
+          p_id: b.id,
+          p_emails: [],
+          p_primary: null,
+          p_email_status: null,
+          p_facebook: null,
+          p_owner_name: null,
+          p_owner_title: null,
+          p_error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    });
+  }
+
+  // 3. Once an hour, re-check every lead against Companies (a prospect may have become a client).
+  if (new Date().getUTCMinutes() < 2) {
+    const { error } = await db.rpc("leads_recheck_companies", { p_secret: secret });
+    if (error) report.errors.push(`recheck: ${error.message}`);
+  }
+  return report;
+}

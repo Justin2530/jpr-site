@@ -1349,6 +1349,200 @@ export type Database = {
           },
         ];
       };
+      lead_businesses: {
+        Row: {
+          id: string;
+          place_key: string;
+          name: string;
+          category: string | null;
+          address: string | null;
+          city: string | null;
+          county: string | null;
+          state: string | null;
+          zip: string | null;
+          phone: string | null;
+          website: string | null;
+          domain: string | null;
+          facebook_url: string | null;
+          rating: number | null;
+          review_count: number | null;
+          lat: number | null;
+          lng: number | null;
+          owner_name: string | null;
+          owner_title: string | null;
+          emails: string[];
+          primary_email: string | null;
+          email_status: string | null;
+          enrich_status: string;
+          enrich_attempts: number;
+          enrich_locked_at: string | null;
+          enriched_at: string | null;
+          enrich_error: string | null;
+          size_score: number;
+          company_id: string | null;
+          excluded_reason: string | null;
+          first_search_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          place_key: string;
+          name: string;
+          category?: string | null;
+          address?: string | null;
+          city?: string | null;
+          county?: string | null;
+          state?: string | null;
+          zip?: string | null;
+          phone?: string | null;
+          website?: string | null;
+          domain?: string | null;
+          facebook_url?: string | null;
+          rating?: number | null;
+          review_count?: number | null;
+          lat?: number | null;
+          lng?: number | null;
+          owner_name?: string | null;
+          owner_title?: string | null;
+          emails?: string[];
+          primary_email?: string | null;
+          email_status?: string | null;
+          enrich_status?: string;
+          enrich_attempts?: number;
+          enrich_locked_at?: string | null;
+          enriched_at?: string | null;
+          enrich_error?: string | null;
+          size_score?: number;
+          company_id?: string | null;
+          excluded_reason?: string | null;
+          first_search_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["lead_businesses"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "lead_businesses_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      lead_list_members: {
+        Row: {
+          business_id: string;
+          line: Database["public"]["Enums"]["lead_line"];
+          status: Database["public"]["Enums"]["lead_status"];
+          search_id: string | null;
+          exported_at: string | null;
+          status_changed_at: string | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          business_id: string;
+          line: Database["public"]["Enums"]["lead_line"];
+          status?: Database["public"]["Enums"]["lead_status"];
+          search_id?: string | null;
+          exported_at?: string | null;
+          status_changed_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["lead_list_members"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "lead_list_members_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "lead_businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      lead_search_tasks: {
+        Row: {
+          id: string;
+          search_id: string;
+          state: string;
+          county: string;
+          keyword: string;
+          page: number;
+          status: Database["public"]["Enums"]["lead_task_status"];
+          attempts: number;
+          results: number | null;
+          new_results: number | null;
+          error: string | null;
+          locked_at: string | null;
+          done_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          search_id: string;
+          state: string;
+          county: string;
+          keyword: string;
+          page?: number;
+          status?: Database["public"]["Enums"]["lead_task_status"];
+          attempts?: number;
+          results?: number | null;
+          new_results?: number | null;
+          error?: string | null;
+          locked_at?: string | null;
+          done_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["lead_search_tasks"]["Row"]>;
+        Relationships: [];
+      };
+      lead_searches: {
+        Row: {
+          id: string;
+          line: Database["public"]["Enums"]["lead_line"];
+          name: string;
+          keywords: string[];
+          areas: Json;
+          max_pages: number;
+          status: Database["public"]["Enums"]["lead_search_status"];
+          task_count: number;
+          max_credits: number;
+          credits_used: number;
+          found_count: number;
+          new_count: number;
+          failed_count: number;
+          error: string | null;
+          created_by: string | null;
+          created_at: string;
+          started_at: string | null;
+          finished_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          line: Database["public"]["Enums"]["lead_line"];
+          name: string;
+          keywords: string[];
+          areas: Json;
+          max_pages?: number;
+          status?: Database["public"]["Enums"]["lead_search_status"];
+          task_count?: number;
+          max_credits?: number;
+          credits_used?: number;
+          found_count?: number;
+          new_count?: number;
+          failed_count?: number;
+          error?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          started_at?: string | null;
+          finished_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["lead_searches"]["Row"]>;
+        Relationships: [];
+      };
       services: {
         Row: {
           account_email: string | null;
@@ -1814,6 +2008,36 @@ export type Database = {
         Args: { p_secret: string; p_sid: string; p_from: string };
         Returns: undefined;
       };
+      leads_claim_enrich: {
+        Args: { p_limit: number; p_secret: string };
+        Returns: { city: string | null; county: string | null; domain: string | null; id: string; name: string; state: string | null; website: string | null; zip: string | null }[];
+      };
+      leads_claim_task: {
+        Args: { p_secret: string };
+        Returns: { attempts: number; county: string; id: string; keyword: string; page: number; search_id: string; state: string }[];
+      };
+      leads_recheck_companies: {
+        Args: { p_secret?: string };
+        Returns: number;
+      };
+      leads_save_enrich: {
+        Args: {
+          p_email_status: string | null;
+          p_emails: string[];
+          p_error: string | null;
+          p_facebook: string | null;
+          p_id: string;
+          p_owner_name: string | null;
+          p_owner_title: string | null;
+          p_primary: string | null;
+          p_secret: string;
+        };
+        Returns: undefined;
+      };
+      leads_save_task: {
+        Args: { p_error: string | null; p_full: boolean; p_places: Json; p_secret: string; p_task: string };
+        Returns: Json;
+      };
       twilio_caller_blocked: {
         Args: { p_from: string; p_secret: string };
         Returns: boolean;
@@ -1857,6 +2081,10 @@ export type Database = {
     Enums: {
       action_status: "open" | "done" | "dismissed";
       agreement_status: "draft" | "active" | "ended";
+      lead_line: "local" | "usa" | "ai";
+      lead_search_status: "queued" | "running" | "paused" | "done" | "canceled";
+      lead_status: "prospect" | "contacted" | "replied" | "customer" | "not_interested" | "do_not_contact";
+      lead_task_status: "queued" | "running" | "done" | "failed" | "canceled";
       agreement_type: "subscription" | "contingency";
       billing_cycle: "free" | "monthly" | "yearly" | "usage";
       candidate_source:
@@ -1931,6 +2159,10 @@ export const Constants = {
     Enums: {
       action_status: ["open", "done", "dismissed"],
       agreement_status: ["draft", "active", "ended"],
+      lead_line: ["local", "usa", "ai"],
+      lead_search_status: ["queued", "running", "paused", "done", "canceled"],
+      lead_status: ["prospect", "contacted", "replied", "customer", "not_interested", "do_not_contact"],
+      lead_task_status: ["queued", "running", "done", "failed", "canceled"],
       agreement_type: ["subscription", "contingency"],
       billing_cycle: ["free", "monthly", "yearly", "usage"],
       candidate_source: [

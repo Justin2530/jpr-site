@@ -12,6 +12,7 @@ import {
   JobsIcon,
   SettingsIcon,
   SparkIcon,
+  TargetIcon,
   PipelineIcon,
   PlacementIcon,
   ReportsIcon,
@@ -45,6 +46,7 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
       { href: "/deals", label: "Deals", Icon: DealsIcon },
       { href: "/companies", label: "Companies", Icon: ClientsIcon },
       { href: "/contacts", label: "Contacts", Icon: ContactsIcon },
+      { href: "/leads", label: "Lead Engine", Icon: TargetIcon, ownerOnly: true },
     ],
   },
   {

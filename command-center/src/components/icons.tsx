@@ -46,6 +46,13 @@ export const SearchIcon = (p: P) => (
     <path d="m20 20-3.5-3.5" />
   </S>
 );
+export const TargetIcon = (p: P) => (
+  <S {...p}>
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+  </S>
+);
 export const PlusIcon = (p: P) => (
   <S {...p}>
     <path d="M12 5v14M5 12h14" />
