@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/staff";
 import { text } from "@/lib/format";
 import { COUNTIES_BY_STATE } from "@/lib/counties";
-import { LINE_LABEL, MAX_TASKS_PER_SEARCH } from "@/lib/leads-shared";
+import { LINE_LABEL, MAX_TASKS_PER_SEARCH, taskAreaField } from "@/lib/leads-shared";
+import { countyZips } from "@/lib/lead-zips";
 import type { Enums } from "@/lib/database.types";
 
 async function owner() {
@@ -41,7 +42,20 @@ export async function startSearch(form: FormData) {
   const pages = Math.min(3, Math.max(1, Number(text(form, "pages") ?? 2) || 2));
   // WellThree's "stop after finding this many businesses" (blank = cover everything picked).
   const target = Math.floor(Number(text(form, "target") ?? "") || 0) || null;
-  const tasks = keywords.length * areas.length;
+  // Each county one zip code at a time (a zip shared by two picked counties is searched once). A county with
+  // no zip list is searched as a whole.
+  const seenZip = new Set<string>();
+  const spots: { state: string; county: string }[] = [];
+  for (const a of areas) {
+    const zips = countyZips(a.state, a.county);
+    if (!zips.length) spots.push(a);
+    for (const z of zips) {
+      if (seenZip.has(z.zip)) continue;
+      seenZip.add(z.zip);
+      spots.push({ state: a.state, county: taskAreaField(a.county, z.zip, z.town) });
+    }
+  }
+  const tasks = keywords.length * spots.length;
   if (tasks > MAX_TASKS_PER_SEARCH)
     throw new Error(`That's ${tasks.toLocaleString()} searches. Keep one run under ${MAX_TASKS_PER_SEARCH.toLocaleString()} (fewer keywords or counties).`);
 
@@ -57,9 +71,9 @@ export async function startSearch(form: FormData) {
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  const rows = areas.flatMap((a) => keywords.map((keyword) => ({ search_id: search.id, state: a.state, county: a.county, keyword })));
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error: e } = await supabase.from("lead_search_tasks").insert(rows.slice(i, i + 500));
+  const rows = keywords.flatMap((keyword) => spots.map((a) => ({ search_id: search.id, state: a.state, county: a.county, keyword })));
+  for (let i = 0; i < rows.length; i += 2000) {
+    const { error: e } = await supabase.from("lead_search_tasks").insert(rows.slice(i, i + 2000));
     if (e) {
       // Don't leave half a search behind.
       await supabase.from("lead_searches").update({ status: "canceled", error: `Couldn't queue: ${e.message}`, finished_at: new Date().toISOString() }).eq("id", search.id);

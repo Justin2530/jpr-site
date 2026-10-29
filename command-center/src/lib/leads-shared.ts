@@ -16,8 +16,19 @@ export const LEAD_STATUS_LABEL: Record<Enums<"lead_status">, string> = {
 // Serper's price after the free 2,500: $50 buys 50,000 credits.
 export const SERPER_FREE_CREDITS = 2500;
 export const DOLLARS_PER_CREDIT = 0.001;
-// Biggest single search allowed, so a slip of the mouse can't queue a nationwide run by accident.
-export const MAX_TASKS_PER_SEARCH = 3500;
+// Biggest single search allowed, so a slip of the mouse can't queue a nationwide run by accident (all of
+// Pennsylvania's 2,553 zip codes x 10 keywords fits).
+export const MAX_TASKS_PER_SEARCH = 30000;
+
+// Google only shows a handful of businesses for "machine shop in Jefferson County, PA", so each county is
+// searched one zip code at a time ("machine shop in Punxsutawney, PA 15767"). A search task's county field
+// carries the zip and town too: "Jefferson County|15767|Punxsutawney" (a plain county name is the old
+// whole-county search, still used where there's no zip list).
+export function taskArea(field: string) {
+  const [county, zip, town] = field.split("|");
+  return { county, zip: zip || null, town: town || null };
+}
+export const taskAreaField = (county: string, zip: string, town: string | null) => `${county}|${zip}|${town ?? ""}`;
 
 // The size guess, from what Google shows (see lead_size_score in the database).
 export function sizeBand(score: number) {

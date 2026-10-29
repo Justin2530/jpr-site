@@ -1,10 +1,11 @@
 import { resolveMx } from "node:dns/promises";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
-import { normName } from "@/lib/leads-shared";
+import { normName, taskArea } from "@/lib/leads-shared";
+import { zipCounty } from "@/lib/lead-zips";
 
 // The Lead Engine's background work (Sales > Lead Engine). Each tick:
-// 1. runs queued Google Maps searches through Serper (one county x keyword x page per credit), and
+// 1. runs queued Google Maps searches through Serper (one zip code x keyword x page per credit), and
 // 2. reads each new business's website for emails (plus a free mail-server check) and, in PA, looks the
 //    business up in the state's free business registry for an owner name.
 // Everything goes through the secret-checked lead functions in the database; nothing here sends anything.
@@ -84,8 +85,12 @@ export function parsePlace(raw: Record<string, unknown>): Place | null {
   };
 }
 
-// The text Google gets: "machine shop in Jefferson County, PA".
-export const searchQuery = (keyword: string, county: string, state: string) => `${keyword} in ${county}, ${state}`;
+// The text Google gets: "machine shop in Punxsutawney, PA 15767" (or, with no zip list for the county,
+// "machine shop in Jefferson County, PA").
+export function searchQuery(keyword: string, countyField: string, state: string) {
+  const a = taskArea(countyField);
+  return a.zip ? `${keyword} in ${a.town ?? a.county}, ${state} ${a.zip}` : `${keyword} in ${a.county}, ${state}`;
+}
 
 class Hold extends Error {}
 
@@ -434,13 +439,13 @@ export async function runLeadsTick(db: DB, secret: string) {
   const elapsed = () => Date.now() - started;
   const report = { searches: 0, held: false, enriched: 0, verified: 0, facebook: "", errors: [] as string[] };
 
-  // 1. Google Maps searches, three at a time, for up to ~45 seconds.
+  // 1. Google Maps searches, six at a time, for up to ~45 seconds (about 150 a tick, 4,500 an hour).
   const key = process.env.SERPER_API_KEY?.trim();
   if (key) {
     let stop = false;
     await Promise.all(
-      Array.from({ length: 3 }, async () => {
-        while (!stop && elapsed() < 45_000 && report.searches < 45) {
+      Array.from({ length: 6 }, async () => {
+        while (!stop && elapsed() < 45_000 && report.searches < 150) {
           const { data, error } = await db.rpc("leads_claim_task", { p_secret: secret });
           if (error) {
             report.errors.push(`claim: ${error.message}`);
@@ -452,7 +457,11 @@ export async function runLeadsTick(db: DB, secret: string) {
           report.searches++;
           try {
             const { places, rawCount } = await serperPlaces(key, searchQuery(task.keyword, task.county, task.state), task.page);
-            const r = await db.rpc("leads_save_task", { p_secret: secret, p_task: task.id, p_places: places, p_full: rawCount >= 10, p_error: null });
+            // Google also shows businesses outside the zip, even outside the county: file each under the
+            // county its own zip is in.
+            const area = { state: task.state, county: taskArea(task.county).county };
+            const filed = places.map((p) => ({ ...p, county: zipCounty(p.zip, area)?.county ?? (p.state && p.state !== area.state ? null : area.county) }));
+            const r = await db.rpc("leads_save_task", { p_secret: secret, p_task: task.id, p_places: filed, p_full: rawCount >= 10, p_error: null });
             if (r.error) report.errors.push(`save: ${r.error.message}`);
           } catch (e) {
             const held = e instanceof Hold;

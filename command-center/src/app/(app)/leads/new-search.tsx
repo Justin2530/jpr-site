@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { COUNTIES_BY_STATE, STATE_NAMES } from "@/lib/counties";
 import { DOLLARS_PER_CREDIT, MAX_TASKS_PER_SEARCH } from "@/lib/leads-shared";
+import ZIP_COUNTS from "@/lib/data/county-zip-counts.json";
+
+const zipCount = (key: string) => (ZIP_COUNTS as Record<string, number>)[key] ?? 1;
 import { SubmitButton } from "@/components/submit-button";
 import { startSearch } from "./actions";
 
@@ -29,7 +32,10 @@ export function NewSearch({ line: startLine, hasKey, creditsUsed, freeCredits }:
   const [pages, setPages] = useState(2);
 
   const kw = useMemo(() => [...new Set(keywords.split(/[\n,]+/).map((k) => k.trim()).filter((k) => k.length >= 2))], [keywords]);
-  const tasks = kw.length * picked.size;
+  // Each county is searched one zip code at a time (a zip two picked counties share is searched once, so
+  // this can run a little high).
+  const spots = useMemo(() => [...picked].reduce((n, k) => n + zipCount(k), 0), [picked]);
+  const tasks = kw.length * spots;
   const maxCredits = tasks * pages;
   const freeLeft = Math.max(0, freeCredits - creditsUsed);
   const paid = Math.max(0, maxCredits - freeLeft);
@@ -133,7 +139,7 @@ export function NewSearch({ line: startLine, hasKey, creditsUsed, freeCredits }:
         <select name="pages" value={pages} onChange={(e) => setPages(Number(e.target.value))} className="field w-auto">
           <option value={1}>Top results only (1 credit each)</option>
           <option value={2}>Up to 2 pages (recommended)</option>
-          <option value={3}>Up to 3 pages, for big counties</option>
+          <option value={3}>Up to 3 pages, for cities</option>
         </select>
       </label>
 
@@ -144,7 +150,8 @@ export function NewSearch({ line: startLine, hasKey, creditsUsed, freeCredits }:
 
       <div className="rounded border border-line bg-white/[0.02] p-3 text-sm">
         <p>
-          <span className="readout text-ink">{tasks.toLocaleString()}</span> Google Maps searches ({kw.length} keywords × {picked.size} counties), at most{" "}
+          <span className="readout text-ink">{tasks.toLocaleString()}</span> Google Maps searches ({kw.length} keywords × {spots.toLocaleString()} zip codes in{" "}
+          {picked.size} counties), at most{" "}
           <span className="readout text-ink">{maxCredits.toLocaleString()}</span> Serper credits. Extra pages only run while they keep finding new businesses, so it&apos;s usually less.
         </p>
         <p className="mt-1 text-muted">
