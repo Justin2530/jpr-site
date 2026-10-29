@@ -68,8 +68,13 @@ export async function GET(request: Request) {
     "size_guess", "other_emails", "list",
   ];
   const lines = [header.join(",")];
+  // Never the same inbox twice (two listings of one business, or a shared office email).
+  const seen = new Set<string>();
   for (const r of rows) {
     const b = r.lead_businesses;
+    const email = String(b.primary_email ?? "").toLowerCase();
+    if (seen.has(email)) continue;
+    seen.add(email);
     const [first, ...rest] = String(b.owner_name ?? "").split(" ");
     const others = ((b.emails as string[] | null) ?? []).filter((e) => e !== b.primary_email).join("; ");
     const exportedAt = mark ? now : r.exported_at;
@@ -86,6 +91,7 @@ export async function GET(request: Request) {
     );
   }
 
+  // Repeats are stamped too: their inbox went out in this file.
   if (mark && rows.length) {
     const ids = rows.map((r) => r.business_id);
     for (let i = 0; i < ids.length; i += 500)
