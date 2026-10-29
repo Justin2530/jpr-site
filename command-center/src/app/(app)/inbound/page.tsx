@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader, Panel } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { MailIcon, PhoneIcon } from "@/components/icons";
+import { ChevronIcon, MailIcon, PhoneIcon } from "@/components/icons";
 import { timeAgo } from "@/lib/format";
 import { LINE_LABEL } from "@/lib/leads-shared";
 import { parseHiringRequest } from "./parse";
@@ -41,9 +41,6 @@ export default async function InboundLeads() {
       .limit(100),
   ]);
 
-  const fresh = (requests ?? []).filter((r) => r.status === "open");
-  const handled = (requests ?? []).filter((r) => r.status !== "open");
-
   // One row per person, their latest message. Client contacts are clients, not leads.
   const people = new Map<string, NonNullable<typeof inbound>[number]>();
   for (const a of inbound ?? []) {
@@ -51,175 +48,184 @@ export default async function InboundLeads() {
     if (!people.has(a.contact_id!)) people.set(a.contact_id!, a);
   }
 
+  // Everything in one list, newest first: name and company on each row, the rest when it's clicked
+  // (Justin 2026-10-29: "i just want a list with name and company"). Requests already handled sit at the end.
+  type Lead = { key: string; name: string; company: string | null; when: string | null; source: string; handled?: string; body: React.ReactNode };
+  const leads: Lead[] = [];
+  for (const r of requests ?? []) {
+    const l = parseHiringRequest(r.title, r.detail);
+    const handled = r.status === "open" ? undefined : r.company_id ? "In Companies" : "Not a lead";
+    leads.push({
+      key: `w:${r.id}`,
+      name: l.name,
+      company: r.companies?.name ?? l.company,
+      when: r.created_at,
+      source: l.nationwide ? "Website (nationwide)" : "Website",
+      handled,
+      body: (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {l.position && <Chip tone="cyan">{l.position}</Chip>}
+            {l.location && <Chip>{l.location}</Chip>}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {l.email && (
+              <a href={`mailto:${l.email}`} className="link inline-flex items-center gap-1">
+                <MailIcon className="h-3.5 w-3.5" />
+                {l.email}
+              </a>
+            )}
+            {l.phone && (
+              <a href={`tel:${l.phone}`} className="link inline-flex items-center gap-1">
+                <PhoneIcon className="h-3.5 w-3.5" />
+                {l.phone}
+                {l.smsOk && <span className="text-faint"> (OK to text)</span>}
+              </a>
+            )}
+          </div>
+          {l.message && <p className="whitespace-pre-line text-sm text-muted">{l.message}</p>}
+          <div className="flex flex-wrap gap-2">
+            {r.company_id ? (
+              <Link href={`/companies/${r.company_id}`} className="btn px-3 py-1.5 text-xs">
+                Open company
+              </Link>
+            ) : r.status === "open" ? (
+              <>
+                <form action={addLeadToCompanies}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <SubmitButton className="btn px-3 py-1.5 text-xs" pendingText="Adding…">
+                    Add to Companies
+                  </SubmitButton>
+                </form>
+                <form action={dismissLead}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <SubmitButton className="btn-quiet px-3 py-1.5 text-xs" pendingText="…">
+                    Not a lead
+                  </SubmitButton>
+                </form>
+              </>
+            ) : (
+              <form action={reopenLead}>
+                <input type="hidden" name="id" value={r.id} />
+                <SubmitButton className="btn-quiet px-3 py-1.5 text-xs" pendingText="…">
+                  Undo Not a lead
+                </SubmitButton>
+              </form>
+            )}
+          </div>
+        </div>
+      ),
+    });
+  }
+  for (const a of people.values()) {
+    const c = a.contacts;
+    leads.push({
+      key: `p:${a.contact_id}`,
+      name: c?.full_name ?? c?.email ?? c?.phone ?? "Unknown",
+      company: c?.companies?.name ?? null,
+      when: a.occurred_at,
+      source: a.kind === "text" ? "Texted you" : "Emailed you",
+      body: (
+        <div className="space-y-2 text-sm">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {c?.email && (
+              <a href={`mailto:${c.email}`} className="link inline-flex items-center gap-1">
+                <MailIcon className="h-3.5 w-3.5" />
+                {c.email}
+              </a>
+            )}
+            {c?.phone && (
+              <a href={`tel:${c.phone}`} className="link inline-flex items-center gap-1">
+                <PhoneIcon className="h-3.5 w-3.5" />
+                {c.phone}
+              </a>
+            )}
+          </div>
+          <p className="whitespace-pre-line text-muted">{(a.body ?? a.summary ?? "").slice(0, 600)}</p>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/contacts/${a.contact_id}`} className="btn px-3 py-1.5 text-xs">
+              Open contact
+            </Link>
+            {c?.companies && (
+              <Link href={`/companies/${c.companies.id}`} className="btn-quiet px-3 py-1.5 text-xs">
+                Open company
+              </Link>
+            )}
+          </div>
+        </div>
+      ),
+    });
+  }
+  for (const m of replied ?? []) {
+    const b = m.lead_businesses;
+    leads.push({
+      key: `e:${b.id}:${m.line}`,
+      name: b.owner_name ?? b.name,
+      company: b.owner_name ? b.name : null,
+      when: m.status_changed_at,
+      source: `Lead Engine · ${LINE_LABEL[m.line]}`,
+      body: (
+        <div className="space-y-2 text-sm">
+          <p className="text-muted">{[b.city, b.state].filter(Boolean).join(", ")}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {b.primary_email && (
+              <a href={`mailto:${b.primary_email}`} className="link inline-flex items-center gap-1">
+                <MailIcon className="h-3.5 w-3.5" />
+                {b.primary_email}
+              </a>
+            )}
+            {b.phone && (
+              <a href={`tel:${b.phone}`} className="link inline-flex items-center gap-1">
+                <PhoneIcon className="h-3.5 w-3.5" />
+                {b.phone}
+              </a>
+            )}
+          </div>
+          {b.company_id && (
+            <Link href={`/companies/${b.company_id}`} className="btn px-3 py-1.5 text-xs">
+              Open company
+            </Link>
+          )}
+        </div>
+      ),
+    });
+  }
+  const byNewest = (x: Lead, y: Lead) => (y.when ?? "").localeCompare(x.when ?? "");
+  const active = leads.filter((l) => !l.handled).sort(byNewest);
+  const done = leads.filter((l) => l.handled).sort(byNewest);
+
+  const row = (l: Lead) => (
+    <li key={l.key}>
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-1 py-2.5 [&::-webkit-details-marker]:hidden">
+          <ChevronIcon className="h-3.5 w-3.5 shrink-0 -rotate-90 text-faint transition group-open:rotate-0" />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="font-medium">{l.name}</span>
+            {l.company && <span className="text-muted"> · {l.company}</span>}
+          </span>
+          <span className="hidden shrink-0 text-xs text-faint sm:inline">{l.handled ?? l.source}</span>
+          <span className="shrink-0 font-mono text-[11px] text-faint">{timeAgo(l.when)}</span>
+        </summary>
+        <div className="pb-3 pl-7">
+          <p className="mb-2 text-xs text-faint sm:hidden">{l.handled ?? l.source}</p>
+          {l.body}
+        </div>
+      </details>
+    </li>
+  );
+
   return (
     <>
-      <PageHeader
-        title="Leads"
-        sub="Employers who reached out to JPR or answered its outreach, newest first. The Lead Engine's lists are the cold ones."
-      />
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="From the website" action={<span className="readout text-xs text-cyan">{fresh.length} new</span>}>
-          {fresh.length === 0 ? (
-            <Empty>No new hiring requests.</Empty>
-          ) : (
-            <ul className="divide-y divide-line">
-              {fresh.map((r) => {
-                const l = parseHiringRequest(r.title, r.detail);
-                return (
-                  <li key={r.id} className="space-y-2 py-3">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="font-medium">
-                        {l.name}
-                        {l.company && <span className="text-muted"> · {l.company}</span>}
-                      </p>
-                      <span className="font-mono text-[11px] text-faint">{timeAgo(r.created_at)}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {l.nationwide && <Chip tone="amber">Nationwide page</Chip>}
-                      {l.position && <Chip tone="cyan">{l.position}</Chip>}
-                      {l.location && <Chip>{l.location}</Chip>}
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                      {l.email && (
-                        <a href={`mailto:${l.email}`} className="link inline-flex items-center gap-1">
-                          <MailIcon className="h-3.5 w-3.5" />
-                          {l.email}
-                        </a>
-                      )}
-                      {l.phone && (
-                        <a href={`tel:${l.phone}`} className="link inline-flex items-center gap-1">
-                          <PhoneIcon className="h-3.5 w-3.5" />
-                          {l.phone}
-                          {l.smsOk && <span className="text-faint"> (OK to text)</span>}
-                        </a>
-                      )}
-                    </div>
-                    {l.message && <p className="whitespace-pre-line text-sm text-muted">{l.message}</p>}
-                    <div className="flex flex-wrap gap-2">
-                      <form action={addLeadToCompanies}>
-                        <input type="hidden" name="id" value={r.id} />
-                        <SubmitButton className="btn px-3 py-1.5 text-xs" pendingText="Adding…">
-                          Add to Companies
-                        </SubmitButton>
-                      </form>
-                      <form action={dismissLead}>
-                        <input type="hidden" name="id" value={r.id} />
-                        <SubmitButton className="btn-quiet px-3 py-1.5 text-xs" pendingText="…">
-                          Not a lead
-                        </SubmitButton>
-                      </form>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {handled.length > 0 && (
-            <details className="mt-3 border-t border-line pt-3">
-              <summary className="cursor-pointer text-sm text-muted">Handled ({handled.length})</summary>
-              <ul className="mt-2 divide-y divide-line">
-                {handled.map((r) => {
-                  const l = parseHiringRequest(r.title, r.detail);
-                  return (
-                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                      <span>
-                        {r.company_id ? (
-                          <Link href={`/companies/${r.company_id}`} className="link">
-                            {r.companies?.name ?? l.company ?? l.name}
-                          </Link>
-                        ) : (
-                          <span className="text-muted">
-                            {l.name}
-                            {l.company && ` · ${l.company}`}
-                          </span>
-                        )}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <Chip tone={r.company_id ? "mint" : "muted"}>{r.company_id ? "In Companies" : "Not a lead"}</Chip>
-                        <span className="font-mono text-[11px] text-faint">{timeAgo(r.created_at)}</span>
-                        {!r.company_id && (
-                          <form action={reopenLead}>
-                            <input type="hidden" name="id" value={r.id} />
-                            <SubmitButton className="btn-quiet px-2 py-0.5 text-[11px]" pendingText="…">
-                              Undo
-                            </SubmitButton>
-                          </form>
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </details>
-          )}
-        </Panel>
-
-        <div className="space-y-6">
-          <Panel title="Replied to you" action={<span className="readout text-xs text-cyan">{people.size}</span>}>
-            {people.size === 0 ? (
-              <Empty>Nobody outside your clients has texted or emailed in the last 60 days.</Empty>
-            ) : (
-              <ul className="divide-y divide-line">
-                {[...people.values()].map((a) => (
-                  <li key={a.contact_id} className="py-3">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <Link href={`/contacts/${a.contact_id}`} className="link font-medium">
-                        {a.contacts?.full_name ?? a.contacts?.email ?? a.contacts?.phone}
-                      </Link>
-                      <span className="font-mono text-[11px] text-faint">{timeAgo(a.occurred_at)}</span>
-                    </div>
-                    <p className="text-sm text-muted">
-                      {a.contacts?.companies?.name && (
-                        <Link href={`/companies/${a.contacts.companies.id}`} className="link">
-                          {a.contacts.companies.name}
-                        </Link>
-                      )}
-                      {a.contacts?.companies?.name && " · "}
-                      {a.kind === "text" ? "Text" : "Email"}: {(a.summary ?? a.body ?? "").slice(0, 160)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
-
-          <Panel title="Lead Engine replies" action={<span className="readout text-xs text-cyan">{(replied ?? []).length}</span>}>
-            {(replied ?? []).length === 0 ? (
-              <Empty>No Lead Engine businesses marked Replied yet. Mark one on its card in the Lead Engine when they answer.</Empty>
-            ) : (
-              <ul className="divide-y divide-line">
-                {(replied ?? []).map((m) => {
-                  const b = m.lead_businesses;
-                  return (
-                    <li key={`${b.id}-${m.line}`} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm">
-                      <span>
-                        {b.company_id ? (
-                          <Link href={`/companies/${b.company_id}`} className="link font-medium">
-                            {b.name}
-                          </Link>
-                        ) : (
-                          <span className="font-medium">{b.name}</span>
-                        )}
-                        <span className="text-muted">
-                          {" "}
-                          · {[b.city, b.state].filter(Boolean).join(", ")}
-                          {b.owner_name && ` · ${b.owner_name}`}
-                          {b.primary_email && ` · ${b.primary_email}`}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <Chip>{LINE_LABEL[m.line]}</Chip>
-                        <span className="font-mono text-[11px] text-faint">{timeAgo(m.status_changed_at)}</span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Panel>
-        </div>
-      </div>
+      <PageHeader title="Leads" sub="Employers who reached out to JPR or answered its outreach, newest first. Click one for everything on them." />
+      <Panel title="Leads" action={<span className="readout text-xs text-cyan">{active.length}</span>}>
+        {active.length === 0 ? <Empty>No leads right now.</Empty> : <ul className="divide-y divide-line">{active.map(row)}</ul>}
+        {done.length > 0 && (
+          <details className="mt-3 border-t border-line pt-3">
+            <summary className="cursor-pointer text-sm text-muted">Handled ({done.length})</summary>
+            <ul className="mt-1 divide-y divide-line">{done.map(row)}</ul>
+          </details>
+        )}
+      </Panel>
     </>
   );
 }
