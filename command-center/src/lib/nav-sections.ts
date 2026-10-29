@@ -10,6 +10,7 @@ import {
   DealsIcon,
   HomeIcon,
   JobsIcon,
+  MailIcon,
   SettingsIcon,
   SparkIcon,
   TargetIcon,
@@ -43,6 +44,8 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
   {
     title: "Sales",
     items: [
+      // Employers who reached out or answered outreach (Justin 2026-10-29).
+      { href: "/inbound", label: "Leads", Icon: MailIcon },
       { href: "/deals", label: "Deals", Icon: DealsIcon },
       { href: "/companies", label: "Companies", Icon: ClientsIcon },
       { href: "/contacts", label: "Contacts", Icon: ContactsIcon },

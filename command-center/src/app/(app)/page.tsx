@@ -38,44 +38,46 @@ function hrefFor(item: Tables<"needs_me">) {
   return null;
 }
 
-// What needs me, grouped so each kind of thing has its own section instead of one long list.
-// Each section is its own color-coded card, like the company cards on Jobs (Justin 2026-10-11: "it still looks
-// like one long list all the same color"). Class strings stay whole so Tailwind keeps them.
+// What needs me as side-by-side category cards, newest first in each, so something from ten minutes ago is at
+// the top of its card instead of under two weeks of older things (Justin 2026-10-29: "it can't just be one
+// long scrolling stuff ... I need side by side categories where I can instantly look at stuff"). Each row is
+// one line; its details open on a click. Class strings stay whole so Tailwind keeps them.
 const SECTIONS = [
-  {
-    key: "submit",
-    title: "Submissions and offers to approve",
-    look: "border-l-amber/70 from-amber/[0.10] hover:from-amber/[0.16]",
-    text: "text-amber",
-  },
+  { key: "leads", title: "Leads", look: "border-t-cyan/70", text: "text-cyan" },
   {
     key: "call",
     title: "Calls to make or return",
-    look: "border-l-rose/70 from-rose/[0.10] hover:from-rose/[0.16]",
+    look: "border-t-rose/70",
     text: "text-rose",
   },
   {
     key: "message",
     title: "Messages waiting on you",
-    look: "border-l-cyan/70 from-cyan/[0.10] hover:from-cyan/[0.16]",
+    look: "border-t-cyan/70",
     text: "text-cyan",
+  },
+  {
+    key: "submit",
+    title: "Submissions and offers",
+    look: "border-t-amber/70",
+    text: "text-amber",
   },
   {
     key: "people",
     title: "New people to review",
-    look: "border-l-mint/70 from-mint/[0.10] hover:from-mint/[0.16]",
+    look: "border-t-mint/70",
     text: "text-mint",
   },
   {
     key: "sales",
     title: "Sales and business",
-    look: "border-l-ink/50 from-ink/[0.06] hover:from-ink/[0.10]",
+    look: "border-t-ink/50",
     text: "text-ink",
   },
   {
     key: "tasks",
     title: "Tasks and reminders",
-    look: "border-l-muted/60 from-muted/[0.08] hover:from-muted/[0.14]",
+    look: "border-t-muted/60",
     text: "text-muted",
   },
 ] as const;
@@ -92,8 +94,8 @@ function sectionFor(item: Tables<"needs_me">): SectionKey {
     )
   )
     return "call";
+  if (kind === "website_lead") return "leads";
   if (
-    kind === "website_lead" ||
     kind === "needs_contact" ||
     (kind === "inbox" && /^new candidate/i.test(title))
   )
@@ -127,15 +129,15 @@ function greeting() {
 
 export default async function Home() {
   const { supabase, staff } = await requireStaff();
-  const soon = new Date(new Date().getTime() - 2 * 3600_000).toISOString();
+  const now = new Date().getTime();
+  const soon = new Date(now - 2 * 3600_000).toISOString();
 
   const [needs, recent, samples, upcoming, drafts] = await Promise.all([
     supabase
       .from("needs_me")
       .select("*")
-      .order("priority")
-      .order("since", { ascending: true })
-      .limit(100),
+      .order("since", { ascending: false })
+      .limit(300),
     supabase
       .from("activities")
       .select(
@@ -207,66 +209,67 @@ export default async function Home() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <Panel
-          title="What needs me"
-          action={
-            <span className="readout text-xs text-cyan">{items.length}</span>
-          }
-        >
-          {items.length === 0 ? (
-            <Empty>
-              All clear. Assign a candidate to a job and it will show up here.
-            </Empty>
-          ) : (
-            <div className="-my-1 space-y-4">
-              {SECTIONS.map((sec) => {
-                const list = items.filter(
-                  (item) => sectionFor(item) === sec.key,
-                );
-                if (list.length === 0) return null;
-                return (
-                  <details
-                    key={sec.key}
-                    open
-                    className={`group overflow-hidden rounded-lg border border-line border-l-4 ${sec.look.split(" ")[0]}`}
-                  >
-                    <summary
-                      className={`flex cursor-pointer list-none items-center justify-between gap-3 bg-gradient-to-r to-transparent px-3 py-3 transition group-open:border-b group-open:border-line [&::-webkit-details-marker]:hidden ${sec.look.split(" ").slice(1).join(" ")}`}
-                    >
-                      <span className="flex items-center gap-2 font-semibold">
-                        <ChevronIcon
-                          className={`h-4 w-4 -rotate-90 transition group-open:rotate-0 ${sec.text}`}
-                        />
-                        {sec.title}
-                      </span>
-                      <span className={`readout text-lg ${sec.text}`}>
-                        {list.length}
-                      </span>
-                    </summary>
-                    <ul className="divide-y divide-line px-3">
-                      {list.map((item) => {
-                        const k = KIND[item.kind ?? "task"] ?? KIND.task;
-                        const href = hrefFor(item);
-                        const taskId = item.key?.startsWith("task:")
-                          ? item.key.slice(5)
-                          : null;
-                        return (
-                          <li
-                            key={item.key}
-                            className="flex items-start gap-3 py-3"
-                          >
-                            <div className="pt-1.5">
-                              {item.kind === "protected_client" ? (
-                                <ShieldIcon className="h-4 w-4 text-rose" />
-                              ) : (
-                                <Dot
-                                  tone={item.priority === 1 ? "amber" : k.tone}
-                                />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
+      {items.length === 0 ? (
+        <Panel title="What needs me">
+          <Empty>
+            All clear. Assign a candidate to a job and it will show up here.
+          </Empty>
+        </Panel>
+      ) : (
+        <div className="grid items-start gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+          {SECTIONS.map((sec) => {
+            const list = items.filter((item) => sectionFor(item) === sec.key);
+            const today = list.filter(
+              (item) =>
+                item.since && now - new Date(item.since).getTime() < 86400_000,
+            ).length;
+            return (
+              <section
+                key={sec.key}
+                className={`panel overflow-hidden border-t-4 ${sec.look}`}
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2.5">
+                  <h2 className="font-semibold">{sec.title}</h2>
+                  <span className="flex items-center gap-2">
+                    {today > 0 && <Chip tone="cyan">{today} new</Chip>}
+                    <span className={`readout text-lg ${sec.text}`}>
+                      {list.length}
+                    </span>
+                  </span>
+                </div>
+                {list.length === 0 ? (
+                  <p className="px-3 py-3 text-sm text-faint">Nothing here.</p>
+                ) : (
+                  <ul className="max-h-80 divide-y divide-line overflow-y-auto">
+                    {list.map((item) => {
+                      const k = KIND[item.kind ?? "task"] ?? KIND.task;
+                      const href = hrefFor(item);
+                      const taskId = item.key?.startsWith("task:")
+                        ? item.key.slice(5)
+                        : null;
+                      const fresh =
+                        !!item.since &&
+                        now - new Date(item.since).getTime() < 86400_000;
+                      const draft = taskId ? draftFor.get(taskId) : undefined;
+                      const more = !!item.detail || !!draft;
+                      return (
+                        <li key={item.key} className="px-3 py-2">
+                          <details className="group/item">
+                            <summary
+                              className={`flex list-none items-start gap-2 [&::-webkit-details-marker]:hidden ${more ? "cursor-pointer" : ""}`}
+                            >
+                              <span className="pt-1.5">
+                                {item.kind === "protected_client" ? (
+                                  <ShieldIcon className="h-3.5 w-3.5 text-rose" />
+                                ) : (
+                                  <Dot
+                                    tone={
+                                      item.priority === 1 ? "amber" : k.tone
+                                    }
+                                  />
+                                )}
+                              </span>
+                              <span className="min-w-0 flex-1 text-sm">
                                 {href ? (
                                   <Link
                                     href={href}
@@ -279,132 +282,137 @@ export default async function Home() {
                                     {item.title}
                                   </span>
                                 )}
-                                <Chip tone={k.tone}>{k.label}</Chip>
-                              </div>
-                              {item.detail && (
-                                <p className="mt-0.5 whitespace-pre-line text-sm text-muted">
-                                  {item.detail}
-                                </p>
-                              )}
-                              {taskId && draftFor.has(taskId) && (
-                                <InboxDraft
-                                  id={draftFor.get(taskId)!.id}
-                                  body={draftFor.get(taskId)!.body}
-                                />
-                              )}
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <span className="font-mono text-[11px] text-faint">
+                                {more && (
+                                  <ChevronIcon className="ml-1 inline h-3 w-3 -rotate-90 text-faint transition group-open/item:rotate-0" />
+                                )}
+                              </span>
+                              <span
+                                className={`shrink-0 font-mono text-[11px] ${fresh ? "text-cyan" : "text-faint"}`}
+                              >
                                 {timeAgo(item.since)}
                               </span>
-                              {taskId && (
-                                <form action={resolveTask}>
-                                  <input
-                                    type="hidden"
-                                    name="id"
-                                    value={taskId}
-                                  />
-                                  <SubmitButton
-                                    className="btn-quiet px-2 py-1 text-xs"
-                                    pendingText="…"
-                                  >
-                                    Done
-                                  </SubmitButton>
-                                </form>
-                              )}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </details>
-                );
-              })}
-            </div>
+                            </summary>
+                            {more && (
+                              <div className="mt-1.5 pl-5">
+                                {item.detail && (
+                                  <p className="whitespace-pre-line text-sm text-muted">
+                                    {item.detail}
+                                  </p>
+                                )}
+                                {draft && (
+                                  <InboxDraft id={draft.id} body={draft.body} />
+                                )}
+                              </div>
+                            )}
+                          </details>
+                          {taskId && (
+                            <form action={resolveTask} className="mt-1 pl-5">
+                              <input type="hidden" name="id" value={taskId} />
+                              <SubmitButton
+                                className="btn-quiet px-2 py-0.5 text-[11px]"
+                                pendingText="…"
+                              >
+                                Done
+                              </SubmitButton>
+                            </form>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {sec.key === "leads" && (
+                  <Link
+                    href="/inbound"
+                    className="block border-t border-line px-3 py-2 text-xs text-cyan hover:underline"
+                  >
+                    All leads →
+                  </Link>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      <form action={addTask} className="flex gap-2">
+        <input
+          name="title"
+          className="field"
+          placeholder="Add a reminder for yourself…"
+          aria-label="New reminder"
+        />
+        <input
+          name="due_on"
+          type="date"
+          className="field w-40"
+          aria-label="Due date"
+        />
+        <SubmitButton className="btn shrink-0">Add</SubmitButton>
+      </form>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel title="Coming up">
+          {(upcoming.data ?? []).length === 0 ? (
+            <Empty>No screening calls booked.</Empty>
+          ) : (
+            <ul className="space-y-3">
+              {(upcoming.data ?? []).map((r) => (
+                <li key={r.id} className="text-sm">
+                  <p className="font-mono text-[11px] text-cyan">
+                    {new Date(r.scheduled_for!).toLocaleString("en-US", {
+                      timeZone: "America/New_York",
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <p>
+                    <Link
+                      href={`/candidates/${r.candidate_jobs?.candidate_id}?job=${r.candidate_job_id}`}
+                      className="link font-medium"
+                    >
+                      {r.candidate_jobs?.candidates?.full_name}
+                    </Link>{" "}
+                    <span className="text-muted">
+                      · Screening call · {r.candidate_jobs?.jobs?.title}
+                    </span>
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
-          <form
-            action={addTask}
-            className="mt-4 flex gap-2 border-t border-line pt-4"
-          >
-            <input
-              name="title"
-              className="field"
-              placeholder="Add a reminder for yourself…"
-              aria-label="New reminder"
-            />
-            <input
-              name="due_on"
-              type="date"
-              className="field w-40"
-              aria-label="Due date"
-            />
-            <SubmitButton className="btn shrink-0">Add</SubmitButton>
-          </form>
         </Panel>
 
-        <div className="space-y-6">
-          <Panel title="Coming up">
-            {(upcoming.data ?? []).length === 0 ? (
-              <Empty>No screening calls booked.</Empty>
-            ) : (
-              <ul className="space-y-3">
-                {(upcoming.data ?? []).map((r) => (
-                  <li key={r.id} className="text-sm">
-                    <p className="font-mono text-[11px] text-cyan">
-                      {new Date(r.scheduled_for!).toLocaleString("en-US", {
-                        timeZone: "America/New_York",
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                    <p>
+        <Panel title="What's happening">
+          {(recent.data ?? []).length === 0 ? (
+            <Empty>No activity yet.</Empty>
+          ) : (
+            <ol className="relative space-y-4 border-l border-line pl-4">
+              {(recent.data ?? []).map((a) => (
+                <li key={a.id} className="relative">
+                  <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border border-cyan/60 bg-void" />
+                  <p className="text-sm">
+                    {a.candidates?.full_name && (
                       <Link
-                        href={`/candidates/${r.candidate_jobs?.candidate_id}?job=${r.candidate_job_id}`}
+                        href={`/candidates/${a.candidate_id}`}
                         className="link font-medium"
                       >
-                        {r.candidate_jobs?.candidates?.full_name}
-                      </Link>{" "}
-                      <span className="text-muted">
-                        · Screening call · {r.candidate_jobs?.jobs?.title}
-                      </span>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
-
-          <Panel title="What's happening">
-            {(recent.data ?? []).length === 0 ? (
-              <Empty>No activity yet.</Empty>
-            ) : (
-              <ol className="relative space-y-4 border-l border-line pl-4">
-                {(recent.data ?? []).map((a) => (
-                  <li key={a.id} className="relative">
-                    <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full border border-cyan/60 bg-void" />
-                    <p className="text-sm">
-                      {a.candidates?.full_name && (
-                        <Link
-                          href={`/candidates/${a.candidate_id}`}
-                          className="link font-medium"
-                        >
-                          {a.candidates.full_name}
-                        </Link>
-                      )}{" "}
-                      <span className="text-muted">{a.summary}</span>
-                    </p>
-                    <p className="font-mono text-[10.5px] text-faint">
-                      {timeAgo(a.occurred_at)}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Panel>
-        </div>
+                        {a.candidates.full_name}
+                      </Link>
+                    )}{" "}
+                    <span className="text-muted">{a.summary}</span>
+                  </p>
+                  <p className="font-mono text-[10.5px] text-faint">
+                    {timeAgo(a.occurred_at)}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Panel>
       </div>
     </div>
   );
