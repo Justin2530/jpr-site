@@ -1358,6 +1358,9 @@ export type Database = {
           verify_attempts: number;
           verify_locked_at: string | null;
           fb_status: string | null;
+          guess_checks: number;
+          guess_locked_at: string | null;
+          guess_status: string | null;
           fb_snapshot_id: string | null;
           fb_attempts: number;
           fb_checked_at: string | null;
@@ -1403,6 +1406,9 @@ export type Database = {
           verify_attempts?: number;
           verify_locked_at?: string | null;
           fb_status?: string | null;
+          guess_checks?: number;
+          guess_locked_at?: string | null;
+          guess_status?: string | null;
           fb_snapshot_id?: string | null;
           fb_attempts?: number;
           fb_checked_at?: string | null;
@@ -2099,6 +2105,18 @@ export type Database = {
         Returns: undefined;
       };
       leads_verify_failed: {
+        Args: { p_id: string; p_secret: string };
+        Returns: undefined;
+      };
+      leads_claim_guess: {
+        Args: { p_limit: number; p_secret: string; p_wait_fb: boolean };
+        Returns: { domain: string; id: string; owner_name: string | null; search_id: string | null }[];
+      };
+      leads_save_guess: {
+        Args: { p_checks: number; p_email: string | null; p_id: string; p_reason: string | null; p_secret: string };
+        Returns: undefined;
+      };
+      leads_guess_failed: {
         Args: { p_id: string; p_secret: string };
         Returns: undefined;
       };

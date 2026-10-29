@@ -314,6 +314,21 @@ export async function paOwner(name: string, county: string | null) {
 // Bouncer pay-as-you-go: about $8 per 1,000 checks.
 export const BOUNCER_COST = 0.008;
 
+class BouncerHold extends Error {}
+
+// One mailbox check. A bad key, no credits or too many calls throws BouncerHold: every check would fail the same way.
+async function bouncerCheck(key: string, email: string) {
+  const url = new URL("https://api.usebouncer.com/v1.1/email/verify");
+  url.searchParams.set("email", email);
+  url.searchParams.set("timeout", "10");
+  const res = await fetch(url, { headers: { "x-api-key": key }, signal: AbortSignal.timeout(20000) });
+  if ([401, 402, 403, 429].includes(res.status)) throw new BouncerHold(`Bouncer ${res.status}: ${(await res.text()).slice(0, 150)}`);
+  if (!res.ok) throw new Error(`Bouncer ${res.status}`);
+  const body = (await res.json()) as { status?: string; reason?: string; domain?: { acceptAll?: string } };
+  const status = ["deliverable", "risky", "undeliverable", "unknown"].includes(body.status ?? "") ? body.status! : "unknown";
+  return { status, reason: body.reason ?? null, acceptAll: body.domain?.acceptAll === "yes" };
+}
+
 async function runBouncer(db: DB, secret: string, key: string, more: () => boolean) {
   let done = 0;
   const spend = new Map<string | null, number>();
@@ -329,22 +344,13 @@ async function runBouncer(db: DB, secret: string, key: string, more: () => boole
           return;
         }
         try {
-          const url = new URL("https://api.usebouncer.com/v1.1/email/verify");
-          url.searchParams.set("email", b.email);
-          url.searchParams.set("timeout", "10");
-          const res = await fetch(url, { headers: { "x-api-key": key }, signal: AbortSignal.timeout(20000) });
-          if ([401, 402, 403, 429].includes(res.status)) {
-            stop = true;
-            throw new Error(`Bouncer ${res.status}: ${(await res.text()).slice(0, 150)}`);
-          }
-          if (!res.ok) throw new Error(`Bouncer ${res.status}`);
-          const body = (await res.json()) as { status?: string; reason?: string };
-          const status = ["deliverable", "risky", "undeliverable", "unknown"].includes(body.status ?? "") ? body.status! : "unknown";
-          await db.rpc("leads_save_verify", { p_secret: secret, p_id: b.id, p_email: b.email, p_result: status, p_reason: body.reason ?? null });
+          const { status, reason } = await bouncerCheck(key, b.email);
+          await db.rpc("leads_save_verify", { p_secret: secret, p_id: b.id, p_email: b.email, p_result: status, p_reason: reason });
           spend.set(b.search_id, (spend.get(b.search_id) ?? 0) + 1);
           done++;
         } catch (e) {
           await db.rpc("leads_verify_failed", { p_secret: secret, p_id: b.id });
+          if (e instanceof BouncerHold) stop = true;
           if (stop) throw e;
         }
       }).catch((e) => {
@@ -358,6 +364,62 @@ async function runBouncer(db: DB, secret: string, key: string, more: () => boole
       await db.rpc("leads_log_spend", { p_secret: secret, p_service: "bouncer", p_units: units, p_cost: units * BOUNCER_COST, p_search: search });
   }
   return done;
+}
+
+// Businesses with their own website but no email on it: try the usual addresses at their domain, each
+// checked by Bouncer, and keep the first one Bouncer calls deliverable. A domain that takes mail for any
+// address ("accept all") can't be checked this way, so it stops there. Nothing is ever sent.
+const GUESS_NAMES = ["info", "office", "contact", "sales"];
+
+async function runGuesses(db: DB, secret: string, key: string, waitForFacebook: boolean, mx: Map<string, Promise<boolean>>, more: () => boolean) {
+  let found = 0;
+  const spend = new Map<string | null, number>();
+  try {
+    while (more()) {
+      const { data: batch, error } = await db.rpc("leads_claim_guess", { p_secret: secret, p_limit: 10, p_wait_fb: waitForFacebook });
+      if (error) throw new Error(error.message);
+      if (!batch?.length) break;
+      let hold: Error | null = null;
+      await pool(batch, 5, async (b) => {
+        if (hold) {
+          await db.rpc("leads_guess_failed", { p_secret: secret, p_id: b.id });
+          return;
+        }
+        let checks = 0;
+        try {
+          const takesMail = await hasMx(b.domain, mx).catch(() => true);
+          let email: string | null = null;
+          let why: string | null = null;
+          if (takesMail) {
+            const first = (b.owner_name ?? "").split(" ")[0].toLowerCase().replace(/[^a-z]/g, "");
+            for (const name of [...new Set([...GUESS_NAMES, ...(first.length >= 2 ? [first] : [])])]) {
+              const tryEmail = `${name}@${b.domain}`;
+              const r = await bouncerCheck(key, tryEmail);
+              checks++;
+              if (r.status === "deliverable" && !r.acceptAll) {
+                email = tryEmail;
+                why = r.reason;
+                break;
+              }
+              if (r.acceptAll || r.status === "risky" || r.reason === "invalid_domain" || r.reason === "unavailable_smtp" || r.reason === "dns_error") break;
+            }
+          }
+          await db.rpc("leads_save_guess", { p_secret: secret, p_id: b.id, p_email: email, p_reason: why, p_checks: checks });
+          if (email) found++;
+        } catch (e) {
+          await db.rpc("leads_guess_failed", { p_secret: secret, p_id: b.id });
+          if (e instanceof BouncerHold) hold = e;
+        } finally {
+          if (checks) spend.set(b.search_id, (spend.get(b.search_id) ?? 0) + checks);
+        }
+      });
+      if (hold) throw hold;
+    }
+  } finally {
+    for (const [search, units] of spend)
+      await db.rpc("leads_log_spend", { p_secret: secret, p_service: "bouncer", p_units: units, p_cost: units * BOUNCER_COST, p_search: search });
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------- Bright Data (Facebook page emails)
@@ -437,7 +499,7 @@ async function pool<T>(items: T[], size: number, fn: (item: T) => Promise<void>)
 export async function runLeadsTick(db: DB, secret: string) {
   const started = Date.now();
   const elapsed = () => Date.now() - started;
-  const report = { searches: 0, held: false, enriched: 0, verified: 0, facebook: "", errors: [] as string[] };
+  const report = { searches: 0, held: false, enriched: 0, verified: 0, guessed: 0, facebook: "", errors: [] as string[] };
 
   // 1. Google Maps searches, six at a time, for up to ~45 seconds (about 150 a tick, 4,500 an hour).
   const key = process.env.SERPER_API_KEY?.trim();
@@ -549,8 +611,17 @@ export async function runLeadsTick(db: DB, secret: string) {
     }
   }
 
-  // 5. Bright Data: emails off the Facebook pages of businesses whose website had none.
+  // 5. The usual addresses (info@, office@...) at the domain of businesses whose website showed no email.
   const brightdata = process.env.BRIGHTDATA_API_KEY?.trim();
+  if (bouncer && elapsed() < 150_000) {
+    try {
+      report.guessed = await runGuesses(db, secret, bouncer, !!brightdata, mx, () => elapsed() < 170_000);
+    } catch (e) {
+      report.errors.push(`guess: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // 6. Bright Data: emails off the Facebook pages of businesses whose website had none.
   if (brightdata) {
     try {
       report.facebook = await runFacebook(db, secret, brightdata);
@@ -559,7 +630,7 @@ export async function runLeadsTick(db: DB, secret: string) {
     }
   }
 
-  // 6. Once an hour, re-check every lead against Companies (a prospect may have become a client).
+  // 7. Once an hour, re-check every lead against Companies (a prospect may have become a client).
   if (new Date().getUTCMinutes() < 2) {
     const { error } = await db.rpc("leads_recheck_companies", { p_secret: secret });
     if (error) report.errors.push(`recheck: ${error.message}`);
