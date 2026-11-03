@@ -4,21 +4,7 @@ import { automationSecret } from "@/lib/automation";
 import { liveReady, runSig, sipUri } from "@/lib/live";
 import { receptionSig, receptionSipUri } from "@/lib/reception";
 import { readTwilio, twiml, voicemailTwiml, webhookDb } from "../webhook";
-
-// Hours (Eastern) a call to JPR's number rings Justin's cell, the same window our texts keep.
-const RING_FROM = 8;
-const RING_UNTIL = 21;
-
-function ringHours() {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      hourCycle: "h23",
-      timeZone: "America/New_York",
-    }).format(new Date()),
-  );
-  return hour >= RING_FROM && hour < RING_UNTIL;
-}
+import { ringHours } from "@/lib/cell-alert";
 
 type Route = {
   owner: boolean;

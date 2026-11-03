@@ -3,6 +3,7 @@ import { automationSecret } from "@/lib/automation";
 import { watchCall } from "@/lib/call-watch";
 import {
   RECEPTION_HANDOFF_REPLY,
+  RECEPTION_VOICEMAIL_CUE,
   startReceptionWatch,
   validReceptionSig,
   type ReceptionContext,
@@ -51,6 +52,10 @@ export async function POST(request: Request) {
       slice,
       log: console.info,
       handoffReply: RECEPTION_HANDOFF_REPLY,
+      voicemailCue: RECEPTION_VOICEMAIL_CUE,
+      onVoicemail: async () => {
+        await db.rpc("reception_mark_voicemail", { p_id: id, p_session: sessionId });
+      },
       report: async (note) => {
         await db.rpc("reception_watch_report", {
           p_id: id,

@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { readTwilio, webhookDb } from "../webhook";
+import { alertJustin, voicemailIsForJustin } from "@/lib/cell-alert";
 
 const HANGUP = () => new Response("<Response><Hangup/></Response>", { headers: { "Content-Type": "text/xml" } });
 
@@ -39,13 +40,31 @@ export async function POST(request: Request) {
       console.error("voicemail transcription", e);
       text = "(Left a voicemail, but it couldn't be transcribed. It's in the Twilio call log.)";
     }
-    const { error } = await webhookDb().rpc("twilio_voicemail", {
-      p_secret: process.env.TWILIO_WEBHOOK_SECRET ?? "",
+    const db = webhookDb();
+    const secret = process.env.TWILIO_WEBHOOK_SECRET ?? "";
+    const { error } = await db.rpc("twilio_voicemail", {
+      p_secret: secret,
       p_sid: sid,
       p_seconds: seconds,
       p_text: text,
     });
-    if (error) console.error("twilio voicemail", error.message);
+    if (error) return console.error("twilio voicemail", error.message);
+    // A real message that isn't from a candidate or job seeker also goes to Justin's cell.
+    if (seconds < 2 || !text.trim()) return;
+    try {
+      const { data } = await db.rpc("twilio_voicemail_info", { p_secret: secret, p_sid: sid });
+      const info = data as { who: string | null; number: string | null; candidate: boolean; client_contact: boolean } | null;
+      if (!info || info.candidate) return;
+      if (!info.client_contact && !(await voicemailIsForJustin(text))) return;
+      await alertJustin(db, {
+        kind: "voicemail",
+        who: info.who && !/\d{7}/.test(info.who.replace(/\D/g, "")) ? info.who : null,
+        number: info.number,
+        text,
+      });
+    } catch (e) {
+      console.error("Couldn't pass the voicemail on to Justin's cell", e);
+    }
   });
   return HANGUP();
 }

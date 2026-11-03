@@ -1851,6 +1851,14 @@ export type Database = {
         Returns: boolean;
       };
       reception_to_process: { Args: { p_secret: string }; Returns: Json };
+      reception_mark_voicemail: {
+        Args: { p_id: string; p_session: string };
+        Returns: boolean;
+      };
+      twilio_voicemail_info: {
+        Args: { p_secret: string; p_sid: string };
+        Returns: Json;
+      };
       reception_complete: {
         Args: { p_secret: string; p_id: string; p: Json };
         Returns: undefined;

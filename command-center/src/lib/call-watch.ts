@@ -35,6 +35,10 @@ export type WatchOptions = {
   // Where diagnostics go (default: the screening run's watch_note) and what to say to a hand-off.
   report?: (note: Record<string, unknown>) => Promise<void>;
   handoffReply?: string;
+  // Answering agent: when the assistant says this (handing the caller to voicemail), onVoicemail runs
+  // once she's done talking and the AI leg hangs up, so the call goes on to the tone.
+  voicemailCue?: RegExp;
+  onVoicemail?: () => Promise<void>;
 };
 export type WatchResult = { done: boolean; reason: string };
 
@@ -79,6 +83,8 @@ export async function watchCall({
   report = (note: Record<string, unknown>) =>
     reportWatch(runId, sessionId, note),
   handoffReply = HANDOFF_REPLY,
+  voicemailCue,
+  onVoicemail,
 }: WatchOptions): Promise<WatchResult> {
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) {
@@ -130,6 +136,7 @@ export async function watchCall({
   let handoffs = 0;
   let lastActivity = Date.now();
   let goodbyeAt: number | null = null;
+  let voicemailAt: number | null = null;
   let agentSinceCandidate = "";
   let reason = "";
   let hangupResult = "";
@@ -153,7 +160,13 @@ export async function watchCall({
   await new Promise<void>((resolve) => {
     const timer = setInterval(() => {
       const now = Date.now();
-      if (goodbyeAt && now - lastActivity > AFTER_GOODBYE_MS)
+      if (voicemailAt && now - lastActivity > AFTER_GOODBYE_MS) {
+        voicemailAt = null;
+        void (async () => {
+          await onVoicemail?.().catch((e) => log("Voicemail mark failed", { e: String(e) }));
+          await hangup("caller is leaving a voicemail");
+        })();
+      } else if (goodbyeAt && now - lastActivity > AFTER_GOODBYE_MS)
         void hangup("assistant said goodbye");
       else if (now - lastActivity > DEAD_AIR_MS) void hangup("dead air");
       else if (now - callStartedAt > MAX_CALL_MS)
@@ -226,11 +239,13 @@ export async function watchCall({
         // The candidate kept talking: an earlier goodbye didn't end the call. A sign-off back doesn't count.
         if (!SIGN_OFF.test(text) || text.split(/\s+/).length > 8) {
           goodbyeAt = null;
+          voicemailAt = null;
           agentSinceCandidate = "";
         }
       } else {
         agentSinceCandidate += text;
-        if (GOODBYE.test(agentSinceCandidate)) goodbyeAt ??= Date.now();
+        if (voicemailCue?.test(agentSinceCandidate)) voicemailAt ??= Date.now();
+        else if (GOODBYE.test(agentSinceCandidate)) goodbyeAt ??= Date.now();
       }
     });
   });

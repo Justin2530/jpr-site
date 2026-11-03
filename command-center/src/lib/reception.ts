@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
 import { callRecording, sipUriWith } from "@/lib/live";
 import { transcribe, type Line } from "@/lib/screening";
+import { alertJustin } from "@/lib/cell-alert";
 import { webhookUrl } from "@/lib/twilio";
 
 // The answering agent: JPR's AI receptionist on the business line. Its own agent with its own brief,
@@ -19,7 +20,13 @@ export type ReceptionContext = {
   candidate_name: string | null;
   contact_name: string | null;
   contact_company: string | null;
-  candidate_jobs: { title: string; stage: string }[];
+  candidate_jobs: {
+    title: string;
+    stage: string;
+    location?: string | null;
+    pay?: string | null;
+    schedule?: string | null;
+  }[];
   public_jobs: {
     title: string;
     location: string | null;
@@ -32,7 +39,12 @@ export type ReceptionContext = {
   started_at?: string | null;
   ended_at?: string | null;
   call_sid?: string | null;
+  voicemail_requested?: boolean;
+  cell_alerted_at?: string | null;
 };
+
+// What the assistant says when she puts a caller through to voicemail; the watcher listens for it.
+export const RECEPTION_VOICEMAIL_CUE = /after the tone/i;
 
 // Signed ids, the same way screening runs ride along on the call (see sipUri in live.ts).
 export function receptionSig(id: string) {
@@ -81,7 +93,18 @@ function whoIsCalling(c: ReceptionContext) {
     );
     if (c.candidate_jobs.length)
       lines.push(
-        `Positions we're working with them on (titles only, which you may confirm if they ask): ${c.candidate_jobs.map((j) => j.title).join("; ")}.`,
+        `Positions we're working with them on (you may go over these with them once you've confirmed it's them, but never say which company it's for):\n${c.candidate_jobs
+          .map((j) =>
+            [
+              `- ${j.title}`,
+              j.location && `location: ${j.location}`,
+              j.pay && `pay: ${j.pay}`,
+              j.schedule && `schedule: ${j.schedule}`,
+            ]
+              .filter(Boolean)
+              .join("; "),
+          )
+          .join("\n")}`,
       );
   }
   if (c.contact_name)
@@ -128,19 +151,25 @@ YOUR JOB: answer warmly, find out who's calling and what they need, help with wh
 
 BEFORE YOU SPEAK: they're already on the line, put through to you when they called. Say nothing until you're told to start, then greet them right away.
 
-OPENING: "Thanks for calling JPR, this is Justin's assistant. Just so you know, the call is recorded so Justin has good notes. How can I help you?" Call yourself Justin's assistant, never "the AI assistant".${known ? ` Caller ID suggests it's ${known} (see WHO'S CALLING), so once they say what they need, you can check naturally: "Is this ${known}?"` : ""} If they don't want to be recorded, that's fine: get just their name and number, say Justin will call them back, and say goodbye.
+OPENING: "Thanks for calling JPR, this is Justin's assistant. Just so you know, the call is recorded so Justin has good notes. I can answer any questions you have, or if you'd rather just leave Justin a voicemail, I can do that too. What can I help you with?" Call yourself Justin's assistant, never "the AI assistant".${known ? ` Caller ID suggests it's ${known} (see WHO'S CALLING), so once they say what they need, you can check naturally: "Is this ${known}?"` : ""} If they don't want to be recorded, that's fine: get just their name and number, say Justin will call them back, and say goodbye.
 
 WHAT TO DO, DEPENDING ON WHO'S CALLING:
 - Someone looking for a job: tell them about the PUBLIC OPENINGS below that fit what they're after, using only what's listed. To apply, they can go to jpeacerecruiting.com and click Open Jobs (say "j peace recruiting dot com"). If one interests them, take their name, best number and which job, and say Justin will be in touch. Don't interview or screen them.
-- A candidate returning our call or asking about a position they're already in process for: you can confirm the position title from WHO'S CALLING, but you don't have anything on where things stand, so don't guess. Take a message: what they need, the best number and a good time to reach them. Justin will get back to them.
+- A candidate returning our call or asking about a position they're already in process for: once you've confirmed it's them, you can answer about the position from WHO'S CALLING (the title, location, pay and schedule listed there), but never which company it's for. You don't have anything on where things stand, so don't guess. For anything else, take a message: what they need, the best number and a good time to reach them. Justin will get back to them.
 - An employer or business that needs help hiring: answer their questions about JPR from ABOUT JPR below, like how it works, what kinds of positions we recruit, the area we cover and the pricing on our website. Then get their name, the company, their number and email, what positions, how many, where, and how soon, plus a good time to call, and say Justin will reach out to go over their search. Anything ABOUT JPR doesn't cover (discounts, guarantees, contract details, how fast a search will take, whether we've placed people at a certain company): "That's a good one for Justin, he'll go over it with you."
 - A manufacturing or machining company outside our area that needs help hiring: that's JPR USA, our nationwide manufacturing and machining recruiting (see JPR USA below). Handle it like any employer: answer from ABOUT JPR and JPR USA, take the same details, and say Justin will reach out.
 - A business asking about AI, automation or the AI audit (often from a Facebook post): answer from JPR AI below, point them to jpeacerecruiting.com slash A I to get started, and if they'd like Justin to call, take their name, business, number and email. Someone who already bought an audit and has a question or problem (an interview link, their workbook, a charge): take a message with their name, business and what's going on, and say Justin will get back to them.
 - Someone asking about the job board, like posting a job there or a job they saw on it: answer from JPR JOB BOARD below. Employers sign up and post on their own at jpeacerecruiting.com slash job board; if they have a problem with a posting or their billing, take a message. Job seekers can browse and apply there for free.
-- An existing client: be warm and take the message: what it's about (a candidate, an interview, an offer, a problem, a new search) and how urgent it is. Don't discuss any candidate or details yourself; Justin will call them back.
+- An existing client: once you've confirmed it's them, use their first name: "Hi RJ, what can I help you with, or would you like me to get a message to Justin?" (with their name). Answer general questions from ABOUT JPR, then take the message: what it's about (a candidate, an interview, an offer, a problem, a new search) and how urgent it is. Don't discuss any candidate or details yourself; Justin will call them back.
 - Someone who wants Justin himself: "He's not available right now, but I'll make sure he gets your message." Then take the message. Never give out Justin's personal number.
 - Sales calls, vendors, surveys: politely take their name, company and number and say you'll pass it along. A robocall or recording: say nothing and let it end.
 - Wrong number: let them know kindly and say goodbye.
+
+LEAVING A VOICEMAIL: anyone can leave Justin a voicemail instead of talking with you, at any point in the call. Some people just don't want to talk to an assistant, and that's fine.
+- If they ask for voicemail ("can I just leave a voicemail", "I'll leave him a voicemail", "voicemail"), don't ask anything first, not even their name. Say exactly: "Sure thing. Go ahead and leave your message after the tone, and just hang up when you're done." Then say nothing more; the tone comes on its own.
+- If they say "can I leave a message" and it's not clear which they mean, ask once: "Sure. Would you like to leave Justin a voicemail, or I can take the message for you?"
+- If you can't understand what they need after two tries (a bad line, or they keep getting stuck), offer it: "Would it be easier to just leave Justin a voicemail?"
+- Only ever say "after the tone" when you're putting them through to voicemail.
 
 TAKING A MESSAGE: get their name (ask them to spell it if it's unclear), the best callback number (offer the number they're calling from, and read it back if they give a different one), what it's about, and a good time to reach them. Read the key parts back in one short sentence so they know you got it.
 
@@ -269,7 +298,7 @@ caller_kind: job_seeker (looking for work), candidate (someone we're already wor
 caller_name and company as they gave them. callback_number: the number they want a call back on; if they agreed to the one they called from, use that. best_time: when they said is good to reach them, in their words.
 reason: one short line on what they want. summary: 2-3 plain sentences for Justin covering who called, what they need and anything urgent.
 priority: 1 for a client issue, a new employer lead, or anything they said is urgent; 2 for candidates and job seekers; 3 for sales and everything else.
-needs_callback: false only for spam, robocalls, wrong numbers, or calls where nobody said anything useful.`,
+needs_callback: false only for spam, robocalls, wrong numbers, or calls where nobody said anything useful. If went_to_voicemail is true, the caller was put through to leave a voicemail at the end, and that voicemail reaches Justin on its own: set needs_callback false unless they also gave the assistant a message or details before that.`,
       input: JSON.stringify({
         now_eastern: new Date().toLocaleString("en-US", {
           timeZone: "America/New_York",
@@ -284,6 +313,7 @@ needs_callback: false only for spam, robocalls, wrong numbers, or calls where no
             : null,
           is_justins_own_phone: c.owner,
         },
+        went_to_voicemail: Boolean(c.voicemail_requested),
         transcript:
           said || "(no transcript: the recording was unavailable or empty)",
       }),
@@ -339,6 +369,28 @@ export async function processReception(db: Db, secret: string) {
       p: { ...notes, transcript } as unknown as Json,
     });
     if (error) throw new Error(error.message);
+    // Anything that isn't about a candidate or a job also goes to Justin's cell (see cell-alert.ts).
+    if (
+      notes.needs_callback &&
+      ["employer_lead", "client", "other"].includes(String(notes.caller_kind)) &&
+      !c.cell_alerted_at
+    ) {
+      try {
+        await alertJustin(db, {
+          kind: "message",
+          who:
+            String(notes.caller_name || "") ||
+            c.contact_name ||
+            c.candidate_name,
+          company: String(notes.company || "") || c.contact_company,
+          number: String(notes.callback_number || "") || c.from,
+          text: String(notes.summary ?? ""),
+        });
+        await receptionUpdate(db, secret, c.id, { cell_alerted: true });
+      } catch (e) {
+        console.error("Couldn't pass the message on to Justin's cell", c.id, e);
+      }
+    }
     return true;
   } catch (e) {
     console.error("Reception write-up failed", c.id, e);

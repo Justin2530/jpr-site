@@ -15,7 +15,7 @@ import {
 
 // A call put through to the answering agent (kind=reception) or, for a calling candidate, the screening
 // agent (kind=screening) is over. A finished call goes to the note-taker. If the assistant never came on
-// the line, the caller gets JPR's voicemail instead of silence.
+// the line, the caller gets JPR's voicemail instead of silence, and so does a caller who asked for it.
 export async function POST(request: Request) {
   const p = await readTwilio(request);
   if (!p) return new Response("Forbidden", { status: 403 });
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
   const duration = p.DialCallDuration ? Number(p.DialCallDuration) : null;
 
   let live = false;
+  let voicemail = false;
   if (kind === "screening") {
     const { data } = await db.rpc("screening_get", {
       p_secret: secret,
@@ -58,9 +59,9 @@ export async function POST(request: Request) {
       p_secret: secret,
       p_id: id,
     });
-    live = Boolean(
-      (data as unknown as ReceptionContext | null)?.live_session_id,
-    );
+    const rc = data as unknown as ReceptionContext | null;
+    live = Boolean(rc?.live_session_id);
+    voicemail = Boolean(rc?.voicemail_requested);
     await receptionUpdate(db, secret, id, {
       duration_seconds: duration,
       ended: true,
@@ -72,6 +73,8 @@ export async function POST(request: Request) {
           }),
     });
   }
+  // The caller asked to leave a voicemail: the assistant told them to go ahead, so just the tone.
+  if (answered && live && voicemail) return twiml(voicemailTwiml(origin, ""));
   if (answered && live) return twiml("<Hangup/>");
   return twiml(
     voicemailTwiml(

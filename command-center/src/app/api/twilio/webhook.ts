@@ -48,10 +48,11 @@ export const twiml = (body: string) =>
   });
 
 // JPR's own voicemail, so callers never land in Justin's personal one. The recording is transcribed into the Command Center.
+// An empty greeting goes straight to the tone (the answering agent already told them to go ahead).
 export function voicemailTwiml(origin: string, greeting: string) {
   const done = escapeXml(webhookUrl(origin, "/api/twilio/voicemail"));
   return (
-    `<Say>${greeting}</Say>` +
+    (greeting ? `<Say>${greeting}</Say>` : "") +
     `<Record maxLength="120" timeout="5" playBeep="true" trim="trim-silence" action="${done}" recordingStatusCallback="${done}" recordingStatusCallbackEvent="completed"/>` +
     `<Hangup/>`
   );
