@@ -84,7 +84,15 @@ export async function POST(request: Request) {
       bridged: p.DialBridged,
       status: p.DialCallStatus,
     });
-    if (p.DialBridged === "true") return twiml("<Hangup/>");
+    if (p.DialBridged === "true") {
+      // He took it, so it isn't a missed call.
+      if (p.CallSid)
+        await db.rpc("twilio_call_answered", {
+          p_secret: process.env.TWILIO_WEBHOOK_SECRET ?? "",
+          p_sid: p.CallSid,
+        });
+      return twiml("<Hangup/>");
+    }
     const r = await route();
     return r?.receptionist_on
       ? toAgent({ ...r, screen_cj: null })

@@ -1855,6 +1855,10 @@ export type Database = {
         Args: { p_id: string; p_session: string };
         Returns: boolean;
       };
+      twilio_call_answered: {
+        Args: { p_secret: string; p_sid: string }
+        Returns: undefined
+      }
       twilio_voicemail_info: {
         Args: { p_secret: string; p_sid: string };
         Returns: Json;
