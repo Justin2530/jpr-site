@@ -47,3 +47,13 @@ export function normName(s: string | null | undefined) {
     .join(" ");
 }
 
+
+// National chains and franchise locations (Justin 2026-11-09: "i dont like the results of giant corprate companies
+// like mcdonalds or dollar general"). Hiring there is decided at corporate, so they're skipped. Caught two ways: a
+// known brand name, or a website that is one store's page on a chain's site (store locators, "locations." hosts).
+const CHAIN_NAMES =
+  /^(mcdonald'?s|burger king|wendy'?s|subway|taco bell|kfc|pizza hut|domino'?s|papa john'?s|arby'?s|dairy queen|sonic drive-in|dunkin'?|starbucks|tim hortons|sheetz|get go|getgo|kwik fill|uni-mart|7-eleven|speedway|sunoco|exxon|shell|bp|marathon|citgo|pilot|flying j|love'?s travel|ta travel|dollar general|family dollar|dollar tree|walmart|wal-mart|sam'?s club|target|kmart|aldi|giant eagle|shop ?n ?save|save a lot|weis|walgreens|cvs|rite aid|lowe'?s|the home depot|home depot|tractor supply|harbor freight|autozone|advance auto parts|napa auto parts|o'?reilly auto parts|pep boys|jiffy lube|valvoline|tops|big lots|ollie'?s|tj ?maxx|marshalls|kohl'?s|jcpenney|staples|office depot|best buy|gamestop|verizon|at&t|t-mobile|boost mobile|cricket wireless|h&r block|jackson hewitt|edward jones|state farm|allstate|nationwide|ups store|the ups store|fedex|usps|post office|pnc|citizens bank|wells fargo|chase|northwest bank|s&t bank|first commonwealth|applebee'?s|eat'?n park|denny'?s|cracker barrel|olive garden|red lobster|long john silver'?s|hardee'?s|little caesars|chipotle|panera|wingstop|bob evans|perkins|ponderosa|golden corral|great clips|supercuts|sport clips|planet fitness|anytime fitness|petco|petsmart|goodwill|salvation army|rent-a-center|aaron'?s|enterprise rent-a-car|u-haul|penske|ryder)(\s*(#\s*\d+|\(.*\)|[-–|,].*|\d+|(store|gas|gas station|station|express|pharmacy|travel center|travel plaza|restaurant|market|supercenter|neighborhood market|auto parts|bank|branch)\b.*))?$/i;
+const CHAIN_URL = /^https?:\/\/(locations?|stores?|local|restaurants?|branches?)\.|\/(store|stores|store-directory|location|locations|store-locator|storelocator|find-a-store|findasheetz|branch|branches|restaurant|restaurants)\/[^/?#]+/i;
+export function isChain(name: string | null | undefined, website: string | null | undefined) {
+  return CHAIN_NAMES.test((name ?? "").trim()) || CHAIN_URL.test(website ?? "");
+}

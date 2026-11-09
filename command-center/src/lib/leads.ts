@@ -12,6 +12,7 @@ import { zipCounty } from "@/lib/lead-zips";
 
 type DB = SupabaseClient<Database>;
 export * from "@/lib/leads-shared";
+import { isChain } from "@/lib/leads-shared";
 
 // Hosts Google sometimes lists as a business's "website" that aren't the business's own site.
 const NOT_OWN_SITE = /(^|\.)(facebook\.com|fb\.com|instagram\.com|linkedin\.com|yelp\.com|twitter\.com|x\.com|tiktok\.com|youtube\.com|linktr\.ee|google\.com|goo\.gl|g\.page|nextdoor\.com|bbb\.org|yellowpages\.com|mapquest\.com)$/i;
@@ -522,7 +523,7 @@ export async function runLeadsTick(db: DB, secret: string) {
             // Google also shows businesses outside the zip, even outside the county: file each under the
             // county its own zip is in.
             const area = { state: task.state, county: taskArea(task.county).county };
-            const filed = places.map((p) => ({ ...p, county: zipCounty(p.zip, area)?.county ?? (p.state && p.state !== area.state ? null : area.county) }));
+            const filed = places.filter((p) => !isChain(p.name, p.website)).map((p) => ({ ...p, county: zipCounty(p.zip, area)?.county ?? (p.state && p.state !== area.state ? null : area.county) }));
             const r = await db.rpc("leads_save_task", { p_secret: secret, p_task: task.id, p_places: filed, p_full: rawCount >= 10, p_error: null });
             if (r.error) report.errors.push(`save: ${r.error.message}`);
           } catch (e) {
