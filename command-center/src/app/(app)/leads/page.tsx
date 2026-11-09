@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireStaff } from "@/lib/staff";
 import { Chip, Empty, PageHeader, Panel, Stat } from "@/components/ui";
@@ -88,15 +89,18 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     list,
     supabase.rpc("lead_overview", { p_line: line }),
     supabase.from("lead_searches").select("*").eq("line", line).order("created_at", { ascending: false }).limit(20),
-    supabase.from("lead_searches").select("credits_used"),
+    supabase.from("lead_spend").select("units").eq("service", "serper"),
     supabase.from("lead_list_members").select("lead_businesses!inner(category)").eq("line", line).not("lead_businesses.category", "is", null).limit(5000),
   ]);
+  // Past the last page (the list shrank, e.g. after Clear all): back to page 1 instead of an error.
+  if (listRes.error && page > 1 && /range not satisfiable/i.test(listRes.error.message)) redirect(`/leads?line=${line}`);
   if (listRes.error) throw new Error(listRes.error.message);
   const leads = listRes.data ?? [];
   const total = listRes.count ?? 0;
   const ov = (overviewRes.data ?? null) as Overview | null;
   const searches = searchesRes.data ?? [];
-  const creditsUsed = (creditsRes.data ?? []).reduce((s, r) => s + r.credits_used, 0);
+  // From the spend log, so clearing searches doesn't make used credits look free again.
+  const creditsUsed = (creditsRes.data ?? []).reduce((s, r) => s + r.units, 0);
   const trades = [...new Set((tradesRes.data ?? []).map((r) => r.lead_businesses.category).filter((c): c is string => !!c))].sort();
   const reading = searches.some((s) => s.status === "running" || s.status === "queued");
   const verifiedCount = hasBouncer ? (ov?.deliverable ?? 0) : (ov?.mx_ok ?? 0);
