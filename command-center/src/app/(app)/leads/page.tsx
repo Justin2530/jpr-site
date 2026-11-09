@@ -115,7 +115,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         title="Lead Engine"
         sub="Finds businesses on Google Maps by county and keyword, then gets their emails from their websites and Facebook pages and checks them. Nothing is ever sent from here."
       />
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         {(Object.keys(LINE_LABEL) as LeadLine[]).map((l) => (
           <Link
             key={l}
@@ -125,6 +125,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             {LINE_LABEL[l]}
           </Link>
         ))}
+        <form action={clearLeadEngine} className="ml-auto">
+          <ConfirmSubmit
+            className="btn-quiet text-xs hover:text-rose"
+            question="Clear everything in the Lead Engine? Every search and every business on all three lists will be deleted. Companies you already added stay. This can't be undone."
+          >
+            Clear all lead data
+          </ConfirmSubmit>
+        </form>
       </div>
       <p className="-mt-1 mb-4 text-sm text-muted">{LINE_NOTE[line]}</p>
 
@@ -425,14 +433,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             </div>
           )}
         </Panel>
-        <form action={clearLeadEngine} className="flex justify-end">
-          <ConfirmSubmit
-            className="btn-quiet text-xs hover:text-rose"
-            question="Clear everything in the Lead Engine? Every search and every business on all three lists will be deleted. Companies you already added stay. This can't be undone."
-          >
-            Clear all lead data
-          </ConfirmSubmit>
-        </form>
       </div>
     </>
   );
