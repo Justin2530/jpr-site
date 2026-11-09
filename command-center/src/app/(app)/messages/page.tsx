@@ -6,6 +6,7 @@ import { Chip, Empty, PageHeader } from "@/components/ui";
 import { ChatIcon, MailIcon } from "@/components/icons";
 import { PushToggle } from "@/components/push-toggle";
 import { markConversation, markRead } from "./actions";
+import { UnknownReply } from "./unknown-reply";
 import {
   baseKey,
   convOf,
@@ -429,6 +430,9 @@ export default async function MessagesPage({
                     {u.count > 1 && (
                       <p className="text-xs text-faint">{u.count} texts</p>
                     )}
+                    <div className="mt-1.5">
+                      <UnknownReply to={u.number} name={prettyPhone(u.number)} />
+                    </div>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
                     <Link

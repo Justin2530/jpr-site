@@ -141,6 +141,20 @@ export async function sendText(form: FormData): Promise<OutreachResult> {
   if (!to)
     return { ok: false, message: "That phone number doesn't look right." };
   if (!body) return { ok: false, message: "Write a message first." };
+  // Someone not on file yet: blocked if their latest text to us was STOP.
+  if (!links.candidate_id && !links.contact_id) {
+    const { data: last } = await supabase
+      .from("activities")
+      .select("body")
+      .eq("kind", "text")
+      .eq("direction", "in")
+      .eq("phone_number", to)
+      .order("occurred_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (/^\s*(stop|stopall|unsubscribe|cancel|end|quit)\s*$/i.test(last?.body ?? ""))
+      return { ok: false, message: `${name} replied STOP, so texting is blocked.` };
+  }
   if (await optedOut(supabase, links))
     return {
       ok: false,
@@ -181,6 +195,15 @@ export async function sendText(form: FormData): Promise<OutreachResult> {
       message: `Sent, but not saved to history: ${error.message}`,
     };
   // Answering clears their "Text from" item on What needs me.
+  if (!links.candidate_id && !links.contact_id)
+    await supabase
+      .from("action_items")
+      .update({ status: "done", resolved_at: new Date().toISOString(), resolved_by: userId })
+      .eq("kind", "reply")
+      .eq("status", "open")
+      .is("candidate_id", null)
+      .is("contact_id", null)
+      .eq("title", `Text from ${to}`);
   if (links.candidate_id || links.contact_id)
     await supabase
       .from("action_items")
