@@ -6,7 +6,7 @@ import { ConfirmSubmit } from "@/components/confirm-submit";
 import { shortDate, timeAgo, type Tone } from "@/lib/format";
 import { LINE_LABEL, SERPER_FREE_CREDITS, sizeBand, type LeadLine } from "@/lib/leads-shared";
 import type { Enums } from "@/lib/database.types";
-import { addToCompanies, setSearchStatus } from "./actions";
+import { addToCompanies, clearLeadEngine, setSearchStatus } from "./actions";
 import { LeadStatus } from "./lead-status";
 import { NewSearch } from "./new-search";
 
@@ -425,6 +425,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             </div>
           )}
         </Panel>
+        <form action={clearLeadEngine} className="flex justify-end">
+          <ConfirmSubmit
+            className="btn-quiet text-xs hover:text-rose"
+            question="Clear everything in the Lead Engine? Every search and every business on all three lists will be deleted. Companies you already added stay. This can't be undone."
+          >
+            Clear all lead data
+          </ConfirmSubmit>
+        </form>
       </div>
     </>
   );

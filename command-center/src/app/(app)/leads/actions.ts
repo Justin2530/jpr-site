@@ -158,3 +158,15 @@ export async function addToCompanies(form: FormData) {
   await supabase.from("lead_businesses").update({ company_id: c.id }).eq("id", id);
   redirect(`/companies/${c.id}`);
 }
+
+// Start over (Justin 2026-11-09: "clear all data from the lead engine and run a real search myself"): every
+// search, task and business on every list goes. Businesses already added to Companies stay there; the
+// spend log stays so costs are still on record.
+export async function clearLeadEngine() {
+  const { supabase } = await owner();
+  const a = await supabase.from("lead_businesses").delete().not("id", "is", null);
+  if (a.error) throw new Error(a.error.message);
+  const b = await supabase.from("lead_searches").delete().not("id", "is", null);
+  if (b.error) throw new Error(b.error.message);
+  revalidatePath("/leads");
+}
