@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { ScreeningQuestions } from "@/components/screening-questions";
+import { AdditionalInfo, ScreeningQuestions } from "@/components/screening-questions";
 import { JobFields } from "../job-fields";
 import { createJob, readJobFile, type JobRead } from "../actions";
 
@@ -108,6 +108,7 @@ export function NewJobFlow({ companies, contacts, companyId }: { companies: Comp
           }
         />
         <ScreeningQuestions defaults={j?.screening_questions} />
+        <AdditionalInfo />
         <div className="flex gap-2 pt-2">
           <SubmitButton>Save job</SubmitButton>
           <Link href="/jobs" className="btn-quiet">

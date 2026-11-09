@@ -33,7 +33,13 @@ export async function createJob(form: FormData) {
   const company = await resolveCompany(supabase, form, { userId, marketId: markets[0].id });
   const { data, error } = await supabase
     .from("jobs")
-    .insert({ ...jobFields(form), company_id: company.id, market_id: company.market_id, created_by: userId })
+    .insert({
+      ...jobFields(form),
+      additional_info: form.getAll("info").map((v) => String(v).trim()).filter(Boolean),
+      company_id: company.id,
+      market_id: company.market_id,
+      created_by: userId,
+    })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -101,6 +107,34 @@ export async function deleteGoal(form: FormData) {
   const { error } = await supabase.from("screening_goals").delete().eq("id", String(form.get("id")));
   if (error) throw new Error(error.message);
   revalidatePath(`/jobs/${form.get("job_id")}`);
+}
+
+// Additional information for candidates, added and removed one line at a time on the job page.
+export async function addInfo(form: FormData) {
+  const { supabase } = await requireStaff();
+  const jobId = String(form.get("job_id"));
+  const line = text(form, "info");
+  if (!line) return;
+  const { data, error } = await supabase.from("jobs").select("additional_info").eq("id", jobId).single();
+  if (error) throw new Error(error.message);
+  const { error: e2 } = await supabase.from("jobs").update({ additional_info: [...(data.additional_info ?? []), line] }).eq("id", jobId);
+  if (e2) throw new Error(e2.message);
+  revalidatePath(`/jobs/${jobId}`);
+}
+
+export async function deleteInfo(form: FormData) {
+  const { supabase } = await requireStaff();
+  const jobId = String(form.get("job_id"));
+  const line = String(form.get("line"));
+  const { data, error } = await supabase.from("jobs").select("additional_info").eq("id", jobId).single();
+  if (error) throw new Error(error.message);
+  const list = [...(data.additional_info ?? [])];
+  const at = list.indexOf(line);
+  if (at < 0) return;
+  list.splice(at, 1);
+  const { error: e2 } = await supabase.from("jobs").update({ additional_info: list }).eq("id", jobId);
+  if (e2) throw new Error(e2.message);
+  revalidatePath(`/jobs/${jobId}`);
 }
 
 export async function moveJob(id: string, status: string) {

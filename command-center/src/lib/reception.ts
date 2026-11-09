@@ -26,6 +26,7 @@ export type ReceptionContext = {
     location?: string | null;
     pay?: string | null;
     schedule?: string | null;
+    info?: string[] | null;
   }[];
   public_jobs: {
     title: string;
@@ -33,6 +34,7 @@ export type ReceptionContext = {
     pay: string | null;
     schedule: string | null;
     about: string | null;
+    info?: string[] | null;
   }[];
   status?: string;
   live_session_id?: string | null;
@@ -100,6 +102,7 @@ function whoIsCalling(c: ReceptionContext) {
               j.location && `location: ${j.location}`,
               j.pay && `pay: ${j.pay}`,
               j.schedule && `schedule: ${j.schedule}`,
+              j.info?.length && `also good to know: ${j.info.join(" / ")}`,
             ]
               .filter(Boolean)
               .join("; "),
@@ -130,6 +133,7 @@ function openings(c: ReceptionContext) {
         j.pay && `  Pay: ${j.pay}`,
         j.schedule && `  Schedule: ${j.schedule}`,
         j.about && `  About: ${j.about.replace(/\s+/g, " ").trim()}`,
+        j.info?.length && `  Also good to know: ${j.info.join(" / ")}`,
       ]
         .filter(Boolean)
         .join("\n"),

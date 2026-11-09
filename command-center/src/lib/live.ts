@@ -137,6 +137,7 @@ export type CallContext = {
   compensation: string | null;
   schedule: string | null;
   job_description: string | null;
+  additional_info?: string[] | null;
   company: string;
   hiring_contact: string | null;
   goals: { id: string; question: string; required: boolean }[];
@@ -259,6 +260,7 @@ Ask a short follow-up when an answer is vague, about something that matters for 
 JOB FACTS you may share (never invent anything beyond these). If they ask something these don't answer, like benefits, PTO or overtime, say: "Good question. I don't have that in front of me, but I'll make sure Justin gets back to you on it." Then carry on with the call:
 ${facts}
 ${c.job_description ? `About the job: ${c.job_description.slice(0, 2500)}` : ""}
+${c.additional_info?.length ? `Things Justin wants every candidate to know about this job. Work each one into the call naturally (after the pay question is a good spot, or when it fits what they bring up), in your own words, before the close:\n${c.additional_info.map((l) => `- ${l}`).join("\n")}` : ""}
 
 WHAT WE ALREADY KNOW about them (use it to sound prepared, don't read it back):
 ${[c.current_title && `Current title: ${c.current_title}`, c.current_employer && `Current employer: ${c.current_employer}`, (c.city || c.state) && `Lives in: ${[c.city, c.state].filter(Boolean).join(", ")}`].filter(Boolean).join("\n") || "Not much yet."}

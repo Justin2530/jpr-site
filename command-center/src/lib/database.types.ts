@@ -862,6 +862,7 @@ export type Database = {
       };
       jobs: {
         Row: {
+          additional_info: string[];
           automation_pilot: boolean;
           candidate_description: string | null;
           company_id: string;
@@ -883,6 +884,7 @@ export type Database = {
           visibility: Database["public"]["Enums"]["job_visibility"];
         };
         Insert: {
+          additional_info?: string[];
           automation_pilot?: boolean;
           candidate_description?: string | null;
           company_id: string;
@@ -937,6 +939,7 @@ export type Database = {
       };
       markets: {
         Row: {
+          additional_info: string[];
           created_at: string;
           id: string;
           name: string;

@@ -23,6 +23,8 @@ import { JobFields } from "../job-fields";
 import { QuestionInput } from "@/components/screening-questions";
 import {
   addGoal,
+  addInfo,
+  deleteInfo,
   deleteGoal,
   setJobStatus,
   setJobVisibility,
@@ -497,6 +499,48 @@ export default async function JobDetail({
                 />{" "}
                 Required
               </label>
+              <SubmitButton className="btn-quiet">Add</SubmitButton>
+            </form>
+          </Panel>
+
+          <Panel title="Additional information">
+            <p className="-mt-1 mb-3 text-sm text-muted">
+              Things you want candidates to know that may not be in the job
+              description. The AI call tells them, and the text and phone
+              assistants use them to answer questions.
+            </p>
+            {job.additional_info.length === 0 && <Empty>Nothing added.</Empty>}
+            <ul className="space-y-2">
+              {job.additional_info.map((line, i) => (
+                <li
+                  key={`${i}-${line}`}
+                  className="flex items-center gap-3 rounded-lg border border-line px-3 py-2"
+                >
+                  <span className="flex-1 text-sm">{line}</span>
+                  <form action={deleteInfo}>
+                    <input type="hidden" name="job_id" value={job.id} />
+                    <input type="hidden" name="line" value={line} />
+                    <button
+                      className="text-xs text-faint hover:text-rose"
+                      aria-label="Delete line"
+                    >
+                      ✕
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+            <form
+              action={addInfo}
+              className="mt-3 flex flex-wrap items-center gap-2"
+            >
+              <input type="hidden" name="job_id" value={job.id} />
+              <input
+                name="info"
+                placeholder="Add something candidates should know…"
+                aria-label="New additional information"
+                className="field flex-1"
+              />
               <SubmitButton className="btn-quiet">Add</SubmitButton>
             </form>
           </Panel>

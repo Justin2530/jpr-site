@@ -26,6 +26,7 @@ type Pending = {
   compensation: string | null;
   schedule: string | null;
   job_summary: string | null;
+  additional_info?: string[] | null;
   booked_for: string | null;
   gmail_email: string | null;
   gmail_token: string | null;
@@ -124,6 +125,7 @@ async function decide(p: Pending): Promise<Decision | null> {
       pay: p.compensation,
       schedule: p.schedule,
       summary: p.job_summary,
+      more_info_from_justin: p.additional_info ?? [],
     },
   };
   const res = await fetch("https://api.openai.com/v1/responses", {

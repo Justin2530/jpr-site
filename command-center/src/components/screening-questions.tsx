@@ -73,3 +73,30 @@ export function ScreeningQuestions({ defaults = [] }: { defaults?: string[] }) {
     </fieldset>
   );
 }
+
+// Add job: things Justin wants candidates to know that may not be in the job description, one per line.
+// Optional. The AI call tells candidates, and the text and phone assistants use them to answer questions.
+export function AdditionalInfo({ defaults = [] }: { defaults?: string[] }) {
+  const [count, setCount] = useState(Math.max(1, defaults.length));
+  return (
+    <fieldset className="space-y-2">
+      <legend className="mb-1 text-sm text-muted">
+        Additional information for candidates (optional). Anything you want them to know that may not be in the job
+        description. The AI call will tell them.
+      </legend>
+      {Array.from({ length: count }, (_, i) => (
+        <input
+          key={i}
+          name="info"
+          defaultValue={defaults[i]}
+          aria-label={`Additional information ${i + 1}`}
+          placeholder={i === 0 ? "e.g. Overtime is available most weeks" : "Something else"}
+          className="field w-full"
+        />
+      ))}
+      <button type="button" className="btn-quiet" onClick={() => setCount((n) => n + 1)}>
+        + Add another
+      </button>
+    </fieldset>
+  );
+}
