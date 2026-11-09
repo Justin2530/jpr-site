@@ -16,11 +16,13 @@ const ACCEPT = ".pdf,.docx,.doc,.rtf,.txt";
 export function NewCandidateFlow({
   jobs,
   presetJob,
+  presetPhone,
   automationOn,
   marketField,
 }: {
   jobs: Job[];
   presetJob?: string;
+  presetPhone?: string;
   automationOn: boolean;
   marketField: React.ReactNode;
 }) {
@@ -56,8 +58,13 @@ export function NewCandidateFlow({
   const showForm = Boolean(read) || manual;
   const f = read?.fields;
   const prefill = f
-    ? (Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v || null])) as unknown as Tables<"candidates">)
-    : undefined;
+    ? ({
+        ...Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v || null])),
+        ...(presetPhone && !f.phone ? { phone: presetPhone } : {}),
+      } as unknown as Tables<"candidates">)
+    : presetPhone
+      ? ({ phone: presetPhone } as Tables<"candidates">)
+      : undefined;
   // Asked only when the master switch and the chosen job's switch are both on.
   const canAutomate = automationOn && Boolean(jobs.find((j) => j.id === jobId)?.auto);
   const ready = assign === "no" || (assign === "yes" && jobId && (!canAutomate || automate));

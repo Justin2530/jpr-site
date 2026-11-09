@@ -38,6 +38,11 @@ type Row = {
   relay_status: string | null;
 };
 
+function prettyPhone(n: string) {
+  const d = n.replace(/\D/g, "").slice(-10);
+  return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : n;
+}
+
 function preview(r: Row) {
   const text =
     (r.kind === "email"
@@ -86,6 +91,30 @@ export default async function MessagesPage({
       .from("conversation_states")
       .select("who, state, reason, last_activity_id, judged_at"),
   ]);
+  // Texts from numbers that aren't anyone on file yet (someone Justin reached out to, a new lead): one row per number.
+  const { data: strays } = await supabase
+    .from("activities")
+    .select("id, direction, body, summary, occurred_at, phone_number")
+    .eq("kind", "text")
+    .is("candidate_id", null)
+    .is("contact_id", null)
+    .not("phone_number", "is", null)
+    .gte("occurred_at", currentSince(60))
+    .order("occurred_at", { ascending: false })
+    .limit(200);
+  const unknown = new Map<string, { number: string; last: string; at: string; count: number }>();
+  for (const r of strays ?? []) {
+    const n = r.phone_number!;
+    const u = unknown.get(n);
+    if (u) u.count++;
+    else
+      unknown.set(n, {
+        number: n,
+        last: `${r.direction === "out" ? "You: " : ""}${(r.body || r.summary || "").replace(/\s+/g, " ").trim()}`,
+        at: r.occurred_at,
+        count: 1,
+      });
+  }
   await repairEmailBodies(supabase, rows ?? []);
   const stateOf = new Map((states ?? []).map((s) => [s.who, s]));
   const readAt = new Map((reads ?? []).map((r) => [r.who, r.read_at]));
@@ -371,6 +400,55 @@ export default async function MessagesPage({
             </Link>
           ))}
         </div>
+        {unknown.size > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Not on file yet{" "}
+              <span className="font-mono text-faint">{unknown.size}</span>
+            </h2>
+            <p className="text-xs text-faint">
+              Texts from numbers that aren&apos;t a candidate or contact. Add them and the
+              conversation moves into the right place.
+            </p>
+            <ul className="panel divide-y divide-line overflow-hidden">
+              {[...unknown.values()].map((u) => (
+                <li key={u.number} className="flex flex-wrap items-start gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${u.number}`} className="font-medium link">
+                        {prettyPhone(u.number)}
+                      </a>
+                      <span className="ml-auto shrink-0 font-mono text-[10.5px] text-faint">
+                        {timeAgo(u.at)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-sm text-ink">
+                      <ChatIcon className="h-3.5 w-3.5 shrink-0 text-faint" />
+                      <span className="line-clamp-2">{u.last}</span>
+                    </p>
+                    {u.count > 1 && (
+                      <p className="text-xs text-faint">{u.count} texts</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-1.5">
+                    <Link
+                      href={`/contacts/new?phone=${encodeURIComponent(u.number)}`}
+                      className="btn-quiet py-1 text-xs"
+                    >
+                      Add as contact
+                    </Link>
+                    <Link
+                      href={`/candidates/new?phone=${encodeURIComponent(u.number)}`}
+                      className="btn-quiet py-1 text-xs"
+                    >
+                      Add as candidate
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {list.length === 0 ? (
           <Empty>
             {tab === "unread"
