@@ -2123,6 +2123,14 @@ export type Database = {
         Args: { p_id: string; p_secret: string };
         Returns: undefined;
       };
+      leads_verify_release: {
+        Args: { p_id: string; p_secret: string };
+        Returns: undefined;
+      };
+      lead_credits_used: {
+        Args: { p_service: string };
+        Returns: number;
+      };
       leads_claim_guess: {
         Args: { p_limit: number; p_secret: string; p_wait_fb: boolean };
         Returns: { domain: string; id: string; owner_name: string | null; search_id: string | null }[];

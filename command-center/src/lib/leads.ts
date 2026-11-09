@@ -341,7 +341,7 @@ async function runBouncer(db: DB, secret: string, key: string, more: () => boole
       let stop = false;
       await pool(batch, 5, async (b) => {
         if (stop) {
-          await db.rpc("leads_verify_failed", { p_secret: secret, p_id: b.id });
+          await db.rpc("leads_verify_release", { p_secret: secret, p_id: b.id });
           return;
         }
         try {
@@ -350,7 +350,8 @@ async function runBouncer(db: DB, secret: string, key: string, more: () => boole
           spend.set(b.search_id, (spend.get(b.search_id) ?? 0) + 1);
           done++;
         } catch (e) {
-          await db.rpc("leads_verify_failed", { p_secret: secret, p_id: b.id });
+          // A Bouncer hold (no credits, bad key) says nothing about this email: give its try back.
+          await db.rpc(e instanceof BouncerHold ? "leads_verify_release" : "leads_verify_failed", { p_secret: secret, p_id: b.id });
           if (e instanceof BouncerHold) stop = true;
           if (stop) throw e;
         }
@@ -523,7 +524,7 @@ export async function runLeadsTick(db: DB, secret: string) {
             // Google also shows businesses outside the zip, even outside the county: file each under the
             // county its own zip is in.
             const area = { state: task.state, county: taskArea(task.county).county };
-            const filed = places.filter((p) => !isChain(p.name, p.website)).map((p) => ({ ...p, county: zipCounty(p.zip, area)?.county ?? (p.state && p.state !== area.state ? null : area.county) }));
+            const filed = places.filter((p) => !isChain(p.name, p.website) && (!p.state || p.state === area.state)).map((p) => ({ ...p, county: zipCounty(p.zip, area)?.county ?? (p.state && p.state !== area.state ? null : area.county) }));
             const r = await db.rpc("leads_save_task", { p_secret: secret, p_task: task.id, p_places: filed, p_full: rawCount >= 10, p_error: null });
             if (r.error) report.errors.push(`save: ${r.error.message}`);
           } catch (e) {

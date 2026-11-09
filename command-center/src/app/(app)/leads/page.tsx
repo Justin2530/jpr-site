@@ -89,7 +89,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     list,
     supabase.rpc("lead_overview", { p_line: line }),
     supabase.from("lead_searches").select("*").eq("line", line).order("created_at", { ascending: false }).limit(20),
-    supabase.from("lead_spend").select("units").eq("service", "serper"),
+    supabase.rpc("lead_credits_used", { p_service: "serper" }),
     supabase.from("lead_list_members").select("lead_businesses!inner(category)").eq("line", line).not("lead_businesses.category", "is", null).limit(5000),
   ]);
   // Past the last page (the list shrank, e.g. after Clear all): back to page 1 instead of an error.
@@ -100,7 +100,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const ov = (overviewRes.data ?? null) as Overview | null;
   const searches = searchesRes.data ?? [];
   // From the spend log, so clearing searches doesn't make used credits look free again.
-  const creditsUsed = (creditsRes.data ?? []).reduce((s, r) => s + r.units, 0);
+  const creditsUsed = Number(creditsRes.data ?? 0);
   const trades = [...new Set((tradesRes.data ?? []).map((r) => r.lead_businesses.category).filter((c): c is string => !!c))].sort();
   const reading = searches.some((s) => s.status === "running" || s.status === "queued");
   const verifiedCount = hasBouncer ? (ov?.deliverable ?? 0) : (ov?.mx_ok ?? 0);
