@@ -1,0 +1,70 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/job-board",
+      "destination": "https://jpr-job-board.vercel.app/job-board"
+    },
+    {
+      "source": "/job-board/:path*",
+      "destination": "https://jpr-job-board.vercel.app/job-board/:path*"
+    },
+    {
+      "source": "/ai/i/:path*",
+      "destination": "https://jpr-ai.vercel.app/i/:path*"
+    },
+    {
+      "source": "/ai/s/:path*",
+      "destination": "https://jpr-ai.vercel.app/s/:path*"
+    },
+    {
+      "source": "/ai/api/i/:path*",
+      "destination": "https://jpr-ai.vercel.app/api/i/:path*"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
+    {
+      "source": "/jobs",
+      "destination": "/api/jobs"
+    },
+    {
+      "source": "/jobs/:id",
+      "destination": "/api/job?id=:id"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    },
+    {
+      "source": "/img/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/nationwide-manufacturing",
+      "destination": "/usa",
+      "permanent": true
+    },
+    {
+      "source": "/manufacturing",
+      "destination": "/usa",
+      "permanent": true
+    }
+  ]
+}
