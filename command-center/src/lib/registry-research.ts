@@ -251,36 +251,34 @@ export async function runRegistryTick(db: DB, secret: string, only?: number) {
   const report = { researched: 0, errors: [] as string[], held: false };
   const key = process.env.BRIGHTDATA_API_KEY?.trim();
   if (!key) return { ...report, errors: ["no Bright Data key"] };
-  // Ticks come every 2 minutes; stopping new batches after 100 seconds keeps two ticks from searching at once.
-  while (Date.now() - started < 100_000 && !report.held) {
-    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 20 * zones().length });
-    if (error) throw new Error(error.message);
-    if (!batch?.length) break;
-    await Promise.all(
-      batch.map(async (row) => {
-        if (report.held) {
+  // Ticks come every 2 minutes; workers stop taking new businesses after 100 seconds so two ticks rarely search at
+  // once. Each worker takes one business at a time, so one slow website doesn't hold up the others; the 1.3-second
+  // spacing in paced() keeps the total under Bright Data's limit.
+  const worker = async () => {
+    while (Date.now() - started < 100_000 && !report.held) {
+      const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: 1 });
+      if (error) throw new Error(error.message);
+      const row = batch?.[0];
+      if (!row) return;
+      try {
+        const data = await researchOne(key, row);
+        const r = await db.rpc("lead_registry_save", { p_secret: secret, p_filing: row.filing, p_data: data as unknown as Json });
+        if (r.error) report.errors.push(`save: ${r.error.message}`);
+        else report.researched++;
+      } catch (e) {
+        // No credits, a bad key or zone: stop and give the try back.
+        if (e instanceof SerpHold && [401, 402, 403, 407, 429].includes(e.status)) {
+          report.held = true;
           await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });
-          return;
+        } else if (e instanceof Error && /auto-throttled/i.test(e.message)) {
+          // Throttled is not this business's fault: give the try back so it is searched again later.
+          await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });
         }
-        try {
-          const data = await researchOne(key, row);
-          const r = await db.rpc("lead_registry_save", { p_secret: secret, p_filing: row.filing, p_data: data as unknown as Json });
-          if (r.error) report.errors.push(`save: ${r.error.message}`);
-          else report.researched++;
-        } catch (e) {
-          // No credits, a bad key or zone: stop and give the try back.
-          if (e instanceof SerpHold && [401, 402, 403, 407, 429].includes(e.status)) {
-            report.held = true;
-            await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });
-          } else if (e instanceof Error && /auto-throttled/i.test(e.message)) {
-            // Throttled is not this business's fault: give the try back so it is searched again later.
-            await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });
-          }
-          if (report.errors.length < 5) report.errors.push(e instanceof Error ? e.message : String(e));
-        }
-      }),
-    );
-    if (only) break;
-  }
+        if (report.errors.length < 5) report.errors.push(e instanceof Error ? e.message : String(e));
+      }
+      if (only) return;
+    }
+  };
+  await Promise.all(Array.from({ length: only ?? 16 * zones().length }, worker));
   return report;
 }
