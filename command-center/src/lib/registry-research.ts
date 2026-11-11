@@ -139,10 +139,16 @@ const SCHEMA = {
     what_they_do: { type: ["string", "null"] },
     employees_est: { type: ["integer", "null"] },
     size_guess: { type: "string", enum: ["4+", "under 4", "unknown"] },
+    people: {
+      type: "array",
+      items: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, title: { type: ["string", "null"] } }, required: ["name", "title"] },
+    },
+    hiring: { type: "boolean" },
+    careers_url: { type: ["string", "null"] },
     confidence: { type: "string", enum: ["high", "medium", "low"] },
     evidence: { type: "string" },
   },
-  required: ["found", "closed", "website", "phone", "address", "category", "rating", "reviews", "facebook", "what_they_do", "employees_est", "size_guess", "confidence", "evidence"],
+  required: ["found", "closed", "website", "phone", "address", "category", "rating", "reviews", "facebook", "what_they_do", "employees_est", "size_guess", "people", "hiring", "careers_url", "confidence", "evidence"],
 };
 
 const RULES = `You research one small business in western Pennsylvania for a recruiting firm that only wants employers with 4 or more employees, in any industry.
@@ -152,6 +158,8 @@ You get the state registry record, a Google results page (JSON) and text from th
 - Copy website, phone, address, category, rating, review count and Facebook page only from the results (the snack_pack local listings carry phone, rating, reviews_cnt, type and the street address inside maps_link); never invent them. Facebook must be a facebook.com address, not a google.com redirect.
 - employees_est: your best whole-number estimate of employees, or null if there is nothing to go on. Use stated employee counts first (website, LinkedIn "11-50 employees", PPP or retirement-plan counts given), then signals: number of locations, trucks, crews, shifts, job postings, staff pages, review volume (a shop with 100+ reviews is rarely 1-2 people), type of business (a manufacturer, nursing home or trucking company is usually 4+; a solo consultant, rental property or holding LLC is under 4).
 - size_guess: "4+" or "under 4" when the evidence leans that way, "unknown" when you can't tell or nothing was found.
+- people: named owners, managers and staff with their titles exactly as the website or results show them (up to 8; most senior first); empty if none. Never invent names.
+- hiring: true if the website or results show open jobs or a careers/now-hiring page; careers_url is that page's address, or null.
 - evidence: one short plain sentence saying why.`;
 
 async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: string | null; text: string }) {
@@ -234,7 +242,7 @@ export async function researchOne(key: string, row: Row) {
     maps_address: v.address,
     employees_est: v.employees_est,
     size_guess: v.size_guess,
-    research: { found: v.found, facebook: v.facebook, what_they_do: v.what_they_do, confidence: v.confidence, evidence: v.evidence },
+    research: { found: v.found, facebook: v.facebook, what_they_do: v.what_they_do, people: found ? v.people : [], hiring: found ? v.hiring : false, careers_url: found ? v.careers_url : null, confidence: v.confidence, evidence: v.evidence },
   };
 }
 
