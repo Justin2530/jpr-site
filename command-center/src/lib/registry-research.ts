@@ -165,14 +165,41 @@ async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: 
   return JSON.parse(out) as Record<string, unknown> & { size_guess: string; employees_est: number | null };
 }
 
+const GENERIC = new Set("llc inc incorporated co corp corporation company ltd the and of pc pllc lp llp limited services service enterprises group pa".split(" "));
+function coreWords(name: string) {
+  return name.toLowerCase().replace(/&/g, " ").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !GENERIC.has(w));
+}
+// Does any local listing or top result carry most of the business's distinctive words?
+function mentioned(name: string, j: Record<string, unknown>) {
+  const words = coreWords(name);
+  if (!words.length) return true;
+  const texts: string[] = [];
+  for (const k of ["snack_pack", "organic"]) {
+    const list = Array.isArray(j[k]) ? (j[k] as Record<string, unknown>[]) : [];
+    for (const o of list.slice(0, 8)) texts.push([o.name, o.title, o.link, o.description].filter((x) => typeof x === "string").join(" ").toLowerCase().replace(/[^a-z0-9 ]/g, " "));
+  }
+  const need = Math.max(1, Math.ceil(words.length * 0.67));
+  return texts.some((t) => words.filter((w) => t.includes(w)).length >= need);
+}
+
 export async function researchOne(key: string, row: Row) {
   const town = row.city ? `${row.city} PA` : `${row.county} County PA`;
   const s = await serp(key, `${row.name.replace(/,?\s+(llc|inc\.?|incorporated|corp\.?|co\.?|ltd\.?)$/i, "")} ${town}`);
+  // Skip the website read and the AI when nothing on Google's page even mentions the name (most of these are
+  // long-closed companies), unless a free headcount says it has staff.
+  if (!mentioned(row.name, s) && !(row.ppp_jobs || row.plan_people)) {
+    return {
+      website: null, phone: null, rating: null, reviews: null, category: null, closed: null, maps_address: null,
+      employees_est: null, size_guess: "unknown",
+      research: { found: false, facebook: null, what_they_do: null, confidence: "medium", evidence: "Nothing on Google mentions this business by name." },
+    };
+  }
   const site = await siteText(s);
   const v = await judge(row, s, site);
+  const found = v.found === true;
   return {
-    website: (v.website as string | null) ?? site.site,
-    phone: v.phone,
+    website: found ? ((v.website as string | null) ?? site.site) : null,
+    phone: found ? v.phone : null,
     rating: v.rating,
     reviews: v.reviews,
     category: v.category,
