@@ -230,7 +230,7 @@ export async function runRegistryTick(db: DB, secret: string, only?: number) {
   const key = process.env.BRIGHTDATA_API_KEY?.trim();
   if (!key) return { ...report, errors: ["no Bright Data key"] };
   while (Date.now() - started < 200_000 && !report.held) {
-    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 12 });
+    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 30 });
     if (error) throw new Error(error.message);
     if (!batch?.length) break;
     await Promise.all(
