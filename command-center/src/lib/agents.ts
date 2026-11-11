@@ -14,11 +14,13 @@ export type Agent = {
   seeIt?: { label: string; href: string };
   brain: string;
   code: string;
+  feeds?: string[]; // agents this one hands work to (drawn as links on the map)
 };
 
 export const AGENTS: Agent[] = [
   {
     key: "reception",
+    feeds: ["messenger"],
     name: "Ava",
     title: "Receptionist",
     team: "Front desk",
@@ -47,26 +49,6 @@ export const AGENTS: Agent[] = [
     never: ["Contacts anyone but you."],
     brain: "Twilio voice (no AI decisions)",
     code: "lib/cell-alert.ts",
-  },
-  {
-    key: "third_eye",
-    name: "Third Eye",
-    title: "Inbox Assistant",
-    team: "Inbox & messages",
-    does: [
-      "Reads every new email in your Gmail (Indeed first, but from anywhere).",
-      "Picks out possible candidates, adds them, and works out which job they mean.",
-      "Drafts answers to their questions from that job's facts.",
-    ],
-    when: "Every minute, as new mail comes in.",
-    never: [
-      "Recruits: no outreach, texts or calls start until you put someone on a job and choose to automate.",
-      "Sends replies on its own unless you turn on automatic replies in Settings; until then they wait for your OK.",
-      "Touches client emails or candidates already in automated recruiting.",
-    ],
-    seeIt: { label: "What needs me", href: "/" },
-    brain: "OpenAI gpt-5-mini",
-    code: "lib/third-eye.ts",
   },
   {
     key: "triage",
@@ -100,7 +82,29 @@ export const AGENTS: Agent[] = [
     code: "lib/conversations.ts",
   },
   {
+    key: "third_eye",
+    feeds: ["brain"],
+    name: "Third Eye",
+    title: "Inbox Assistant",
+    team: "Inbox & messages",
+    does: [
+      "Reads every new email in your Gmail (Indeed first, but from anywhere).",
+      "Picks out possible candidates, adds them, and works out which job they mean.",
+      "Drafts answers to their questions from that job's facts.",
+    ],
+    when: "Every minute, as new mail comes in.",
+    never: [
+      "Recruits: no outreach, texts or calls start until you put someone on a job and choose to automate.",
+      "Sends replies on its own unless you turn on automatic replies in Settings; until then they wait for your OK.",
+      "Touches client emails or candidates already in automated recruiting.",
+    ],
+    seeIt: { label: "What needs me", href: "/" },
+    brain: "OpenAI gpt-5-mini",
+    code: "lib/third-eye.ts",
+  },
+  {
     key: "brain",
+    feeds: ["screening"],
     name: "Riley",
     title: "Recruiting Assistant",
     team: "Recruiting",
@@ -119,7 +123,23 @@ export const AGENTS: Agent[] = [
     code: "lib/brain.ts",
   },
   {
+    key: "job_intake",
+    feeds: ["screening"],
+    name: "Drew",
+    title: "Job Intake",
+    team: "Recruiting",
+    does: [
+      "Turns a pasted job description into a job: title, company, location, pay, schedule and screening questions.",
+    ],
+    when: "When you paste a job description on the Jobs page.",
+    never: ["Saves anything until you review and save the job."],
+    seeIt: { label: "Jobs", href: "/jobs" },
+    brain: "OpenAI gpt-5-mini",
+    code: "lib/job-parse.ts",
+  },
+  {
     key: "screening",
+    feeds: ["call_watch", "writeup"],
     name: "Morgan",
     title: "Screening Recruiter",
     team: "Recruiting",
@@ -151,23 +171,8 @@ export const AGENTS: Agent[] = [
     code: "lib/call-watch.ts",
   },
   {
-    key: "writeup",
-    name: "Quinn",
-    title: "Submission Writer",
-    team: "Recruiting",
-    does: [
-      "Transcribes each finished screening call.",
-      "Writes the call notes and screening answers onto the candidate's job tab.",
-      "Drafts the client submission in your style for you to Send, Edit, Hold or Pass.",
-    ],
-    when: "Right after each screening call ends.",
-    never: ["Sends a submission. Every one waits for your click."],
-    seeIt: { label: "What needs me", href: "/" },
-    brain: "OpenAI Whisper + gpt-5-mini",
-    code: "lib/screening.ts, lib/submission.ts",
-  },
-  {
     key: "resume",
+    feeds: ["writeup"],
     name: "Parker",
     title: "Resume Formatter",
     team: "Recruiting",
@@ -182,18 +187,21 @@ export const AGENTS: Agent[] = [
     code: "lib/resume-brand.ts",
   },
   {
-    key: "job_intake",
-    name: "Drew",
-    title: "Job Intake",
+    key: "writeup",
+    feeds: ["relay"],
+    name: "Quinn",
+    title: "Submission Writer",
     team: "Recruiting",
     does: [
-      "Turns a pasted job description into a job: title, company, location, pay, schedule and screening questions.",
+      "Transcribes each finished screening call.",
+      "Writes the call notes and screening answers onto the candidate's job tab.",
+      "Drafts the client submission in your style for you to Send, Edit, Hold or Pass.",
     ],
-    when: "When you paste a job description on the Jobs page.",
-    never: ["Saves anything until you review and save the job."],
-    seeIt: { label: "Jobs", href: "/jobs" },
-    brain: "OpenAI gpt-5-mini",
-    code: "lib/job-parse.ts",
+    when: "Right after each screening call ends.",
+    never: ["Sends a submission. Every one waits for your click."],
+    seeIt: { label: "What needs me", href: "/" },
+    brain: "OpenAI Whisper + gpt-5-mini",
+    code: "lib/screening.ts, lib/submission.ts",
   },
   {
     key: "relay",

@@ -209,3 +209,19 @@ body {
     box-shadow: none !important;
   }
 }
+
+/* AI team map (agents page) */
+@keyframes map-flow { to { stroke-dashoffset: -20; } }
+@keyframes map-spin { to { transform: rotate(360deg); } }
+@keyframes map-pulse { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes map-core { 0%, 100% { filter: drop-shadow(0 0 6px rgb(var(--glow) / 0.6)); } 50% { filter: drop-shadow(0 0 22px rgb(var(--glow) / 0.9)); } }
+.agent-map .map-flow { animation: map-flow 1.4s linear infinite; }
+.agent-map .map-spin, .agent-map .map-spin-rev, .agent-map .map-pulse { transform-box: fill-box; transform-origin: center; }
+.agent-map .map-spin { animation: map-spin 40s linear infinite; }
+.agent-map .map-spin-rev { animation: map-spin 28s linear infinite reverse; }
+.agent-map .map-pulse { animation: map-pulse 2.2s ease-out infinite; }
+.agent-map .map-core { animation: map-core 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .agent-map .map-flow, .agent-map .map-spin, .agent-map .map-spin-rev, .agent-map .map-pulse, .agent-map .map-core { animation: none; }
+  .agent-map .map-packet { display: none; }
+}

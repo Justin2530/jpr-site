@@ -1,10 +1,13 @@
 import { requireStaff } from "@/lib/staff";
-import { Chip, Empty, PageHeader, Panel, Stat } from "@/components/ui";
-import { SubmitButton } from "@/components/submit-button";
+import { Empty, PageHeader, Stat } from "@/components/ui";
 import { AGENTS, TEAMS } from "@/lib/agents";
-import { renameAgent } from "./actions";
+import { AgentMap } from "./agent-map";
 
 export const metadata = { title: "AI team · JPR" };
+
+function dayAgo() {
+  return new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+}
 
 export default async function AgentsPage() {
   const { supabase, staff } = await requireStaff();
@@ -16,75 +19,51 @@ export default async function AgentsPage() {
       </>
     );
   }
-  const { data } = await supabase.from("agent_names").select("key, name");
-  const names = new Map((data ?? []).map((r) => [r.key, r.name]));
+  const since = dayAgo();
+  const count = async (q: PromiseLike<{ count: number | null; error: unknown }>) => {
+    const r = await q;
+    return r.error ? null : (r.count ?? 0);
+  };
+  const head = { count: "exact" as const, head: true };
+  // What each agent did in the last 24 hours, where its work leaves a clear trace. null = no counter for it yet.
+  const [names, reception, messenger, screening, writeup, brain, relay, resume, registry] = await Promise.all([
+    supabase.from("agent_names").select("key, name"),
+    count(supabase.from("reception_calls").select("id", head).gte("created_at", since)),
+    count(supabase.from("reception_calls").select("id", head).gte("cell_alerted_at", since)),
+    count(supabase.from("screening_runs").select("id", head).eq("by_hand", false).gte("started_at", since)),
+    count(supabase.from("screening_runs").select("id", head).not("summary", "is", null).gte("ended_at", since)),
+    count(supabase.from("activities").select("id", head).gte("brain_claimed_at", since)),
+    count(supabase.from("activities").select("id", head).gte("relay_claimed_at", since)),
+    count(supabase.from("resumes").select("id", head).not("branded_from", "is", null).gte("created_at", since)),
+    count(supabase.from("lead_registry").select("filing", head).gte("researched_at", since)),
+  ]);
+  const live: Record<string, number | null> = {
+    reception,
+    messenger,
+    screening,
+    call_watch: screening,
+    writeup,
+    brain,
+    relay,
+    resume,
+    registry,
+  };
+  const nameMap = Object.fromEntries((names.data ?? []).map((r) => [r.key, r.name]));
   const usesAi = AGENTS.filter((a) => !/no AI decisions/i.test(a.brain)).length;
+  const working = AGENTS.filter((a) => (live[a.key] ?? 0) > 0).length;
+  const actions = Object.entries(live).reduce((s, [k, v]) => (k === "call_watch" ? s : s + (v ?? 0)), 0);
 
   return (
     <>
-      <PageHeader
-        kicker="Business"
-        title="AI team"
-        sub="Who does what in JPR Local. Click Rename on any card to give them your own name."
-      />
+      <PageHeader kicker="Business" title="AI team" sub="Your agents, what each one does, and how work moves between them." />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Team members" value={AGENTS.length} />
-        <Stat label="AI agents" value={usesAi} tone="mint" />
-        <Stat label="Helpers (no AI)" value={AGENTS.length - usesAi} tone="muted" />
-        <Stat label="Teams" value={TEAMS.length} tone="amber" />
+        <Stat label="Working (24h)" value={working} tone="mint" />
+        <Stat label="Actions (24h)" value={actions.toLocaleString("en-US")} tone="amber" />
+        <Stat label="AI agents · helpers" value={`${usesAi} · ${AGENTS.length - usesAi}`} tone="muted" />
       </div>
-
-      <div className="space-y-6">
-        {TEAMS.map((team) => (
-          <Panel key={team} title={team}>
-            <div className="grid gap-4 lg:grid-cols-2">
-              {AGENTS.filter((a) => a.team === team).map((a) => (
-                <article key={a.key} className="rounded-lg border border-line p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold text-ink">{names.get(a.key) ?? a.name}</h3>
-                    <Chip tone="cyan">{a.title}</Chip>
-                  </div>
-                  <p className="mt-1 text-xs text-faint">{a.brain}</p>
-
-                  <p className="panel-title mt-3">What they do</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted">
-                    {a.does.map((d) => (
-                      <li key={d}>{d}</li>
-                    ))}
-                  </ul>
-
-                  <p className="panel-title mt-3">When</p>
-                  <p className="mt-1 text-sm text-muted">{a.when}</p>
-
-                  <p className="panel-title mt-3">Never</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted">
-                    {a.never.map((d) => (
-                      <li key={d}>{d}</li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
-                    {a.seeIt && (
-                      <a href={a.seeIt.href} className="link">
-                        See their work: {a.seeIt.label}
-                      </a>
-                    )}
-                    <details>
-                      <summary className="cursor-pointer text-cyan">Rename</summary>
-                      <form action={renameAgent} className="mt-2 flex gap-2">
-                        <input type="hidden" name="key" value={a.key} />
-                        <input name="name" required maxLength={40} defaultValue={names.get(a.key) ?? a.name} className="field" aria-label={`New name for the ${a.title}`} />
-                        <SubmitButton>Save</SubmitButton>
-                      </form>
-                    </details>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </Panel>
-        ))}
-        <p className="text-sm text-faint">JPR AI and the Job Board run in their own command centers, so their agents aren&apos;t listed here.</p>
-      </div>
+      <AgentMap agents={AGENTS} names={nameMap} live={live} teams={TEAMS} />
+      <p className="mt-6 text-sm text-faint">JPR AI and the Job Board run in their own command centers, so their agents aren&apos;t listed here.</p>
     </>
   );
 }
