@@ -11,7 +11,7 @@ type DB = SupabaseClient<Database>;
 type Row = Database["public"]["Tables"]["lead_registry"]["Row"];
 
 export const SERP_COST = 0.0015;
-const zone = () => process.env.BRIGHTDATA_SERP_ZONE?.trim() || "jpr_serp";
+const zone = () => process.env.BRIGHTDATA_SERP_ZONE?.trim() || "serp_api1";
 
 export async function serp(key: string, q: string) {
   const url = `https://www.google.com/search?q=${encodeURIComponent(q)}&gl=us&hl=en&brd_json=1`;
