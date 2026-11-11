@@ -5,7 +5,7 @@ import { getPage } from "@/lib/leads";
 // Research agent for the PA registry list (Justin, 2026-11-11). Kept out of the Command Center screens:
 // it fills the hidden lead_registry table and the results go to him as a spreadsheet.
 // For each business: one Google search through Bright Data's SERP API, a read of its own website,
-// then a small AI read of both that pulls out the facts and guesses whether it has 5+ employees.
+// then a small AI read of both that pulls out the facts and guesses whether it has 4+ employees.
 
 type DB = SupabaseClient<Database>;
 type Row = Database["public"]["Tables"]["lead_registry"]["Row"];
@@ -110,20 +110,20 @@ const SCHEMA = {
     facebook: { type: ["string", "null"] },
     what_they_do: { type: ["string", "null"] },
     employees_est: { type: ["integer", "null"] },
-    size_guess: { type: "string", enum: ["5+", "under 5", "unknown"] },
+    size_guess: { type: "string", enum: ["4+", "under 4", "unknown"] },
     confidence: { type: "string", enum: ["high", "medium", "low"] },
     evidence: { type: "string" },
   },
   required: ["found", "closed", "website", "phone", "address", "category", "rating", "reviews", "facebook", "what_they_do", "employees_est", "size_guess", "confidence", "evidence"],
 };
 
-const RULES = `You research one small business in western Pennsylvania for a recruiting firm that only wants employers with 5 or more employees.
+const RULES = `You research one small business in western Pennsylvania for a recruiting firm that only wants employers with 4 or more employees, in any industry.
 You get the state registry record, a Google results page (JSON) and text from the business's website, if found.
 - found: true only if the Google results clearly show this same business (same or very close name, same town or county). Directories that only repeat the state filing (bizapedia, opencorporates, corporationwiki) do not count as found.
 - closed: true if Google says permanently closed, or the business is clearly gone.
 - Copy website, phone, address, category, rating, review count and Facebook page only from the results; never invent them.
-- employees_est: your best whole-number estimate of employees, or null if there is nothing to go on. Use stated employee counts first (website, LinkedIn "11-50 employees", PPP or retirement-plan counts given), then signals: number of locations, trucks, crews, shifts, job postings, staff pages, review volume (a shop with 100+ reviews is rarely 1-2 people), type of business (a manufacturer, nursing home or trucking company is usually 5+; a solo consultant, rental property or holding LLC is under 5).
-- size_guess: "5+" or "under 5" when the evidence leans that way, "unknown" when you can't tell or nothing was found.
+- employees_est: your best whole-number estimate of employees, or null if there is nothing to go on. Use stated employee counts first (website, LinkedIn "11-50 employees", PPP or retirement-plan counts given), then signals: number of locations, trucks, crews, shifts, job postings, staff pages, review volume (a shop with 100+ reviews is rarely 1-2 people), type of business (a manufacturer, nursing home or trucking company is usually 4+; a solo consultant, rental property or holding LLC is under 4).
+- size_guess: "4+" or "under 4" when the evidence leans that way, "unknown" when you can't tell or nothing was found.
 - evidence: one short plain sentence saying why.`;
 
 async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: string | null; text: string }) {
