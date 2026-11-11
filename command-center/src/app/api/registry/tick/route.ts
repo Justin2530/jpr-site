@@ -10,10 +10,19 @@ export const maxDuration = 300;
 // {"one": {name, city, county}} researches one business without saving, for checking the agent.
 export async function POST(request: Request) {
   if (!validAutomationSecret(request.headers.get("x-jpr-automation"))) return new NextResponse("forbidden", { status: 403 });
-  const body = (await request.json().catch(() => ({}))) as { test?: string; one?: { name: string; city?: string; county?: string } };
+  const body = (await request.json().catch(() => ({}))) as { check?: boolean; test?: string; one?: { name: string; city?: string; county?: string } };
   const db = webhookDb();
   try {
     const key = process.env.BRIGHTDATA_API_KEY?.trim();
+    if (body.check) {
+      // Which Bright Data calls this key may make (no key text is returned).
+      const out: Record<string, unknown> = { key_length: key?.length ?? 0 };
+      for (const p of ["/zone/get_active_zones", "/status", "/customer/balance"]) {
+        const r = await fetch(`https://api.brightdata.com${p}`, { headers: { Authorization: `Bearer ${key}` } });
+        out[p] = `${r.status} ${(await r.text()).slice(0, 300)}`;
+      }
+      return NextResponse.json(out);
+    }
     if (body.test) return NextResponse.json(await serp(key!, body.test));
     if (body.one) {
       const row = { filing: "test", entity_type: null, registered_on: null, address: null, contact: null, ppp_jobs: null, plan_people: null, city: null, county: null, ...body.one };
