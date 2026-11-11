@@ -1494,6 +1494,12 @@ export type Database = {
           },
         ];
       };
+      agent_names: {
+        Row: { key: string; name: string; updated_at: string }
+        Insert: { key: string; name: string; updated_at?: string }
+        Update: { key?: string; name?: string; updated_at?: string }
+        Relationships: []
+      }
       lead_registry: {
         Row: { filing: string; name: string; entity_type: string | null; registered_on: string | null; industry: string | null; priority: number | null; county: string | null; city: string | null; address: string | null; zip: string | null; contact: string | null; contact_title: string | null; other_officers: string | null; removed_reason: string | null; ppp_jobs: number | null; ppp_naics: string | null; plan_people: number | null; website: string | null; phone: string | null; rating: number | null; reviews: number | null; category: string | null; closed: boolean | null; maps_address: string | null; research: Json | null; employees_est: number | null; size_guess: string | null; research_attempts: number; research_locked_at: string | null; researched_at: string | null; created_at: string };
         Insert: { filing?: string; name?: string; entity_type?: string | null; registered_on?: string | null; industry?: string | null; priority?: number | null; county?: string | null; city?: string | null; address?: string | null; zip?: string | null; contact?: string | null; contact_title?: string | null; other_officers?: string | null; removed_reason?: string | null; ppp_jobs?: number | null; ppp_naics?: string | null; plan_people?: number | null; website?: string | null; phone?: string | null; rating?: number | null; reviews?: number | null; category?: string | null; closed?: boolean | null; maps_address?: string | null; research?: Json | null; employees_est?: number | null; size_guess?: string | null; research_attempts?: number; research_locked_at?: string | null; researched_at?: string | null; created_at?: string };

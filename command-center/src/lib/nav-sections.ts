@@ -57,6 +57,7 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
     title: "Business",
     items: [
       { href: "/reports", label: "Reports", Icon: ReportsIcon, ownerOnly: true },
+      { href: "/agents", label: "AI team", Icon: SparkIcon, ownerOnly: true },
       { href: "/tools", label: "Tools & costs", Icon: ToolsIcon, ownerOnly: true },
       { href: "/settings", label: "Settings", Icon: SettingsIcon },
     ],
