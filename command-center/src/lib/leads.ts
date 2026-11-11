@@ -183,7 +183,7 @@ function facebookIn(html: string) {
 
 const PRIVATE_HOST = /^(localhost|.*\.local|.*\.internal|\d+\.\d+\.\d+\.\d+|\[.*\])$/i;
 
-async function getPage(url: string) {
+export async function getPage(url: string) {
   const u = new URL(url);
   if (!/^https?:$/.test(u.protocol) || PRIVATE_HOST.test(u.hostname)) return null;
   const res = await fetch(u, {
