@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
-import { getPage } from "@/lib/leads";
+import { getPage, pickPrimary, siteEmails } from "@/lib/leads";
 
 // Research agent for the PA registry list (Justin, 2026-11-11). Kept out of the Command Center screens:
 // it fills the hidden lead_registry table and the results go to him as a spreadsheet.
@@ -21,8 +21,9 @@ export async function serp(key: string, q: string, maps = false) {
     try {
       return await serpOnce(key, url);
     } catch (e) {
-      // Bright Data now and then answers with an empty page: try again twice.
+      // Bright Data now and then answers with an empty page, or asks for 15 seconds before the same query again.
       if (e instanceof SerpHold || attempt >= 2) throw e;
+      if (e instanceof Error && /recently failed/i.test(e.message)) await new Promise((r) => setTimeout(r, 16000));
     }
   }
 }
@@ -189,7 +190,7 @@ export async function researchOne(key: string, row: Row) {
   // long-closed companies), unless a free headcount says it has staff.
   if (!mentioned(row.name, s) && !(row.ppp_jobs || row.plan_people)) {
     return {
-      website: null, phone: null, rating: null, reviews: null, category: null, closed: null, maps_address: null,
+      email: null, emails: [], website: null, phone: null, rating: null, reviews: null, category: null, closed: null, maps_address: null,
       employees_est: null, size_guess: "unknown",
       research: { found: false, facebook: null, what_they_do: null, confidence: "medium", evidence: "Nothing on Google mentions this business by name." },
     };
@@ -197,8 +198,20 @@ export async function researchOne(key: string, row: Row) {
   const site = await siteText(s);
   const v = await judge(row, s, site);
   const found = v.found === true;
+  const website = found ? ((v.website as string | null) ?? site.site) : null;
+  // Emails off the business's own site (home, contact and about pages); free.
+  let emails: string[] = [];
+  if (website && !OWN_SITE_SKIP.test(website)) {
+    emails = (await siteEmails(website).catch(() => null))?.emails ?? [];
+  }
+  let domain: string | null = null;
+  try {
+    domain = website ? new URL(website).hostname.replace(/^www\./, "") : null;
+  } catch {}
   return {
-    website: found ? ((v.website as string | null) ?? site.site) : null,
+    email: emails.length ? pickPrimary(emails, domain, row.contact) : null,
+    emails: emails.slice(0, 8),
+    website,
     phone: found ? v.phone : null,
     rating: v.rating,
     reviews: v.reviews,

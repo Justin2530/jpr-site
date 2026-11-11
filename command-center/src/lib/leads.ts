@@ -210,7 +210,7 @@ export async function getPage(url: string) {
   return { html: new TextDecoder().decode(Buffer.concat(chunks)), url: new URL(res.url || u.toString()) };
 }
 
-async function siteEmails(website: string) {
+export async function siteEmails(website: string) {
   let first: Awaited<ReturnType<typeof getPage>> = null;
   try {
     first = await getPage(website);
