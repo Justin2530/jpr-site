@@ -7,19 +7,19 @@
 :root {
   --c-void: #04070d;
   --c-deep: #070c16;
-  --c-panel: rgb(12 21 36 / 0.72);
-  --c-panel-solid: #0c1524;
-  --c-line: rgb(56 189 248 / 0.14);
-  --c-line-strong: rgb(56 189 248 / 0.32);
-  --c-ink: #f5faff;
-  --c-muted: #b9cbe0;
-  --c-faint: #8ea4bd;
-  --c-cyan: #38d9f5;
-  --c-cyan-soft: rgb(56 217 245 / 0.12);
-  --c-amber: #f5b94a;
-  --c-rose: #f47a8f;
-  --c-mint: #4fe0a6;
-  --glow: 56 217 245;
+  --c-panel: rgb(20 35 57 / 0.82);
+  --c-panel-solid: #142339;
+  --c-line: rgb(56 189 248 / 0.26);
+  --c-line-strong: rgb(56 189 248 / 0.5);
+  --c-ink: #ffffff;
+  --c-muted: #d2deec;
+  --c-faint: #a9bbd0;
+  --c-cyan: #62e8ff;
+  --c-cyan-soft: rgb(98 232 255 / 0.16);
+  --c-amber: #ffcc66;
+  --c-rose: #ff93a5;
+  --c-mint: #72f2bf;
+  --glow: 98 232 255;
   --c-font: var(--font-geist-sans);
 }
 
