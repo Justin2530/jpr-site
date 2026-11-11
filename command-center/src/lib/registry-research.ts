@@ -13,8 +13,21 @@ type Row = Database["public"]["Tables"]["lead_registry"]["Row"];
 export const SERP_COST = 0.0015;
 const zone = () => process.env.BRIGHTDATA_SERP_ZONE?.trim() || "serp_api1";
 
-export async function serp(key: string, q: string) {
-  const url = `https://www.google.com/search?q=${encodeURIComponent(q)}&gl=us&hl=en&brd_json=1`;
+export async function serp(key: string, q: string, maps = false) {
+  const url = maps
+    ? `https://www.google.com/maps/search/${encodeURIComponent(q)}/?hl=en&gl=us&brd_json=1`
+    : `https://www.google.com/search?q=${encodeURIComponent(q)}&gl=us&hl=en&brd_json=1`;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await serpOnce(key, url);
+    } catch (e) {
+      // Bright Data now and then answers with an empty page: try again twice.
+      if (e instanceof SerpHold || attempt >= 2) throw e;
+    }
+  }
+}
+
+async function serpOnce(key: string, url: string) {
   const res = await fetch("https://api.brightdata.com/request", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
