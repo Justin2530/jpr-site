@@ -23,12 +23,22 @@ export async function serp(key: string, q: string, maps = false) {
     } catch (e) {
       // Bright Data now and then answers with an empty page, or asks for 15 seconds before the same query again.
       if (e instanceof SerpHold || attempt >= 2) throw e;
-      if (e instanceof Error && /recently failed/i.test(e.message)) await new Promise((r) => setTimeout(r, 16000));
+      if (e instanceof Error && /recently failed|auto-throttled/i.test(e.message)) await new Promise((r) => setTimeout(r, 16000));
     }
   }
 }
 
+// Bright Data throttles this zone near 56 searches a minute, so searches start at least 1.3 seconds apart.
+let nextSlot = 0;
+async function paced() {
+  const now = Date.now();
+  const at = Math.max(now, nextSlot);
+  nextSlot = at + 1300;
+  if (at > now) await new Promise((r) => setTimeout(r, at - now));
+}
+
 async function serpOnce(key: string, url: string) {
+  await paced();
   const res = await fetch("https://api.brightdata.com/request", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -229,8 +239,9 @@ export async function runRegistryTick(db: DB, secret: string, only?: number) {
   const report = { researched: 0, errors: [] as string[], held: false };
   const key = process.env.BRIGHTDATA_API_KEY?.trim();
   if (!key) return { ...report, errors: ["no Bright Data key"] };
-  while (Date.now() - started < 200_000 && !report.held) {
-    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 30 });
+  // Ticks come every 2 minutes; stopping new batches after 100 seconds keeps two ticks from searching at once.
+  while (Date.now() - started < 100_000 && !report.held) {
+    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 20 });
     if (error) throw new Error(error.message);
     if (!batch?.length) break;
     await Promise.all(
@@ -248,6 +259,9 @@ export async function runRegistryTick(db: DB, secret: string, only?: number) {
           // No credits, a bad key or zone: stop and give the try back.
           if (e instanceof SerpHold && [401, 402, 403, 407, 429].includes(e.status)) {
             report.held = true;
+            await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });
+          } else if (e instanceof Error && /auto-throttled/i.test(e.message)) {
+            // Throttled is not this business's fault: give the try back so it is searched again later.
             await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });
           }
           if (report.errors.length < 5) report.errors.push(e instanceof Error ? e.message : String(e));
