@@ -11,7 +11,8 @@ type DB = SupabaseClient<Database>;
 type Row = Database["public"]["Tables"]["lead_registry"]["Row"];
 
 export const SERP_COST = 0.0015;
-const zone = () => process.env.BRIGHTDATA_SERP_ZONE?.trim() || "serp_api1";
+// One or more SERP zones, comma separated; each zone has its own speed limit, so searches are spread across them.
+export const zones = () => (process.env.BRIGHTDATA_SERP_ZONE || "serp_api1").split(",").map((z) => z.trim()).filter(Boolean);
 
 export async function serp(key: string, q: string, maps = false) {
   const url = maps
@@ -29,20 +30,23 @@ export async function serp(key: string, q: string, maps = false) {
 }
 
 // Bright Data throttles this zone near 56 searches a minute, so searches start at least 1.3 seconds apart.
-let nextSlot = 0;
+const nextSlot = new Map<string, number>();
 async function paced() {
   const now = Date.now();
-  const at = Math.max(now, nextSlot);
-  nextSlot = at + 1300;
+  const list = zones();
+  const z = list.reduce((a, b) => ((nextSlot.get(b) ?? 0) < (nextSlot.get(a) ?? 0) ? b : a));
+  const at = Math.max(now, nextSlot.get(z) ?? 0);
+  nextSlot.set(z, at + 1300);
   if (at > now) await new Promise((r) => setTimeout(r, at - now));
+  return z;
 }
 
 async function serpOnce(key: string, url: string) {
-  await paced();
+  const zone = await paced();
   const res = await fetch("https://api.brightdata.com/request", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ zone: zone(), url, format: "raw" }),
+    body: JSON.stringify({ zone, url, format: "raw" }),
     signal: AbortSignal.timeout(45000),
   });
   const text = await res.text();
@@ -241,7 +245,7 @@ export async function runRegistryTick(db: DB, secret: string, only?: number) {
   if (!key) return { ...report, errors: ["no Bright Data key"] };
   // Ticks come every 2 minutes; stopping new batches after 100 seconds keeps two ticks from searching at once.
   while (Date.now() - started < 100_000 && !report.held) {
-    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 20 });
+    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 20 * zones().length });
     if (error) throw new Error(error.message);
     if (!batch?.length) break;
     await Promise.all(
