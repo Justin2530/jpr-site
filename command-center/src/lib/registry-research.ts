@@ -134,7 +134,7 @@ const RULES = `You research one small business in western Pennsylvania for a rec
 You get the state registry record, a Google results page (JSON) and text from the business's website, if found.
 - found: true only if the Google results clearly show this same business (same or very close name, same town or county). Directories that only repeat the state filing (bizapedia, opencorporates, corporationwiki) do not count as found.
 - closed: true if Google says permanently closed, or the business is clearly gone.
-- Copy website, phone, address, category, rating, review count and Facebook page only from the results; never invent them.
+- Copy website, phone, address, category, rating, review count and Facebook page only from the results (the snack_pack local listings carry phone, rating, reviews_cnt, type and the street address inside maps_link); never invent them. Facebook must be a facebook.com address, not a google.com redirect.
 - employees_est: your best whole-number estimate of employees, or null if there is nothing to go on. Use stated employee counts first (website, LinkedIn "11-50 employees", PPP or retirement-plan counts given), then signals: number of locations, trucks, crews, shifts, job postings, staff pages, review volume (a shop with 100+ reviews is rarely 1-2 people), type of business (a manufacturer, nursing home or trucking company is usually 4+; a solo consultant, rental property or holding LLC is under 4).
 - size_guess: "4+" or "under 4" when the evidence leans that way, "unknown" when you can't tell or nothing was found.
 - evidence: one short plain sentence saying why.`;
@@ -184,13 +184,13 @@ export async function researchOne(key: string, row: Row) {
   };
 }
 
-export async function runRegistryTick(db: DB, secret: string) {
+export async function runRegistryTick(db: DB, secret: string, only?: number) {
   const started = Date.now();
   const report = { researched: 0, errors: [] as string[], held: false };
   const key = process.env.BRIGHTDATA_API_KEY?.trim();
   if (!key) return { ...report, errors: ["no Bright Data key"] };
   while (Date.now() - started < 200_000 && !report.held) {
-    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: 12 });
+    const { data: batch, error } = await db.rpc("lead_registry_claim", { p_secret: secret, p_limit: only ?? 12 });
     if (error) throw new Error(error.message);
     if (!batch?.length) break;
     await Promise.all(
@@ -214,6 +214,7 @@ export async function runRegistryTick(db: DB, secret: string) {
         }
       }),
     );
+    if (only) break;
   }
   return report;
 }
