@@ -39,5 +39,7 @@ export async function jarvisState(): Promise<{ lines: JarvisLine[]; pending: Pen
     rpc("jarvis_recent", { p_secret: secret, p_limit: 60 }),
     rpc("jarvis_pending", { p_secret: secret }),
   ]);
-  return { lines: (lines as JarvisLine[] | null) ?? [], pending: (pending as Pending | null) ?? null };
+  // Lines wiped when test data was cleared aren't worth showing.
+  const shown = ((lines as JarvisLine[] | null) ?? []).filter((l) => l.content !== "(test record removed)");
+  return { lines: shown, pending: (pending as Pending | null) ?? null };
 }
