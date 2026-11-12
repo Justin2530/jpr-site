@@ -182,7 +182,13 @@ async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: 
     }),
     signal: AbortSignal.timeout(90000),
   });
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  // Out of OpenAI credit or rate-limited: hold the whole tick (and give the business back) instead of spending
+  // Google searches whose results can't be read.
+  if (!res.ok) {
+    const msg = `OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`;
+    if (res.status === 401 || res.status === 429) throw new SerpHold(msg, res.status);
+    throw new Error(msg);
+  }
   const data = await res.json();
   const out = (data.output ?? []).flatMap((o: { content?: { type: string; text?: string }[] }) => o.content ?? []).find((c: { type: string }) => c.type === "output_text")?.text;
   return JSON.parse(out) as Record<string, unknown> & { size_guess: string; employees_est: number | null };
