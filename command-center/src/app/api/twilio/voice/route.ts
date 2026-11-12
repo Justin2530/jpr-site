@@ -107,11 +107,15 @@ export async function POST(request: Request) {
     console.info("Blocked caller turned away", p.CallSid);
     return twiml('<Reject reason="busy"/>');
   }
-  // Justin calling from his own cell talks to Jarvis, his chief of staff (2026-11-12). If Jarvis can't be
-  // reached, the call carries on the way it did before (the answering agent as his test line).
+  // Justin calling from his own cell talks to Jarvis, his chief of staff (2026-11-12). Caller ID alone can be
+  // faked, so the call must also carry his carrier's full verification that it really comes from his number
+  // (STIR/SHAKEN "A" attestation, which Twilio passes as StirVerstat). Anything less, or Jarvis can't be
+  // reached, and the call carries on the way it did before (the answering agent as his test line).
   if (auto && liveReady()) {
     const { data: own } = await db.rpc("twilio_forward_number", { p_secret: secret });
-    if (toE164(own) && toE164(from) === toE164(own)) {
+    const mine = Boolean(toE164(own) && toE164(from) === toE164(own));
+    if (mine) console.info("Owner call, carrier verification:", p.StirVerstat ?? "none");
+    if (mine && (p.StirVerstat ?? "").startsWith("TN-Validation-Passed-A")) {
       const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
       const { data: id } = await rpc("jarvis_call_open", { p_secret: auto, p_sid: p.CallSid ?? "" });
       if (typeof id === "string") {
