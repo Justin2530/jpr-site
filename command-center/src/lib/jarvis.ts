@@ -4,7 +4,7 @@ import { accessToken, openToken, sendGmail } from "@/lib/google";
 import { toE164, twilioApi, twilioNumber, webhookUrl } from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
 import type { Mailbox } from "@/lib/automation";
-import { googleEvents, type CalEvent } from "@/lib/calendar";
+import { addGoogleEvent, googleEvents, type CalEvent } from "@/lib/calendar";
 
 // Jarvis, Justin's chief of staff (2026-11-12). Justin texts or calls it from his cell on the main line, or
 // types and talks to it on the Jarvis page in the Command Center. One brain for all three: it reads the whole
@@ -15,12 +15,14 @@ type Db = SupabaseClient<Database>;
 export type Channel = "text" | "voice" | "app";
 
 export type Step = {
-  kind: "send_text" | "send_email" | "change_data";
+  kind: "send_text" | "send_email" | "change_data" | "calendar_event";
   to: string | null; // phone (text) or email address (email)
   to_name: string | null;
   subject: string | null;
   body: string | null;
   sql: string | null;
+  start?: string | null; // calendar_event: Eastern wall time, YYYY-MM-DDTHH:MM
+  minutes?: number | null; // calendar_event: length
 };
 export type Pending = { id: string; summary: string; action: { steps: Step[] }; channel: Channel; created_at: string };
 export type Turn = { reply: string; pending: Pending | null; done?: string };
@@ -40,6 +42,16 @@ export const CANCEL = /^\s*(cancel|no|nope|stop|don'?t|never\s?mind|hold( off)?)
 // On a call the words come from the transcript, mid-sentence: "yeah, confirm" or "confirm, thanks".
 const SAID_CONFIRM = /\bconfirm(ed)?\b/i;
 const SAID_CANCEL = /\b(cancel|never ?mind|don'?t do (it|that)|hold off)\b/i;
+// On a call he often answers the confirm with "yep" or "yes, do it" instead of the word confirm (2026-11-12). That
+// counts, as long as it's right after the question and he isn't changing or asking something.
+const SAID_YES = /\b(yes|yep|yeah|yup|do it|go ahead|sounds good|that'?s (right|correct)|correct)\b/i;
+const SAID_CHANGE = /\b(but|instead|change|actually|wait|no|not|don'?t|rather|make it|switch|what|where|who|why|how|which)\b|\?/i;
+function saidYes(text: string, waiting: Pending) {
+  if (SAID_CANCEL.test(text)) return false;
+  if (SAID_CONFIRM.test(text)) return true;
+  const fresh = Date.now() - new Date(waiting.created_at).getTime() < 5 * 60_000;
+  return fresh && SAID_YES.test(text) && !SAID_CHANGE.test(text) && text.split(/\s+/).length <= 25;
+}
 
 let schemaCache: { at: number; text: string } | null = null;
 async function schema(db: Db, secret: string) {
@@ -47,6 +59,22 @@ async function schema(db: Db, secret: string) {
   const text = await call<string>(db, "jarvis_schema", { p_secret: secret });
   schemaCache = { at: Date.now(), text };
   return text;
+}
+
+// "This week", "last week": spelled out so he and Jarvis count weeks the same way (Monday to Sunday).
+function weeks() {
+  const ny = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const monday = new Date(ny);
+  monday.setDate(ny.getDate() - ((ny.getDay() + 6) % 7));
+  const day = (d: Date) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const span = (back: number) => {
+    const a = new Date(monday);
+    a.setDate(monday.getDate() - 7 * back);
+    const b = new Date(a);
+    b.setDate(a.getDate() + 6);
+    return `${day(a)} to ${day(b)}`;
+  };
+  return `This week is ${span(0)}. Last week was ${span(1)}. The week before that was ${span(2)}. Next week is ${span(-1)}.`;
 }
 
 function brief(channel: Channel, schemaText: string) {
@@ -57,7 +85,7 @@ function brief(channel: Channel, schemaText: string) {
       : channel === "voice"
         ? "Your answer will be SPOKEN to him on a phone call: talk like a relaxed friend who works for him, plain everyday words, contractions, no corporate phrasing. At most 2 short sentences (under 35 words). Say dates like \"last Thursday\" or \"November sixth\", never the year. Never read out email addresses, phone numbers, ids or dollar ranges unless he asks for them. Don't start with \"J. P.,\" every time. No lists, no symbols, no dashes."
         : "You're answering in a chat panel inside his Command Center: short paragraphs or a short list are fine. Lead with the answer.";
-  return `You are Jarvis, the chief of staff for Justin Peace, owner of J-Peace Recruiting LLC ("J. Peace Recruiting", brand JPR) in Punxsutawney, PA. You call him "J. P.". It is ${now} Eastern.
+  return `You are Jarvis, the chief of staff for Justin Peace, owner of J-Peace Recruiting LLC ("J. Peace Recruiting", brand JPR) in Punxsutawney, PA. You call him "J. P.". It is ${now} Eastern. ${weeks()}
 
 You know his business inside out because you can read its whole database (the Command Center, his CRM and ATS for JPR Local recruiting) with the look_up tool. Never guess a fact you can look up: look it up, then answer. Reason carefully, check your numbers, and if the data doesn't say, say so plainly. You can also search the web for outside questions.
 
@@ -66,20 +94,22 @@ THE BUSINESS (background):
 - Core loop: client > job > candidate > Justin assigns the candidate to the job > automated contact (texts/emails) > short AI screening call > submission draft > Justin's SEND/EDIT/HOLD/PASS > Gmail.
 - Recruiting pricing: 20% of first-year pay with a 30-day free replacement, or monthly $1,250 (1 search), $2,500 (up to 3), $3,500 (up to 5), 6+ custom, 6-month terms.
 - His AI team, which you can see and direct through the database: Ava the receptionist (reception_calls), the screening agent (screening_runs, screening_facts, pursuits/pursuit_steps for automated outreach), the reply brain and conversation tracker (activities, conversation_states), the client relay (interviews, offers, relay_messages), the inbox agent "Third Eye" (inbox_triaged, inbox_drafts, inbox_labels), the lead engine and registry research (lead_*), and What needs me (action_items with status open). automation_settings holds the master switches.
-- His calendar: command_center_calendar (interviews, screening calls, tasks with due dates, deal steps) and his own Google Calendar are both in the snapshot. "What's on my calendar" means both.
+- His calendar: command_center_calendar (interviews, screening calls, tasks with due dates, deal steps) and his own Google Calendar are both in the snapshot. "What's on my calendar" means both. The Command Center calendar shows his Google Calendar events at their time slots; tasks have no time, so they sit in the all-day row at the top.
+- "Messages" means texts and emails people sent in (activities with direction 'in'; messages_in_last_14_days in the snapshot), not only what's on What needs me.
 - Activities is the log of every text, email, call and note; candidate_jobs is a candidate on a job (its stage, automation); submissions are write-ups sent to clients.
 
 HOW YOU WORK:
-1. Questions: use look_up (one SELECT per call; you can run as many as you need). Join tables, count, filter by dates. Names are fuzzy: use ilike with % around parts of the name. Keep result sets small (pick columns, add limits).
-2. Actions: anything that sends, changes or starts something (texting or emailing someone, changing a stage, assigning a candidate, flipping an automation switch, adding a task or note, booking a call, telling an agent to do something) goes through propose_action, never anything else. First look up what you need (the right person, phone number, email, ids), then call propose_action ONCE with every step of the request and a one-line summary. The app then asks him to confirm and carries it out only after he says confirm. Never claim you did something until you're told it's done.
+1. Questions: use look_up (one SELECT per call; you can run as many as you need). Join tables, count, filter by dates. Names are fuzzy: use ilike with % around parts of the name. On calls his words come from speech-to-text, so names get misheard ("John Abis" was really "Joanne Bish"): if a name finds nothing, look for names that sound alike before saying there's no match. Keep result sets small (pick columns, add limits). For "this week" or "last week", use the exact dates above and check every item's date against them.
+2. Actions: anything that sends, changes or starts something (texting or emailing someone, changing a stage, assigning a candidate, flipping an automation switch, adding a task or note, booking a call, telling an agent to do something) goes through propose_action, never anything else. First look up what you need (the right person, phone number, email, ids), then call propose_action ONCE with every step of the request and a one-line summary. The app then asks him to confirm and carries it out only after he says confirm. Never ask him to "say confirm" yourself and never offer to do something: if he wants it done, call propose_action. Never claim you did something until you're told it's done. Before adding something, check it isn't already there; if it is, fix that one instead of adding another.
    - send_text: "to" is the phone number, "body" the exact text. Texts go out from the business number. Write it the way J. P. would: short, friendly, plain. If he dictated the words, use his words.
    - send_email: "to", "subject", "body" (his signature is added for you). Sent from his Gmail.
+   - calendar_event: something at a set time ("lunch at 12:30", "call Bob tomorrow at 3"). "subject" is the event title, "start" the Eastern date and time as YYYY-MM-DDTHH:MM, "minutes" how long (30 if he doesn't say), "body" optional notes. It goes on his Google Calendar and shows at that time slot on the Command Center calendar. Whenever he gives a time, use calendar_event, never a task.
    - change_data: one SQL statement run as J. P. (INSERT, UPDATE, or SELECT of one of the app's functions listed below). No deletes and no schema changes: for a delete, tell him to use the button in the Command Center. Include every required column on an INSERT. Useful ones:
      * Assign a candidate to a job: insert into candidate_jobs (candidate_id, job_id, assigned_by) values (..., ..., (select id from staff where role='owner' limit 1))
      * Turn automated outreach on/off for a candidate on a job: select set_outreach('<candidate_job id>', true|false). It only starts if the job's own automation switch is on.
      * Job automation switch: select set_job_automation('<job id>', true|false). Master switch: select set_automated_recruiting(true|false). Candidate switch: select set_candidate_automation('<candidate id>', true|false).
      * AI screening call right now: select screening_call_now('<candidate_job id>').
-     * A task on What needs me: insert into action_items (title, kind, priority, created_by, market_id) values ('...', 'task', 2, (select id from staff where role='owner' limit 1), (select id from markets limit 1))
+     * A to-do with no time on What needs me: insert into action_items (title, kind, priority, created_by, market_id) values ('...', 'task', 2, (select id from staff where role='owner' limit 1), (select id from markets limit 1))
      * Move a stage: update candidate_jobs set stage = '<pipeline_stage value>' where id = '...'
    - If something can't be done with these (spending money, buying anything, publishing the website, anything in WellThree, the JPR AI or Job Board systems), say so plainly and offer to put a task on What needs me instead.
 3. His rules you keep, even when he asks: never touch anything WellThree. Never recruit from an active client's employees (warn him if a request would). Texts to candidates go 9am to 9pm; if he asks outside that, propose it anyway but mention the time. A submission to a client or anything with offer terms: show him exactly what will go before he confirms. Don't share his personal cell number with anyone.
@@ -124,14 +154,16 @@ const TOOLS = [
           items: {
             type: "object",
             properties: {
-              kind: { type: "string", enum: ["send_text", "send_email", "change_data"] },
+              kind: { type: "string", enum: ["send_text", "send_email", "change_data", "calendar_event"] },
               to: { type: ["string", "null"], description: "Phone number for send_text, email address for send_email, else null." },
               to_name: { type: ["string", "null"] },
               subject: { type: ["string", "null"] },
               body: { type: ["string", "null"] },
               sql: { type: ["string", "null"], description: "For change_data: the one SQL statement." },
+              start: { type: ["string", "null"], description: "For calendar_event: Eastern date and time, YYYY-MM-DDTHH:MM. Else null." },
+              minutes: { type: ["integer", "null"], description: "For calendar_event: length in minutes. Else null." },
             },
-            required: ["kind", "to", "to_name", "subject", "body", "sql"],
+            required: ["kind", "to", "to_name", "subject", "body", "sql", "start", "minutes"],
             additionalProperties: false,
           },
         },
@@ -179,7 +211,9 @@ export function confirmLine(summary: string, channel: Channel) {
 // A fresh snapshot of the things he asks about most, so most questions need no lookups at all (speed).
 // Each piece is optional: one that fails is left out and Jarvis looks it up instead.
 const SNAPSHOT: Record<string, string> = {
-  what_needs_me_open_items: `select kind, title, priority, due_on, created_at::date as created from action_items where status = 'open' order by priority desc, created_at desc limit 30`,
+  what_needs_me_open_items: `select kind, title, priority, due_on, (created_at at time zone 'America/New_York')::date as created from action_items where status = 'open' order by priority desc, created_at desc limit 30`,
+  website_leads_last_90_days: `select (created_at at time zone 'America/New_York')::date as came_in, status, title from action_items where kind = 'website_lead' and created_at > now() - interval '90 days' order by created_at desc`,
+  messages_in_last_14_days: `select (a.occurred_at at time zone 'America/New_York')::date as day, a.kind, coalesce(c.full_name, ct.full_name, a.phone_number) as who, left(coalesce(a.summary, a.body), 140) as about from activities a left join candidates c on c.id = a.candidate_id left join contacts ct on ct.id = a.contact_id where a.direction = 'in' and a.kind in ('text', 'email') and a.occurred_at > now() - interval '14 days' order by a.occurred_at desc limit 40`,
   pipeline: `select c.full_name, c.phone, j.title as job, co.name as company, cj.stage, cj.stage_changed_at::date as since, cj.automate, cj.id as candidate_job_id from candidate_jobs cj join candidates c on c.id = cj.candidate_id join jobs j on j.id = cj.job_id left join companies co on co.id = j.company_id order by cj.stage_changed_at desc nulls last limit 40`,
   jobs: `select j.title, co.name as company, j.status, j.visibility, j.automation_pilot as automation_on, j.location, j.id from jobs j left join companies co on co.id = j.company_id order by j.created_at desc limit 30`,
   screening_calls_recent_and_upcoming: `select c.full_name, j.title as job, r.status, r.scheduled_for, r.call_outcome from screening_runs r join candidate_jobs cj on cj.id = r.candidate_job_id join candidates c on c.id = cj.candidate_id join jobs j on j.id = cj.job_id where coalesce(r.scheduled_for, r.created_at) > now() - interval '3 days' order by coalesce(r.scheduled_for, r.created_at) limit 20`,
@@ -307,6 +341,7 @@ export async function execute(db: Db, secret: string, p: Pending, origin: string
   if (!claimed) return "That one was already handled.";
   const results: string[] = [];
   let failed = false;
+  let nothing = false;
   for (const s of p.action.steps) {
     try {
       if (s.kind === "send_text") {
@@ -343,11 +378,18 @@ export async function execute(db: Db, secret: string, p: Pending, origin: string
           body: `${s.body.trim()}\n\n${SIGNATURE}`,
         });
         results.push(`Emailed ${s.to_name ?? s.to}.`);
+      } else if (s.kind === "calendar_event") {
+        if (!s.subject?.trim() || !s.start?.trim()) throw new Error("no title or time for the event");
+        const boxes = await call<Mailbox[]>(db, "gmail_mailboxes", { p_secret: secret });
+        if (!boxes?.[0]) throw new Error("Google isn't connected");
+        await addGoogleEvent(boxes[0].token, { title: s.subject.trim(), start: s.start, minutes: s.minutes || 30, notes: s.body });
+        results.push(`Put "${s.subject.trim()}" on your calendar.`);
       } else if (s.kind === "change_data") {
         if (!s.sql?.trim()) throw new Error("no change given");
         const out = await call(db, "jarvis_write", { p_secret: secret, p_sql: s.sql });
         const n = (out as { rows_changed?: number } | null)?.rows_changed;
-        results.push(n === 0 ? "That change matched nothing, so nothing changed." : "Updated the Command Center.");
+        if (n === 0) nothing = true;
+        results.push("");
       }
     } catch (e) {
       failed = true;
@@ -355,7 +397,14 @@ export async function execute(db: Db, secret: string, p: Pending, origin: string
       break;
     }
   }
-  const result = results.join(" ");
+  // Say what was actually done, in his words from the confirm, not "Updated the Command Center".
+  const what = cleanSummary(p.summary);
+  const partial = results.filter((r) => r && !r.startsWith("Couldn't")).join(" ");
+  const result = failed
+    ? `J. P., I couldn't finish that: ${results[results.length - 1].replace(/^Couldn't finish: /, "")}${partial ? ` Already done: ${partial}` : ""}`
+    : nothing
+      ? `Heads up: nothing matched, so nothing changed (${what}).`
+      : `Done: ${what}.`;
   await call(db, "jarvis_decide", { p_secret: secret, p_id: p.id, p_status: failed ? "failed" : "done", p_result: result });
   return result;
 }
@@ -373,7 +422,7 @@ export async function handle(db: Db, secret: string, channel: Channel, said: str
   let turn: Turn;
   if (waiting && CONFIRM.test(text)) {
     const done = await execute(db, secret, waiting, origin);
-    turn = { reply: `Done, J. P. ${done}`.replace("Done, J. P. Couldn't", "J. P., I couldn't"), pending: null, done };
+    turn = { reply: done, pending: null, done };
   } else if (waiting && CANCEL.test(text) && text.split(/\s+/).length <= 4) {
     await call(db, "jarvis_decide", { p_secret: secret, p_id: waiting.id, p_status: "cancelled" });
     turn = { reply: "Cancelled. Nothing was sent or changed.", pending: null };
@@ -391,9 +440,8 @@ export async function handleVoice(db: Db, secret: string, heard: string, origin:
   const waiting = await call<Pending | null>(db, "jarvis_pending", { p_secret: secret });
   if (text) await log(db, secret, "voice", "jp", text);
   let say: string;
-  if (waiting && SAID_CONFIRM.test(text) && !SAID_CANCEL.test(text)) {
-    const done = await execute(db, secret, waiting, origin);
-    say = `Done. ${done}`;
+  if (waiting && saidYes(text, waiting)) {
+    say = await execute(db, secret, waiting, origin);
   } else if (waiting && SAID_CANCEL.test(text)) {
     await call(db, "jarvis_decide", { p_secret: secret, p_id: waiting.id, p_status: "cancelled" });
     say = "Cancelled, nothing was sent or changed.";
@@ -405,6 +453,8 @@ export async function handleVoice(db: Db, secret: string, heard: string, origin:
     say = turn.reply;
   }
   await log(db, secret, "voice", "jarvis", say);
+  if (say.startsWith("Done: "))
+    return `Tell J. P. it's done, in your own natural voice, in one short past-tense sentence (like "Done, lunch is on your calendar at twelve thirty."). What you did: ${say.slice(6)}`;
   return `Say this to J. P. now, in your own natural voice, without adding anything: ${say}`;
 }
 

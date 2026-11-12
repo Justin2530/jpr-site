@@ -120,6 +120,24 @@ export async function pushCalendar(db: SupabaseClient<Database>, secret: string)
   return changed;
 }
 
+// An event Justin asked Jarvis to put on his calendar ("lunch at 12:30"): it goes on his own Google Calendar, so it
+// shows there and, in gray at its time slot, on the Command Center calendar. start is Eastern wall time, YYYY-MM-DDTHH:MM.
+export async function addGoogleEvent(sealedToken: string, e: { title: string; start: string; minutes: number; notes?: string | null }) {
+  const m = e.start.trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/);
+  if (!m) throw new Error(`couldn't read the time "${e.start}"`);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  // Wall-clock arithmetic (no time zone involved), so the end is simply start + minutes on the clock.
+  const end = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) + Math.max(5, e.minutes) * 60_000);
+  const local = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:00`;
+  const token = await accessToken(openToken(sealedToken));
+  return google(token, "POST", API, {
+    summary: e.title,
+    description: e.notes?.trim() || undefined,
+    start: { dateTime: `${m[1]}-${m[2]}-${m[3]}T${pad(+m[4])}:${m[5]}:00`, timeZone: "America/New_York" },
+    end: { dateTime: local(end), timeZone: "America/New_York" },
+  });
+}
+
 // His own Google Calendar events for the calendar page, without the ones JPR put there (those show from JPR's data).
 export async function googleEvents(sealedToken: string, from: Date, to: Date): Promise<CalEvent[]> {
   const token = await accessToken(openToken(sealedToken));

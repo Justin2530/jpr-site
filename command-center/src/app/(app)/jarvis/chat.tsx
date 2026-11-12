@@ -67,7 +67,7 @@ export function JarvisChat({ initial, initialPending }: { initial: JarvisLine[];
     }));
     setBusy(false);
     if (reply) setLines((l) => [...l, { at: new Date().toISOString(), role: "jarvis", channel: "app", content: reply }]);
-    setPending(p ?? (/^(Done|Cancelled|J\. P\., I couldn't)/.test(reply) ? null : pending));
+    setPending(p ?? (/^(Done|Cancelled|Heads up|J\. P\., I couldn't)/.test(reply) ? null : pending));
     if (talkingRef.current && reply) {
       await speak(reply);
       if (talkingRef.current) listen();
