@@ -4,6 +4,7 @@ import { accessToken, openToken, sendGmail } from "@/lib/google";
 import { toE164, twilioApi, twilioNumber, webhookUrl } from "@/lib/twilio";
 import { SIGNATURE } from "@/lib/submission";
 import type { Mailbox } from "@/lib/automation";
+import { googleEvents, type CalEvent } from "@/lib/calendar";
 
 // Jarvis, Justin's chief of staff (2026-11-12). Justin texts or calls it from his cell on the main line, or
 // types and talks to it on the Jarvis page in the Command Center. One brain for all three: it reads the whole
@@ -54,7 +55,7 @@ function brief(channel: Channel, schemaText: string) {
     channel === "text"
       ? "You're answering by text message: plain text, no markdown, no bullet symbols. Short: usually 1 to 4 sentences, up to about 600 characters unless he asks for a full list."
       : channel === "voice"
-        ? "Your answer will be SPOKEN to him on a phone call by your voice: write it as 1 to 3 short spoken sentences, no lists, no symbols, no URLs, numbers the way you'd say them. Lead with the answer."
+        ? "Your answer will be SPOKEN to him on a phone call by your voice: at most 2 short spoken sentences (under 40 words), relaxed and conversational. No lists, no symbols, no URLs, no years in dates unless needed, numbers the way you'd say them. Lead with the answer; offer more only if he wants it."
         : "You're answering in a chat panel inside his Command Center: short paragraphs or a short list are fine. Lead with the answer.";
   return `You are Jarvis, the chief of staff for Justin Peace, owner of J-Peace Recruiting LLC ("J. Peace Recruiting", brand JPR) in Punxsutawney, PA. You call him "J. P.". It is ${now} Eastern.
 
@@ -65,6 +66,7 @@ THE BUSINESS (background):
 - Core loop: client > job > candidate > Justin assigns the candidate to the job > automated contact (texts/emails) > short AI screening call > submission draft > Justin's SEND/EDIT/HOLD/PASS > Gmail.
 - Recruiting pricing: 20% of first-year pay with a 30-day free replacement, or monthly $1,250 (1 search), $2,500 (up to 3), $3,500 (up to 5), 6+ custom, 6-month terms.
 - His AI team, which you can see and direct through the database: Ava the receptionist (reception_calls), the screening agent (screening_runs, screening_facts, pursuits/pursuit_steps for automated outreach), the reply brain and conversation tracker (activities, conversation_states), the client relay (interviews, offers, relay_messages), the inbox agent "Third Eye" (inbox_triaged, inbox_drafts, inbox_labels), the lead engine and registry research (lead_*), and What needs me (action_items with status open). automation_settings holds the master switches.
+- His calendar: command_center_calendar (interviews, screening calls, tasks with due dates, deal steps) and his own Google Calendar are both in the snapshot. "What's on my calendar" means both.
 - Activities is the log of every text, email, call and note; candidate_jobs is a candidate on a job (its stage, automation); submissions are write-ups sent to clients.
 
 HOW YOU WORK:
@@ -171,17 +173,32 @@ const SNAPSHOT: Record<string, string> = {
   screening_calls_recent_and_upcoming: `select c.full_name, j.title as job, r.status, r.scheduled_for, r.call_outcome from screening_runs r join candidate_jobs cj on cj.id = r.candidate_job_id join candidates c on c.id = cj.candidate_id join jobs j on j.id = cj.job_id where coalesce(r.scheduled_for, r.created_at) > now() - interval '3 days' order by coalesce(r.scheduled_for, r.created_at) limit 20`,
   interviews: `select c.full_name, j.title as job, i.status, i.waiting_on, i.scheduled_at from interviews i join candidate_jobs cj on cj.id = i.candidate_job_id join candidates c on c.id = cj.candidate_id join jobs j on j.id = cj.job_id where i.status in ('proposing', 'confirmed') or i.scheduled_at > now() - interval '3 days' order by i.scheduled_at nulls last limit 15`,
   master_switches: `select * from automation_settings limit 1`,
+  command_center_calendar_next_3_weeks: `select e->>'kind' as kind, e->>'title' as title, e->>'start' as start, e->>'date' as date, e->>'minutes' as minutes, e->>'detail' as detail, e->>'done' as done from jsonb_array_elements(calendar_events(now() - interval '1 day', now() + interval '21 days')) e order by coalesce(e->>'start', e->>'date')`,
 };
+
+// His own Google Calendar (the same events the Calendar page shows in gray), next three weeks.
+async function googleCalendar(db: Db, secret: string) {
+  try {
+    const boxes = await call<Mailbox[]>(db, "gmail_mailboxes", { p_secret: secret });
+    if (!boxes?.[0]) return null;
+    const now = Date.now();
+    const events: CalEvent[] = await googleEvents(boxes[0].token, new Date(now - 86_400_000), new Date(now + 21 * 86_400_000));
+    return `his_google_calendar_next_3_weeks: ${JSON.stringify(events.map((e) => ({ title: e.title, start: e.start, date: e.date, minutes: e.minutes, where: e.detail || undefined })))}`;
+  } catch (e) {
+    return `his_google_calendar_next_3_weeks: couldn't read it (${String(e instanceof Error ? e.message : e).slice(0, 80)})`;
+  }
+}
 async function snapshot(db: Db, secret: string) {
-  const parts = await Promise.all(
-    Object.entries(SNAPSHOT).map(async ([k, sql]) => {
+  const parts = await Promise.all([
+    ...Object.entries(SNAPSHOT).map(async ([k, sql]) => {
       try {
         return `${k}: ${JSON.stringify(await call(db, "jarvis_read", { p_secret: secret, p_sql: sql }))}`;
       } catch {
         return null;
       }
     }),
-  );
+    googleCalendar(db, secret),
+  ]);
   return parts.filter(Boolean).join("\n").slice(0, 40_000);
 }
 
