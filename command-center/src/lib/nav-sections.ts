@@ -30,6 +30,7 @@ export const SECTIONS: { title: string | null; items: Item[] }[] = [
       { href: "/dashboard", label: "Dashboard", Icon: BoardIcon },
       { href: "/calendar", label: "Calendar", Icon: CalendarIcon },
       { href: "/messages", label: "Messages", Icon: ChatIcon },
+      { href: "/jarvis", label: "Jarvis", Icon: SparkIcon, ownerOnly: true },
     ],
   },
   {

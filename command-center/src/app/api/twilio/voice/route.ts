@@ -5,6 +5,7 @@ import { liveReady, runSig, sipUri } from "@/lib/live";
 import { receptionSig, receptionSipUri } from "@/lib/reception";
 import { readTwilio, twiml, voicemailTwiml, webhookDb } from "../webhook";
 import { ringHours } from "@/lib/cell-alert";
+import { jarvisSig, jarvisSipUri } from "@/lib/jarvis-call";
 
 type Route = {
   owner: boolean;
@@ -105,6 +106,22 @@ export async function POST(request: Request) {
   if (blocked) {
     console.info("Blocked caller turned away", p.CallSid);
     return twiml('<Reject reason="busy"/>');
+  }
+  // Justin calling from his own cell talks to Jarvis, his chief of staff (2026-11-12). If Jarvis can't be
+  // reached, the call carries on the way it did before (the answering agent as his test line).
+  if (auto && liveReady()) {
+    const { data: own } = await db.rpc("twilio_forward_number", { p_secret: secret });
+    if (toE164(own) && toE164(from) === toE164(own)) {
+      const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+      const { data: id } = await rpc("jarvis_call_open", { p_secret: auto, p_sid: p.CallSid ?? "" });
+      if (typeof id === "string") {
+        const done = webhookUrl(origin, `/api/jarvis/ended?id=${id}&sig=${jarvisSig(id)}`);
+        return twiml(
+          `<Dial timeLimit="900" action="${escapeXml(done)}"><Sip>${escapeXml(jarvisSipUri(id))}</Sip></Dial>`,
+        );
+      }
+      console.error("Couldn't open a Jarvis call; using the old path");
+    }
   }
   const [{ data }, r] = await Promise.all([
     db.rpc("twilio_forward_number", { p_secret: secret }),

@@ -3,6 +3,41 @@ import { after } from "next/server";
 import { automationSecret } from "@/lib/automation";
 import { sendPushes } from "@/lib/push";
 import { EMPTY_TWIML, readTwilio, webhookDb } from "../webhook";
+import { addressedToJarvis, handle, stripName } from "@/lib/jarvis";
+
+// Jarvis can take a while to think through a question; the reply is sent after Twilio has its answer.
+export const maxDuration = 120;
+
+// Which of Justin's texts go to Jarvis: anything starting with "Jarvis", anything while an action is waiting on
+// his confirm, and anything within 15 minutes of his last Jarvis text, unless it's a "Name: message" reply,
+// which always goes on to that person as before.
+async function forJarvis(db: ReturnType<typeof webhookDb>, body: string) {
+  const auto = automationSecret();
+  if (!auto || !process.env.OPENAI_API_KEY?.trim()) return false;
+  if (addressedToJarvis(body)) return true;
+  if (/^\s*[A-Za-z][A-Za-z.' -]{0,40}?\s*:\s*\S/.test(body)) return false;
+  const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
+  const [{ data: waiting }, { data: recent }] = await Promise.all([
+    rpc("jarvis_pending", { p_secret: auto }),
+    rpc("jarvis_recent", { p_secret: auto, p_limit: 1 }),
+  ]);
+  if ((waiting as { channel?: string } | null)?.channel === "text") return true;
+  const last = (recent as { at: string; channel: string }[] | null)?.[0];
+  return Boolean(last && last.channel === "text" && Date.now() - new Date(last.at).getTime() < 15 * 60_000);
+}
+
+// Long answers go as a few texts instead of one that carriers might cut.
+function splitText(text: string, max = 1400) {
+  const parts: string[] = [];
+  let rest = text.trim();
+  while (rest.length > max) {
+    const cut = Math.max(rest.lastIndexOf("\n", max), rest.lastIndexOf(". ", max) + 1, max / 2);
+    parts.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) parts.push(rest);
+  return parts;
+}
 
 function reply(text: string) {
   return new Response(`<Response><Message>${escapeXml(text)}</Message></Response>`, { headers: { "Content-Type": "text/xml" } });
@@ -23,6 +58,27 @@ export async function POST(request: Request) {
 
   const { data: ownerCell } = await db.rpc("twilio_forward_number", { p_secret: secret });
   const cell = toE164(ownerCell);
+
+  if (cell && toE164(p.From) === cell && (await forJarvis(db, body))) {
+    // Jarvis, his chief of staff: thinking can take longer than Twilio waits for an answer, so the reply
+    // goes out as its own text once it's ready.
+    const auto = automationSecret();
+    after(async () => {
+      let reply: string;
+      try {
+        reply = (await handle(db, auto!, "text", stripName(body), origin)).reply;
+      } catch (e) {
+        console.error("Jarvis text failed", e);
+        reply = `Jarvis here. Something went wrong on my end (${String(e instanceof Error ? e.message : e).slice(0, 120)}). Try again in a minute.`;
+      }
+      for (const part of splitText(reply)) {
+        await twilioApi("Messages", { To: cell, From: twilioNumber ?? p.To, Body: part }).catch((e) =>
+          console.error("Jarvis reply text failed", e),
+        );
+      }
+    });
+    return EMPTY_TWIML.clone();
+  }
 
   if (cell && toE164(p.From) === cell) {
     // "Eric: see you at 3" goes to Eric. With no name it only sends when exactly one person texted in the

@@ -19,6 +19,28 @@ export type Agent = {
 
 export const AGENTS: Agent[] = [
   {
+    key: "jarvis",
+    feeds: ["screening", "relay", "reception", "brain", "lead_engine"],
+    name: "Jarvis",
+    title: "Chief of Staff",
+    team: "Front desk",
+    does: [
+      "Your own assistant: text or call (814) 845-4341 from your cell, or open Jarvis in the Command Center to type or talk.",
+      "Answers any question about the business by reading the whole Command Center: clients, jobs, candidates, messages, calls, the pipeline and what every other agent has done.",
+      "Does what you tell it: texts and emails people, assigns candidates, moves stages, flips automation switches, books AI screening calls, adds tasks.",
+      "Before every action it reads it back (\"J. P., to confirm, you want me to ...\") and acts only after you say confirm.",
+    ],
+    when: "Whenever you text it (start with \"Jarvis\"), call the main line from your cell, or use the Jarvis page.",
+    never: [
+      "Acts without your confirm.",
+      "Deletes anything, spends money, publishes the website, or touches WellThree.",
+      "Talks to anyone but you unless you confirm a text or email.",
+    ],
+    seeIt: { label: "Jarvis", href: "/jarvis" },
+    brain: "OpenAI GPT-5 (thinking) + GPT-Live (voice)",
+    code: "lib/jarvis.ts, lib/jarvis-call.ts",
+  },
+  {
     key: "reception",
     feeds: ["messenger"],
     name: "Ava",

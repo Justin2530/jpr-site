@@ -39,6 +39,9 @@ export type WatchOptions = {
   // once she's done talking and the AI leg hangs up, so the call goes on to the tone.
   voicemailCue?: RegExp;
   onVoicemail?: () => Promise<void>;
+  // Jarvis: a hand-off is answered by a backend with real work to do, given what the caller said since the
+  // last hand-off. While it works the call isn't counted as dead air.
+  onDelegation?: (heard: string) => Promise<string>;
 };
 export type WatchResult = { done: boolean; reason: string };
 
@@ -85,6 +88,7 @@ export async function watchCall({
   handoffReply = HANDOFF_REPLY,
   voicemailCue,
   onVoicemail,
+  onDelegation,
 }: WatchOptions): Promise<WatchResult> {
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) {
@@ -138,6 +142,8 @@ export async function watchCall({
   let goodbyeAt: number | null = null;
   let voicemailAt: number | null = null;
   let agentSinceCandidate = "";
+  let heardSinceHandoff = "";
+  let working = 0; // hand-offs the backend is still working on
   let reason = "";
   let hangupResult = "";
 
@@ -168,10 +174,10 @@ export async function watchCall({
         })();
       } else if (goodbyeAt && now - lastActivity > AFTER_GOODBYE_MS)
         void hangup("assistant said goodbye");
-      else if (now - lastActivity > DEAD_AIR_MS) void hangup("dead air");
+      else if (now - lastActivity > DEAD_AIR_MS && !working) void hangup("dead air");
       else if (now - callStartedAt > MAX_CALL_MS)
         void hangup("call ran too long");
-      else if (now > sliceEnd) {
+      else if (now > sliceEnd && !working) {
         reason = "slice over";
         sock.close();
       }
@@ -217,6 +223,24 @@ export async function watchCall({
         // this call needs a backend, so tell it to carry on.
         const d = e.delegation as { id?: string } | undefined;
         handoffs++;
+        if (d?.id && onDelegation) {
+          const heard = heardSinceHandoff;
+          heardSinceHandoff = "";
+          working++;
+          lastActivity = Date.now();
+          void onDelegation(heard)
+            .catch((err) => {
+              log("Hand-off failed", { err: String(err) });
+              return "The back office hit a problem with that one. Tell J. P. briefly and ask him to try again.";
+            })
+            .then((content) => {
+              working--;
+              lastActivity = Date.now();
+              if (sock.readyState === WebSocket.OPEN)
+                sock.send(JSON.stringify({ type: "session.thinking.append", delegation_id: d.id, content }));
+            });
+          return;
+        }
         if (d?.id && sock.readyState === WebSocket.OPEN) {
           sock.send(
             JSON.stringify({
@@ -233,6 +257,7 @@ export async function watchCall({
       const isOutput = /output_transcript/.test(type);
       if (!isInput && !isOutput) return;
       const text = textOf(e);
+      if (isInput) heardSinceHandoff += text;
       if (!/[a-z]{2}/i.test(text)) return;
       lastActivity = Date.now();
       if (isInput) {

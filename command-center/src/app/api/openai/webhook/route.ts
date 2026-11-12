@@ -18,6 +18,12 @@ import {
   type ReceptionContext,
 } from "@/lib/reception";
 import { update } from "@/lib/screening";
+import {
+  JARVIS_GREETING,
+  jarvisFromSipHeaders,
+  jarvisVoiceInstructions,
+  startJarvisWatch,
+} from "@/lib/jarvis-call";
 import { webhookDb } from "@/app/api/twilio/webhook";
 
 // The caller is already on the line when the assistant joins. A short wait first, so the audio is flowing
@@ -52,6 +58,29 @@ export async function POST(request: Request) {
   const secret = automationSecret()!;
   const url = new URL(request.url);
   const origin = `https://${request.headers.get("x-forwarded-host") ?? url.host}`;
+
+  // Justin called from his cell and was put through to Jarvis, his chief of staff.
+  const jarvis = jarvisFromSipHeaders(event.data?.sip_headers);
+  if (jarvis) {
+    const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
+    const { data: jc } = await rpc("jarvis_call_get", { p_secret: secret, p_id: jarvis });
+    const c = jc as { status: string; live_session_id: string | null } | null;
+    if (!c || c.status !== "in_progress" || c.live_session_id) {
+      await rejectCall(sessionId);
+      return NextResponse.json({ ok: true, rejected: true });
+    }
+    try {
+      await acceptLive(sessionId, jarvisVoiceInstructions());
+    } catch (e) {
+      console.error("Accept failed (Jarvis)", e);
+      await rpc("jarvis_call_update", { p_secret: secret, p_id: jarvis, p_note: { accept_error: String(e).slice(0, 300) } });
+      return NextResponse.json({ ok: false });
+    }
+    await rpc("jarvis_call_update", { p_secret: secret, p_id: jarvis, p_session: sessionId });
+    await startJarvisWatch(origin, jarvis, sessionId, Date.now());
+    after(async () => console.info("Jarvis greeting:", await greetCall(sessionId, JARVIS_GREETING, GREET_AFTER_MS)));
+    return NextResponse.json({ ok: true });
+  }
 
   // Someone called JPR's line and was put through to the answering agent.
   const reception = receptionFromSipHeaders(event.data?.sip_headers);
