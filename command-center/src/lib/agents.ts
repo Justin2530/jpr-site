@@ -37,7 +37,7 @@ export const AGENTS: Agent[] = [
       "Talks to anyone but you unless you confirm a text or email.",
     ],
     seeIt: { label: "Jarvis", href: "/jarvis" },
-    brain: "OpenAI GPT-5 (thinking) + GPT-Live (voice)",
+    brain: "OpenAI GPT-5 mini (thinking) + GPT-Live (voice)",
     code: "lib/jarvis.ts, lib/jarvis-call.ts",
   },
   {

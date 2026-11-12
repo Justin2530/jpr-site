@@ -24,7 +24,8 @@ export type Step = {
 export type Pending = { id: string; summary: string; action: { steps: Step[] }; channel: Channel; created_at: string };
 export type Turn = { reply: string; pending: Pending | null; done?: string };
 
-const model = () => process.env.OPENAI_JARVIS_MODEL?.trim() || "gpt-5";
+// gpt-5-mini by default to go easy on the OpenAI credit the phone agents share; OPENAI_JARVIS_MODEL=gpt-5 for more horsepower.
+const model = () => process.env.OPENAI_JARVIS_MODEL?.trim() || "gpt-5-mini";
 
 // The new database functions aren't in the generated types yet.
 async function call<T = unknown>(db: Db, fn: string, args: Record<string, unknown>) {
@@ -189,7 +190,7 @@ export async function think(db: Db, secret: string, channel: Channel, said: stri
       instructions: brief(channel, schemaText),
       input,
       tools,
-      reasoning: { effort: channel === "voice" ? "low" : "medium" },
+      reasoning: { effort: channel === "voice" ? "low" : "high" },
       store: false,
       include: ["reasoning.encrypted_content"],
     });
