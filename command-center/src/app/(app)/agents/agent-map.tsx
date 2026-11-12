@@ -5,8 +5,8 @@ import { SubmitButton } from "@/components/submit-button";
 import type { Agent } from "@/lib/agents";
 import { renameAgent } from "./actions";
 
-// The AI team as a live network: Justin in the middle, each agent on a ring around him, links for the hand-offs
-// between agents. Active agents (did something in the last 24 hours) pulse. Click a node for its full card.
+// The AI team as a live network: Justin in the middle, Jarvis (his chief of staff) as a ring around him, between him
+// and the team (Justin 2026-11-12), each agent on the outer ring, links for the hand-offs between agents. Active agents (did something in the last 24 hours) pulse. Click a node for its full card.
 
 const TEAM_COLOR: Record<Agent["team"], string> = {
   "Front desk": "var(--c-rose)",
@@ -23,20 +23,26 @@ const W = 1000;
 const H = 640;
 const CX = W / 2;
 const CY = H / 2;
+const CENTER = "jarvis";
 
 export function AgentMap({ agents, names, live, teams }: Props) {
-  const ordered = teams.flatMap((t) => agents.filter((a) => a.team === t));
-  const [selected, setSelected] = useState<string>(ordered.find((a) => (live[a.key] ?? 0) > 0)?.key ?? ordered[0].key);
+  const byTeam = teams.flatMap((t) => agents.filter((a) => a.team === t));
+  const chief = byTeam.find((a) => a.key === CENTER);
+  const ring = byTeam.filter((a) => a.key !== CENTER);
+  const ordered = chief ? [chief, ...ring] : ring;
+  const [selected, setSelected] = useState<string>(chief?.key ?? ring.find((a) => (live[a.key] ?? 0) > 0)?.key ?? ring[0].key);
   const [hover, setHover] = useState<string | null>(null);
 
   const pos = new Map(
-    ordered.map((a, i) => {
-      const angle = (i / ordered.length) * Math.PI * 2 - Math.PI / 2;
+    ring.map((a, i) => {
+      const angle = (i / ring.length) * Math.PI * 2 - Math.PI / 2;
       return [a.key, { x: CX + Math.cos(angle) * 390, y: CY + Math.sin(angle) * 240 }];
     }),
   );
+  pos.set(CENTER, { x: CX, y: CY });
   const focus = hover ?? selected;
-  const linked = new Set<string>([focus]);
+  // Jarvis directs the whole team, so focusing him lights every spoke.
+  const linked = new Set<string>(focus === CENTER ? ordered.map((a) => a.key) : [focus]);
   for (const a of ordered) {
     if (a.key === focus) a.feeds?.forEach((f) => linked.add(f));
     if (a.feeds?.includes(focus)) linked.add(a.key);
@@ -75,10 +81,12 @@ export function AgentMap({ agents, names, live, teams }: Props) {
           {/* rings */}
           <ellipse cx={CX} cy={CY} rx={390} ry={240} fill="none" stroke="var(--c-line-strong)" strokeDasharray="2 8" />
           <ellipse cx={CX} cy={CY} rx={200} ry={124} fill="none" stroke="var(--c-line)" className="map-spin" />
-          <ellipse cx={CX} cy={CY} rx={120} ry={74} fill="none" stroke="var(--c-line-strong)" strokeDasharray="10 14" className="map-spin-rev" />
+          {!chief && (
+            <ellipse cx={CX} cy={CY} rx={120} ry={74} fill="none" stroke="var(--c-line-strong)" strokeDasharray="10 14" className="map-spin-rev" />
+          )}
 
-          {/* spokes from the core */}
-          {ordered.map((a) => {
+          {/* spokes from the core (Jarvis) to every agent */}
+          {ring.map((a) => {
             const p = pos.get(a.key)!;
             const on = linked.has(a.key);
             return (
@@ -98,7 +106,7 @@ export function AgentMap({ agents, names, live, teams }: Props) {
           })}
 
           {/* hand-offs between agents */}
-          {ordered.flatMap((a) =>
+          {ring.flatMap((a) =>
             (a.feeds ?? []).map((f) => {
               const p1 = pos.get(a.key)!;
               const p2 = pos.get(f);
@@ -124,6 +132,44 @@ export function AgentMap({ agents, names, live, teams }: Props) {
 
           {/* core */}
           <circle cx={CX} cy={CY} r={110} fill="url(#core-glow)" />
+
+          {/* Jarvis: the ring between Justin and the team */}
+          {chief && (
+            <g
+              className="cursor-pointer outline-none"
+              tabIndex={0}
+              role="button"
+              aria-label={`${name(chief)}, ${chief.title}`}
+              onClick={() => setSelected(CENTER)}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelected(CENTER)}
+              onMouseEnter={() => setHover(CENTER)}
+              onMouseLeave={() => setHover(null)}
+            >
+              <ellipse cx={CX} cy={CY} rx={118} ry={82} fill="none" stroke="var(--c-cyan)" strokeOpacity={selected === CENTER ? 0.3 : 0.16} strokeWidth="16" />
+              <ellipse
+                cx={CX}
+                cy={CY}
+                rx={118}
+                ry={82}
+                fill="none"
+                stroke="var(--c-cyan)"
+                strokeWidth={selected === CENTER ? 2.5 : 1.6}
+                strokeDasharray="10 8"
+                className="map-spin-rev"
+                style={{ filter: "drop-shadow(0 0 8px var(--c-cyan))" }}
+              />
+              {(live[CENTER] ?? 0) > 0 && <ellipse cx={CX} cy={CY} rx={128} ry={92} fill="none" stroke="var(--c-cyan)" strokeWidth="1.5" className="map-pulse" />}
+              <rect x={CX - 52} y={CY - 82 - 11} width={104} height={22} rx={11} fill="var(--c-panel-solid)" stroke="var(--c-cyan)" strokeWidth="1.5" />
+              <text x={CX} y={CY - 82 + 5} textAnchor="middle" fontSize="13" fontWeight="700" letterSpacing="2" className="font-mono" style={{ fill: "var(--c-cyan)" }}>
+                {name(chief).toUpperCase()}
+              </text>
+              <text x={CX} y={CY + 82 + 20} textAnchor="middle" fontSize="10" letterSpacing="1.5" className="fill-muted font-mono">
+                {chief.title.toUpperCase()}
+              </text>
+            </g>
+          )}
+
+          {/* core: Justin */}
           <circle cx={CX} cy={CY} r={46} fill="var(--c-panel-solid)" stroke="var(--c-cyan)" strokeWidth="2" className="map-core" />
           <text x={CX} y={CY - 2} textAnchor="middle" className="fill-ink font-mono" fontSize="20" fontWeight="700">
             JPR
@@ -133,7 +179,7 @@ export function AgentMap({ agents, names, live, teams }: Props) {
           </text>
 
           {/* agents */}
-          {ordered.map((a) => {
+          {ring.map((a) => {
             const p = pos.get(a.key)!;
             const c = TEAM_COLOR[a.team];
             const active = (live[a.key] ?? 0) > 0;

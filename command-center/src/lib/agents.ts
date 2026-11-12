@@ -75,7 +75,7 @@ export const AGENTS: Agent[] = [
   {
     key: "triage",
     name: "Sage",
-    title: "Chief of Staff",
+    title: "Gatekeeper",
     team: "Inbox & messages",
     does: [
       "Reads every new text and email and decides whether it actually needs you.",
