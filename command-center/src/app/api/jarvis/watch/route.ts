@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   };
   const db = webhookDb();
   const secret = automationSecret()!;
-  const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
+  const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
   const { data } = await rpc("jarvis_call_get", { p_secret: secret, p_id: id });
   const call = data as { live_session_id: string | null; status: string } | null;
   if (!call || call.live_session_id !== sessionId || call.status !== "in_progress")

@@ -16,7 +16,7 @@ async function forJarvis(db: ReturnType<typeof webhookDb>, body: string) {
   if (!auto || !process.env.OPENAI_API_KEY?.trim()) return false;
   if (addressedToJarvis(body)) return true;
   if (/^\s*[A-Za-z][A-Za-z.' -]{0,40}?\s*:\s*\S/.test(body)) return false;
-  const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
+  const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
   const [{ data: waiting }, { data: recent }] = await Promise.all([
     rpc("jarvis_pending", { p_secret: auto }),
     rpc("jarvis_recent", { p_secret: auto, p_limit: 1 }),

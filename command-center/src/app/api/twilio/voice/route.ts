@@ -116,15 +116,19 @@ export async function POST(request: Request) {
     const mine = Boolean(toE164(own) && toE164(from) === toE164(own));
     if (mine) console.info("Owner call, carrier verification:", p.StirVerstat ?? "none");
     if (mine && (p.StirVerstat ?? "").startsWith("TN-Validation-Passed-A")) {
-      const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-      const { data: id } = await rpc("jarvis_call_open", { p_secret: auto, p_sid: p.CallSid ?? "" });
-      if (typeof id === "string") {
-        const done = webhookUrl(origin, `/api/jarvis/ended?id=${id}&sig=${jarvisSig(id)}`);
-        return twiml(
-          `<Dial timeLimit="900" action="${escapeXml(done)}"><Sip>${escapeXml(jarvisSipUri(id))}</Sip></Dial>`,
-        );
+      try {
+        const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+        const { data: id } = await rpc("jarvis_call_open", { p_secret: auto, p_sid: p.CallSid ?? "" });
+        if (typeof id === "string") {
+          const done = webhookUrl(origin, `/api/jarvis/ended?id=${id}&sig=${jarvisSig(id)}`);
+          return twiml(
+            `<Dial timeLimit="900" action="${escapeXml(done)}"><Sip>${escapeXml(jarvisSipUri(id))}</Sip></Dial>`,
+          );
+        }
+        console.error("Couldn't open a Jarvis call; using the old path");
+      } catch (e) {
+        console.error("Jarvis call failed to start; using the old path", e);
       }
-      console.error("Couldn't open a Jarvis call; using the old path");
     }
   }
   const [{ data }, r] = await Promise.all([

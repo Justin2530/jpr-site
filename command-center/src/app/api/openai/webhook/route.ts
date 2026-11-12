@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   // Justin called from his cell and was put through to Jarvis, his chief of staff.
   const jarvis = jarvisFromSipHeaders(event.data?.sip_headers);
   if (jarvis) {
-    const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
+    const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
     const { data: jc } = await rpc("jarvis_call_get", { p_secret: secret, p_id: jarvis });
     const c = jc as { status: string; live_session_id: string | null } | null;
     if (!c || c.status !== "in_progress" || c.live_session_id) {

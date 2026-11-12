@@ -162,13 +162,37 @@ export function confirmLine(summary: string, channel: Channel) {
       : `J. P., to confirm, you want me to ${s}?`;
 }
 
+// A fresh snapshot of the things he asks about most, so most questions need no lookups at all (speed).
+// Each piece is optional: one that fails is left out and Jarvis looks it up instead.
+const SNAPSHOT: Record<string, string> = {
+  what_needs_me_open_items: `select kind, title, priority, due_on, created_at::date as created from action_items where status = 'open' order by priority desc, created_at desc limit 30`,
+  pipeline: `select c.full_name, c.phone, j.title as job, co.name as company, cj.stage, cj.stage_changed_at::date as since, cj.automate, cj.id as candidate_job_id from candidate_jobs cj join candidates c on c.id = cj.candidate_id join jobs j on j.id = cj.job_id left join companies co on co.id = j.company_id order by cj.stage_changed_at desc nulls last limit 40`,
+  jobs: `select j.title, co.name as company, j.status, j.visibility, j.automation_pilot as automation_on, j.location, j.id from jobs j left join companies co on co.id = j.company_id order by j.created_at desc limit 30`,
+  screening_calls_recent_and_upcoming: `select c.full_name, j.title as job, r.status, r.scheduled_for, r.call_outcome from screening_runs r join candidate_jobs cj on cj.id = r.candidate_job_id join candidates c on c.id = cj.candidate_id join jobs j on j.id = cj.job_id where coalesce(r.scheduled_for, r.created_at) > now() - interval '3 days' order by coalesce(r.scheduled_for, r.created_at) limit 20`,
+  interviews: `select c.full_name, j.title as job, i.status, i.waiting_on, i.scheduled_at from interviews i join candidate_jobs cj on cj.id = i.candidate_job_id join candidates c on c.id = cj.candidate_id join jobs j on j.id = cj.job_id where i.status in ('proposing', 'confirmed') or i.scheduled_at > now() - interval '3 days' order by i.scheduled_at nulls last limit 15`,
+  master_switches: `select * from automation_settings limit 1`,
+};
+async function snapshot(db: Db, secret: string) {
+  const parts = await Promise.all(
+    Object.entries(SNAPSHOT).map(async ([k, sql]) => {
+      try {
+        return `${k}: ${JSON.stringify(await call(db, "jarvis_read", { p_secret: secret, p_sql: sql }))}`;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return parts.filter(Boolean).join("\n").slice(0, 40_000);
+}
+
 // One turn of thinking: J. P. said something, Jarvis looks things up and answers, maybe proposing an action.
 export async function think(db: Db, secret: string, channel: Channel, said: string, deadlineMs = 50_000): Promise<Turn> {
   const started = Date.now();
-  const [history, schemaText, waiting] = await Promise.all([
+  const [history, schemaText, waiting, snap] = await Promise.all([
     call<{ at: string; channel: string; role: string; content: string }[]>(db, "jarvis_recent", { p_secret: secret, p_limit: 30 }),
     schema(db, secret),
     call<Pending | null>(db, "jarvis_pending", { p_secret: secret }),
+    snapshot(db, secret),
   ]);
   const input: Item[] = (history ?? []).map((m) => ({
     role: m.role === "jp" ? "user" : "assistant",
@@ -178,6 +202,11 @@ export async function think(db: Db, secret: string, channel: Channel, said: stri
     input.push({
       role: "developer",
       content: `Still waiting on his confirm: "${waiting.summary}". If he's changing it, propose the new version (it replaces this one). If he's moved on, just answer.`,
+    });
+  if (snap)
+    input.push({
+      role: "developer",
+      content: `LIVE SNAPSHOT, read from the database just now (use it directly; look up anything it doesn't cover):\n${snap}`,
     });
   input.push({ role: "user", content: said });
 
@@ -190,7 +219,7 @@ export async function think(db: Db, secret: string, channel: Channel, said: stri
       instructions: brief(channel, schemaText),
       input,
       tools,
-      reasoning: { effort: channel === "voice" ? "low" : "high" },
+      reasoning: { effort: channel === "voice" ? "low" : "medium" },
       store: false,
       include: ["reasoning.encrypted_content"],
     });

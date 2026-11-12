@@ -34,7 +34,7 @@ export async function askJarvis(said: string): Promise<{ reply: string; pending:
 
 export async function jarvisState(): Promise<{ lines: JarvisLine[]; pending: Pending | null }> {
   const { db, secret } = await owner();
-  const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
+  const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
   const [{ data: lines }, { data: pending }] = await Promise.all([
     rpc("jarvis_recent", { p_secret: secret, p_limit: 60 }),
     rpc("jarvis_pending", { p_secret: secret }),

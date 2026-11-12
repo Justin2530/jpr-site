@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const id = url.searchParams.get("id") ?? "";
   if (!validJarvisSig(id, url.searchParams.get("sig"))) return new Response("Forbidden", { status: 403 });
   const db = webhookDb();
-  const rpc = db.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
+  const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>;
   await rpc("jarvis_call_update", {
     p_secret: automationSecret()!,
     p_id: id,
