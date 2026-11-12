@@ -156,8 +156,19 @@ async function respond(body: Record<string, unknown>) {
   return JSON.parse(text) as { output?: Item[] };
 }
 
+// The brain sometimes writes the whole confirm question into the summary ("J. P., to confirm, you want me to ...");
+// keep only the part after it so the question is never said twice.
+export function cleanSummary(summary: string) {
+  return summary
+    .trim()
+    .replace(/^(?:(?:j\.?\s*p\.?|justin)\s*,?\s*)?(?:(?:just\s+)?to\s+confirm\s*,?\s*)?(?:(?:you\s+want\s+me\s+to|i(?:'ll|\s+will)|i\s+am\s+going\s+to)\s+)?/i, "")
+    .replace(/[\s.?!]*(?:please\s+say\s+confirm|reply\s+"?confirm"?.*)[\s.?!]*$/i, "")
+    .replace(/[.?!]+$/, "")
+    .trim();
+}
+
 export function confirmLine(summary: string, channel: Channel) {
-  const s = summary.trim().replace(/[.?!]+$/, "");
+  const s = cleanSummary(summary);
   return channel === "text"
     ? `J. P., to confirm, you want me to ${s}? Reply "confirm" to go ahead or "cancel".`
     : channel === "voice"
@@ -264,10 +275,10 @@ export async function think(db: Db, secret: string, channel: Channel, said: stri
           const id = await call<string>(db, "jarvis_propose", {
             p_secret: secret,
             p_channel: channel,
-            p_summary: String(args.summary),
+            p_summary: cleanSummary(String(args.summary)),
             p_action: { steps },
           });
-          proposed = { id, summary: String(args.summary), action: { steps }, channel, created_at: new Date().toISOString() };
+          proposed = { id, summary: cleanSummary(String(args.summary)), action: { steps }, channel, created_at: new Date().toISOString() };
           output = "Saved. The app will ask J. P. to confirm. Don't call propose_action again this turn; reply with anything else he needs to know in one short line, or nothing.";
         } else output = "Unknown tool.";
       } catch (e) {
