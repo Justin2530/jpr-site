@@ -21,6 +21,7 @@ import { update } from "@/lib/screening";
 import {
   JARVIS_GREETING,
   jarvisFromSipHeaders,
+  jarvisVoice,
   jarvisVoiceInstructions,
   startJarvisWatch,
 } from "@/lib/jarvis-call";
@@ -70,7 +71,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, rejected: true });
     }
     try {
-      await acceptLive(sessionId, jarvisVoiceInstructions());
+      // Jarvis has his own (male) voice; if OpenAI won't take it, he comes on with the standard one.
+      await acceptLive(sessionId, jarvisVoiceInstructions(), jarvisVoice()).catch(async (e) => {
+        console.error("Accept with Jarvis's voice failed, trying the standard voice", e);
+        return acceptLive(sessionId, jarvisVoiceInstructions());
+      });
     } catch (e) {
       console.error("Accept failed (Jarvis)", e);
       await rpc("jarvis_call_update", { p_secret: secret, p_id: jarvis, p_note: { accept_error: String(e).slice(0, 300) } });
@@ -78,7 +83,7 @@ export async function POST(request: Request) {
     }
     await rpc("jarvis_call_update", { p_secret: secret, p_id: jarvis, p_session: sessionId });
     await startJarvisWatch(origin, jarvis, sessionId, Date.now());
-    after(async () => console.info("Jarvis greeting:", await greetCall(sessionId, JARVIS_GREETING, GREET_AFTER_MS)));
+    after(async () => console.info("Jarvis greeting:", await greetCall(sessionId, JARVIS_GREETING, 1500)));
     return NextResponse.json({ ok: true });
   }
 

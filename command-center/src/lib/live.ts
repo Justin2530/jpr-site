@@ -294,13 +294,13 @@ ENDING THE CALL: never rush to end it. Only close once the outline is done (or t
 export async function acceptCall(sessionId: string, c: CallContext) {
   return acceptLive(sessionId, callInstructions(c));
 }
-export async function acceptLive(sessionId: string, instructions: string) {
+export async function acceptLive(sessionId: string, instructions: string, voice = liveVoice()) {
   return openai(`/live/sessions/${sessionId}/accept`, {
     session: {
       type: "live",
       model: liveModel(),
       instructions,
-      audio: { output: { voice: liveVoice() } },
+      audio: { output: { voice } },
       store: true,
     },
   });
