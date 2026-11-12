@@ -71,17 +71,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, rejected: true });
     }
     try {
-      // Jarvis has his own (male) voice; if OpenAI won't take it, he comes on with the standard one.
-      // Slowed a touch (Justin 2026-11-12: "a bit rushed"); if OpenAI won't take the speed, then without it.
-      await acceptLive(sessionId, jarvisVoiceInstructions(), jarvisVoice(), 0.9)
-        .catch(async (e) => {
-          console.error("Accept with Jarvis's pace failed, trying without it", e);
-          return acceptLive(sessionId, jarvisVoiceInstructions(), jarvisVoice());
-        })
-        .catch(async (e) => {
-          console.error("Accept with Jarvis's voice failed, trying the standard voice", e);
-          return acceptLive(sessionId, jarvisVoiceInstructions());
-        });
+      // Jarvis has his own (male) voice. One try only: a failed accept ends OpenAI's side of the call.
+      await acceptLive(sessionId, jarvisVoiceInstructions(), jarvisVoice());
     } catch (e) {
       console.error("Accept failed (Jarvis)", e);
       await rpc("jarvis_call_update", { p_secret: secret, p_id: jarvis, p_note: { accept_error: String(e).slice(0, 300) } });

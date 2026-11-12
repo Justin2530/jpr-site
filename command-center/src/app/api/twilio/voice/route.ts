@@ -5,7 +5,7 @@ import { liveReady, runSig, sipUri } from "@/lib/live";
 import { receptionSig, receptionSipUri } from "@/lib/reception";
 import { readTwilio, twiml, voicemailTwiml, webhookDb } from "../webhook";
 import { ringHours } from "@/lib/cell-alert";
-import { jarvisSig, jarvisSipUri } from "@/lib/jarvis-call";
+import { jarvisSig, jarvisSipUri, validJarvisSig } from "@/lib/jarvis-call";
 
 type Route = {
   owner: boolean;
@@ -78,6 +78,37 @@ export async function POST(request: Request) {
     }
   };
 
+  // Put Justin through to Jarvis. null if Jarvis can't be opened (the caller then gets the old path).
+  const openJarvis = async () => {
+    try {
+      const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+      const { data: id } = await rpc("jarvis_call_open", { p_secret: auto, p_sid: p.CallSid ?? "" });
+      if (typeof id === "string") {
+        const done = webhookUrl(origin, `/api/jarvis/ended?id=${id}&sig=${jarvisSig(id)}`);
+        return twiml(`<Dial timeLimit="900" action="${escapeXml(done)}"><Sip>${escapeXml(jarvisSipUri(id))}</Sip></Dial>`);
+      }
+      console.error("Couldn't open a Jarvis call; using the old path");
+    } catch (e) {
+      console.error("Jarvis call failed to start; using the old path", e);
+    }
+    return null;
+  };
+
+  // Justin picked who he wants (Justin 2026-11-12): "Ava" or 2 gets the receptionist, anything else (or
+  // nothing) gets Jarvis. The pick link is signed for this call, so only his verified call can land here.
+  if (url.searchParams.get("step") === "owner-pick") {
+    if (!auto || !validJarvisSig(`pick:${p.CallSid ?? ""}`, url.searchParams.get("sig")))
+      return new Response("Forbidden", { status: 403 });
+    const wantsAva = p.Digits === "2" || /\b(ava|eva|receptionist)\b/i.test(p.SpeechResult ?? "");
+    console.info("Owner picked", wantsAva ? "Ava" : "Jarvis", { digits: p.Digits, said: p.SpeechResult });
+    if (!wantsAva) {
+      const j = await openJarvis();
+      if (j) return j;
+    }
+    const r = await route();
+    return r ? toAgent({ ...r, screen_cj: null }) : twiml(voicemailTwiml(origin, missed));
+  }
+
   // The forwarded call ended: hang up if Justin talked to them, otherwise the answering agent (if it's
   // on) or JPR's voicemail takes it.
   if (url.searchParams.get("step") === "after") {
@@ -116,19 +147,13 @@ export async function POST(request: Request) {
     const mine = Boolean(toE164(own) && toE164(from) === toE164(own));
     if (mine) console.info("Owner call, carrier verification:", p.StirVerstat ?? "none");
     if (mine && (p.StirVerstat ?? "").startsWith("TN-Validation-Passed-A")) {
-      try {
-        const rpc = db.rpc.bind(db) as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
-        const { data: id } = await rpc("jarvis_call_open", { p_secret: auto, p_sid: p.CallSid ?? "" });
-        if (typeof id === "string") {
-          const done = webhookUrl(origin, `/api/jarvis/ended?id=${id}&sig=${jarvisSig(id)}`);
-          return twiml(
-            `<Dial timeLimit="900" action="${escapeXml(done)}"><Sip>${escapeXml(jarvisSipUri(id))}</Sip></Dial>`,
-          );
-        }
-        console.error("Couldn't open a Jarvis call; using the old path");
-      } catch (e) {
-        console.error("Jarvis call failed to start; using the old path", e);
-      }
+      // He chooses: say "Jarvis" or "Ava" (or press 2 for Ava); silence means Jarvis.
+      const pick = webhookUrl(origin, `/api/twilio/voice?step=owner-pick&sig=${jarvisSig(`pick:${p.CallSid ?? ""}`)}`);
+      return twiml(
+        `<Gather input="dtmf speech" numDigits="1" timeout="3" speechTimeout="auto" hints="Jarvis, Ava" action="${escapeXml(pick)}" method="POST">` +
+          `<Say voice="Polly.Matthew-Neural">Jarvis, or Ava?</Say></Gather>` +
+          `<Redirect method="POST">${escapeXml(pick)}</Redirect>`,
+      );
     }
   }
   const [{ data }, r] = await Promise.all([
