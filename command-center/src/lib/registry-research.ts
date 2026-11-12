@@ -165,7 +165,9 @@ You get the state registry record, a Google results page (JSON) and text from th
 async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: string | null; text: string }) {
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY!.trim()}`, "Content-Type": "application/json" },
+    // Its own key when set (a separate OpenAI project with a budget cap), so the lead research can never use up the
+    // credit the phone, screening and inbox agents run on.
+    headers: { Authorization: `Bearer ${(process.env.OPENAI_RESEARCH_API_KEY || process.env.OPENAI_API_KEY)!.trim()}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
       instructions: RULES,
