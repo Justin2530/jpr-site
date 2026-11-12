@@ -2135,6 +2135,10 @@ export type Database = {
         Args: { p_id: string; p_secret: string };
         Returns: undefined;
       };
+      lead_registry_export: {
+        Args: { p_token: string; p_all: boolean; p_offset: number; p_limit: number }
+        Returns: Database["public"]["Tables"]["lead_registry"]["Row"][]
+      }
       lead_registry_claim: {
         Args: { p_secret: string; p_limit: number };
         Returns: Database["public"]["Tables"]["lead_registry"]["Row"][];
