@@ -2151,6 +2151,10 @@ export type Database = {
         Args: { p_secret: string; p_filing: string };
         Returns: undefined;
       };
+      lead_registry_pause: {
+        Args: { p_secret: string; p_reason: string };
+        Returns: undefined;
+      };
       leads_verify_release: {
         Args: { p_id: string; p_secret: string };
         Returns: undefined;

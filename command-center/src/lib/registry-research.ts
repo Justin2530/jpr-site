@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
 import { getPage, pickPrimary, siteEmails } from "@/lib/leads";
+import { isDirectoryEmail, isDirectorySite } from "@/lib/directory-sites";
 
 // Research agent for the PA registry list (Justin, 2026-11-11). Kept out of the Command Center screens:
 // it fills the hidden lead_registry table and the results go to him as a spreadsheet.
@@ -50,7 +51,10 @@ async function serpOnce(key: string, url: string) {
     signal: AbortSignal.timeout(45000),
   });
   const text = await res.text();
-  if (!res.ok) throw new SerpHold(`Bright Data ${res.status}: ${text.slice(0, 200)}`, res.status);
+  if (!res.ok) {
+    const credit = res.status === 402 || /insufficient (funds|balance)|no (funds|balance)|payment required|negative balance/i.test(text);
+    throw new SerpHold(`Bright Data ${res.status}: ${text.slice(0, 200)}`, res.status, credit ? "Bright Data credit ran out" : undefined);
+  }
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
@@ -58,8 +62,9 @@ async function serpOnce(key: string, url: string) {
   }
 }
 
+// pause: the account is out of credit, so the whole run stops (lead_registry_budget) until it is topped up.
 export class SerpHold extends Error {
-  constructor(msg: string, public status: number) {
+  constructor(msg: string, public status: number, public pause?: string) {
     super(msg);
   }
 }
@@ -96,16 +101,15 @@ function pageText(html: string) {
     .trim();
 }
 
-const OWN_SITE_SKIP = /(facebook|instagram|linkedin|yelp|bbb|yellowpages|mapquest|manta|bizapedia|opencorporates|dnb|zoominfo|buzzfile|corporationwiki|indeed|glassdoor|google|youtube|twitter|x\.com|tiktok|nextdoor|angi|homeadvisor|thumbtack|houzz|porch|chamberofcommerce|allbiz|zaubacorp|pa\.gov|sba\.gov|govtribe|bloomberg|dandb)\./i;
 
 async function siteText(serpJson: Record<string, unknown>) {
   // The business's own site: the panel's website, else the first top link that isn't a directory.
   const k = (serpJson.knowledge ?? {}) as Record<string, unknown>;
   const candidates: string[] = [];
-  for (const v of Object.values(k)) if (typeof v === "string" && /^https?:\/\//.test(v) && !OWN_SITE_SKIP.test(v)) candidates.push(v);
+  for (const v of Object.values(k)) if (typeof v === "string" && /^https?:\/\//.test(v) && !isDirectorySite(v)) candidates.push(v);
   for (const o of (Array.isArray(serpJson.organic) ? serpJson.organic : []).slice(0, 4) as Record<string, unknown>[]) {
     const link = typeof o.link === "string" ? o.link : null;
-    if (link && !OWN_SITE_SKIP.test(link)) candidates.push(link);
+    if (link && !isDirectorySite(link)) candidates.push(link);
   }
   for (const url of candidates.slice(0, 2)) {
     try {
@@ -162,14 +166,33 @@ You get the state registry record, a Google results page (JSON) and text from th
 - hiring: true if the website or results show open jobs or a careers/now-hiring page; careers_url is that page's address, or null.
 - evidence: one short plain sentence saying why.`;
 
+// OpenAI list prices, dollars per million tokens: [input, cached input, output]. Each AI read adds its cost to a
+// running total in lead_registry_budget, and the run stops at the cap there (the research shares the OpenAI credit
+// Jarvis and the phone agents run on).
+const PRICES: [string, [number, number, number]][] = [
+  ["gpt-5-nano", [0.05, 0.005, 0.4]],
+  ["gpt-5-mini", [0.25, 0.025, 2]],
+  ["gpt-4.1-nano", [0.1, 0.025, 0.4]],
+  ["gpt-4.1-mini", [0.4, 0.1, 1.6]],
+  ["gpt-4o-mini", [0.15, 0.075, 0.6]],
+];
+type Usage = { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
+function aiCost(model: string, u: Usage | undefined) {
+  // A model not in the list counts at full GPT-5 prices, so the cap errs on the safe side.
+  const [inp, cached, out] = PRICES.find(([m]) => model.startsWith(m))?.[1] ?? [1.25, 0.125, 10];
+  const c = u?.input_tokens_details?.cached_tokens ?? 0;
+  return (((u?.input_tokens ?? 0) - c) * inp + c * cached + (u?.output_tokens ?? 0) * out) / 1e6;
+}
+
 async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: string | null; text: string }) {
+  const model = process.env.OPENAI_MODEL?.trim() || "gpt-5-mini";
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     // Its own key when set (a separate OpenAI project with a budget cap), so the lead research can never use up the
     // credit the phone, screening and inbox agents run on.
     headers: { Authorization: `Bearer ${(process.env.OPENAI_RESEARCH_API_KEY || process.env.OPENAI_API_KEY)!.trim()}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
+      model,
       instructions: RULES,
       input: JSON.stringify({
         registry: { name: row.name, entity_type: row.entity_type, registered: row.registered_on, address: row.address, city: row.city, county: row.county, owner: row.contact },
@@ -187,13 +210,17 @@ async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: 
   // Out of OpenAI credit or rate-limited: hold the whole tick (and give the business back) instead of spending
   // Google searches whose results can't be read.
   if (!res.ok) {
-    const msg = `OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`;
+    const body = await res.text();
+    const msg = `OpenAI ${res.status}: ${body.slice(0, 200)}`;
+    // insufficient_quota means the prepaid credit is gone: pause the whole run rather than retry every two minutes.
+    if (res.status === 429 && /insufficient_quota/.test(body)) throw new SerpHold(msg, 402, "OpenAI credit ran out");
     if (res.status === 401 || res.status === 429) throw new SerpHold(msg, res.status);
     throw new Error(msg);
   }
   const data = await res.json();
+  const cost = aiCost(model, data.usage);
   const out = (data.output ?? []).flatMap((o: { content?: { type: string; text?: string }[] }) => o.content ?? []).find((c: { type: string }) => c.type === "output_text")?.text;
-  return JSON.parse(out) as Record<string, unknown> & { size_guess: string; employees_est: number | null };
+  return { cost, v: JSON.parse(out) as Record<string, unknown> & { size_guess: string; employees_est: number | null } };
 }
 
 const GENERIC = new Set("llc inc incorporated co corp corporation company ltd the and of pc pllc lp llp limited services service enterprises group pa".split(" "));
@@ -226,13 +253,15 @@ export async function researchOne(key: string, row: Row) {
     };
   }
   const site = await siteText(s);
-  const v = await judge(row, s, site);
+  const { cost, v } = await judge(row, s, site);
   const found = v.found === true;
-  const website = found ? ((v.website as string | null) ?? site.site) : null;
+  // Never a directory, review site, trucking lookup or government page as the business's own website.
+  const picked = found ? ((v.website as string | null) ?? site.site) : null;
+  const website = picked && !isDirectorySite(picked) ? picked : found && site.site && !isDirectorySite(site.site) ? site.site : null;
   // Emails off the business's own site (home, contact and about pages); free.
   let emails: string[] = [];
-  if (website && !OWN_SITE_SKIP.test(website)) {
-    emails = (await siteEmails(website).catch(() => null))?.emails ?? [];
+  if (website) {
+    emails = ((await siteEmails(website).catch(() => null))?.emails ?? []).filter((e) => !isDirectoryEmail(e));
   }
   let domain: string | null = null;
   try {
@@ -250,13 +279,13 @@ export async function researchOne(key: string, row: Row) {
     maps_address: v.address,
     employees_est: v.employees_est,
     size_guess: v.size_guess,
-    research: { found: v.found, facebook: v.facebook, what_they_do: v.what_they_do, people: found ? v.people : [], hiring: found ? v.hiring : false, careers_url: found ? v.careers_url : null, confidence: v.confidence, evidence: v.evidence },
+    research: { found: v.found, facebook: v.facebook, what_they_do: v.what_they_do, people: found ? v.people : [], hiring: found ? v.hiring : false, careers_url: found ? v.careers_url : null, confidence: v.confidence, evidence: v.evidence, ai_cost: Math.round(cost * 1e6) / 1e6 },
   };
 }
 
 export async function runRegistryTick(db: DB, secret: string, only?: number) {
   const started = Date.now();
-  const report = { researched: 0, errors: [] as string[], held: false };
+  const report = { researched: 0, ai_cost: 0, errors: [] as string[], held: false, paused: null as string | null };
   const key = process.env.BRIGHTDATA_API_KEY?.trim();
   if (!key) return { ...report, errors: ["no Bright Data key"] };
   // Ticks come every 2 minutes; workers stop taking new businesses after 100 seconds so two ticks rarely search at
@@ -272,12 +301,20 @@ export async function runRegistryTick(db: DB, secret: string, only?: number) {
         const data = await researchOne(key, row);
         const r = await db.rpc("lead_registry_save", { p_secret: secret, p_filing: row.filing, p_data: data as unknown as Json });
         if (r.error) report.errors.push(`save: ${r.error.message}`);
-        else report.researched++;
+        else {
+          report.researched++;
+          report.ai_cost += Number((data.research as { ai_cost?: number }).ai_cost ?? 0);
+        }
       } catch (e) {
         // No credits, a bad key or zone: stop and give the try back.
         if (e instanceof SerpHold && [401, 402, 403, 407, 429].includes(e.status)) {
           report.held = true;
           await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });
+          // Out of credit: switch the run off (claims hand out nothing) until someone tops up and clears the pause.
+          if (e.pause && !report.paused) {
+            report.paused = e.pause;
+            await db.rpc("lead_registry_pause", { p_secret: secret, p_reason: e.pause });
+          }
         } else if (e instanceof Error && /auto-throttled/i.test(e.message)) {
           // Throttled is not this business's fault: give the try back so it is searched again later.
           await db.rpc("lead_registry_release", { p_secret: secret, p_filing: row.filing });

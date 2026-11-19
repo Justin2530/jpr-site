@@ -1,4 +1,6 @@
 // The master lead list as CSV (Justin, 2026-11-12): used by the owner download and the Google Sheet link.
+import { isDirectoryEmail, isDirectorySite } from "@/lib/directory-sites";
+
 type P = { name: string; title: string | null };
 
 export const COLS = [
@@ -18,10 +20,16 @@ export function leadCsv(rows: Record<string, unknown>[]) {
   for (const r of rows) {
     const x = (r.research ?? {}) as Record<string, unknown>;
     const people = Array.isArray(x.people) ? (x.people as P[]).map((p) => (p.title ? `${p.name} (${p.title})` : p.name)).join("; ") : "";
-    const emails = Array.isArray(r.emails) ? (r.emails as string[]).filter((e) => e !== r.email).join("; ") : "";
+    // Rows researched before the directory filter can carry a directory or government page as the website, and emails
+    // read off it: leave those out.
+    const dir = isDirectorySite(r.website as string | null);
+    const ok = (e: unknown): e is string => typeof e === "string" && !dir && !isDirectoryEmail(e);
+    const good = (Array.isArray(r.emails) ? (r.emails as unknown[]) : []).filter(ok);
+    const email = ok(r.email) ? r.email : (good[0] ?? null);
+    const emails = good.filter((e) => e !== email).join("; ");
     lines.push(
       [
-        r.name, r.county, r.city, r.maps_address ?? r.address, r.phone, r.website, r.email, emails, r.employees_est, r.size_guess,
+        r.name, r.county, r.city, r.maps_address ?? r.address, r.phone, dir ? null : r.website, email, emails, r.employees_est, r.size_guess,
         x.what_they_do, r.category, r.contact, r.contact_title, people, x.hiring === true ? "Yes" : x.hiring === false ? "No" : "",
         x.careers_url, x.facebook, r.rating, r.reviews, r.ppp_jobs, r.entity_type, r.registered_on, x.confidence, x.evidence, r.filing,
       ]
