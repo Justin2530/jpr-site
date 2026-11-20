@@ -1,5 +1,6 @@
 // The master lead list as CSV (Justin, 2026-11-12): used by the owner download and the Google Sheet link.
 import { isDirectoryEmail, isDirectorySite } from "@/lib/directory-sites";
+import { FREE_MAIL, pickPrimary } from "@/lib/leads";
 
 type P = { name: string; title: string | null };
 
@@ -11,7 +12,7 @@ export const COLS = [
 
 // The columns of Justin's Google Sheet "JPR Local Master Lead List", in its order.
 export const SHEET_COLS = [
-  "Business", "County", "City", "Address", "Phone", "Website", "Email", "Est. employees", "Registry contact",
+  "Business", "County", "City", "Address", "Phone", "Website", "Email", "Other emails", "Est. employees", "Registry contact",
   "Registry title", "People on website", "Hiring", "What they do",
 ];
 
@@ -40,8 +41,20 @@ export function leadCsv(rows: Record<string, unknown>[], cols: readonly string[]
     const ok = (e: unknown): e is string => typeof e === "string" && !dir && !isDirectoryEmail(e);
     const good = (Array.isArray(r.emails) ? (r.emails as unknown[]) : []).filter(ok);
     // Only the address the research picked as the business's own; the rest can be a web designer's or a supplier's.
-    const email = ok(r.email) ? r.email : null;
-    const emails = good.filter((e) => e !== email).join("; ");
+    // Emails off the business's Facebook page (fb_emails, lead_registry_fb) are its own whatever their domain.
+    const fb = (Array.isArray(r.fb_emails) ? (r.fb_emails as unknown[]) : []).filter((e): e is string => typeof e === "string" && !isDirectoryEmail(e));
+    const email = ok(r.email) ? r.email : pickPrimary(fb, null, (r.contact as string | null) ?? null);
+    let domain: string | null = null;
+    try {
+      const w = r.website && !dir ? String(r.website) : null;
+      domain = w ? new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).hostname.replace(/^www\./, "").toLowerCase() : null;
+    } catch {}
+    // Other emails: the rest of the business's own addresses (its domain, or free mail like yahoo), then Facebook's.
+    const own = (e: string) => {
+      const d = e.split("@")[1]?.toLowerCase() ?? "";
+      return FREE_MAIL.test(d) || (!!domain && (d === domain || d.endsWith(`.${domain}`) || domain.endsWith(`.${d}`)));
+    };
+    const emails = [...new Set([...good.filter(own), ...fb])].filter((e) => e !== email).join("; ");
     const values = [
       r.name, r.county, r.city, r.maps_address ?? r.address, phone(r.phone), dir ? null : r.website, email, emails, r.employees_est, r.size_guess,
       x.what_they_do, r.category, r.contact, r.contact_title, people, x.hiring === true ? "Yes" : x.hiring === false ? "No" : "",
