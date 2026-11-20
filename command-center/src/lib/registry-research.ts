@@ -15,8 +15,11 @@ export const SERP_COST = 0.0015;
 // One or more SERP zones, comma separated; each zone has its own speed limit, so searches are spread across them.
 export const zones = () => (process.env.BRIGHTDATA_SERP_ZONE || "serp_api1").split(",").map((z) => z.trim()).filter(Boolean);
 
-export async function serp(key: string, q: string, maps = false) {
-  const url = maps
+// engine "bing": Bing hands back plain links where Google often wraps them in google.com/goto redirects.
+export async function serp(key: string, q: string, maps = false, engine: "google" | "bing" = "google") {
+  const url = engine === "bing"
+    ? `https://www.bing.com/search?q=${encodeURIComponent(q)}&cc=us&setlang=en&brd_json=1`
+    : maps
     ? `https://www.google.com/maps/search/${encodeURIComponent(q)}/?hl=en&gl=us&brd_json=1`
     : `https://www.google.com/search?q=${encodeURIComponent(q)}&gl=us&hl=en&brd_json=1`;
   for (let attempt = 0; ; attempt++) {

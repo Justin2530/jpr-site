@@ -90,10 +90,10 @@ function pageIsTheirs(name: string, page: string, o: Record<string, unknown>) {
   return !/\/(posts|videos|photos|reel|events)\b|›\s*(posts|videos|photos|reel|events)\b/i.test(where);
 }
 
-async function findPage(key: string, row: { name: string; city: string | null; county: string | null }) {
+export async function findPage(key: string, row: { name: string; city: string | null; county: string | null }, engine: "google" | "bing" = "bing") {
   const town = row.city ? `${row.city} PA` : `${row.county} County PA`;
   const name = row.name.replace(/,?\s+(llc|inc\.?|incorporated|corp\.?|co\.?|ltd\.?)$/i, "");
-  const j = await serp(key, `site:facebook.com ${name} ${town}`);
+  const j = await serp(key, `site:facebook.com ${name} ${town}`, false, engine);
   const organic = Array.isArray(j.organic) ? (j.organic as Record<string, unknown>[]) : [];
   for (const o of organic.slice(0, 6)) {
     if (typeof o.title !== "string" || !titleMatches(row.name, o.title)) continue;
@@ -101,6 +101,19 @@ async function findPage(key: string, row: { name: string; city: string | null; c
     if (page && pageIsTheirs(row.name, page, o)) return page;
   }
   return null;
+}
+
+// For checking the search by hand: the page it picks and the results it read.
+export async function findPageDebug(row: { name: string; city: string | null; county: string | null }, engine: "google" | "bing") {
+  const key = process.env.BRIGHTDATA_API_KEY?.trim() ?? "";
+  const town = row.city ? `${row.city} PA` : `${row.county} County PA`;
+  const name = row.name.replace(/,?\s+(llc|inc\.?|incorporated|corp\.?|co\.?|ltd\.?)$/i, "");
+  const j = await serp(key, `site:facebook.com ${name} ${town}`, false, engine);
+  const organic = (Array.isArray(j.organic) ? (j.organic as Record<string, unknown>[]) : []).slice(0, 6);
+  return {
+    page: await findPage(key, row, engine),
+    results: organic.map((o) => ({ title: o.title, link: typeof o.link === "string" ? o.link.slice(0, 120) : o.link, display: o.display_link, match: typeof o.title === "string" && titleMatches(row.name, o.title) })),
+  };
 }
 
 type FbRecord = Record<string, unknown> & { url?: string; input?: { url?: string } };
