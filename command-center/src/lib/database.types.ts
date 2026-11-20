@@ -2155,6 +2155,42 @@ export type Database = {
         Args: { p_secret: string; p_reason: string };
         Returns: undefined;
       };
+      lead_registry_fb_claim_search: {
+        Args: { p_secret: string; p_limit: number };
+        Returns: { filing: string; name: string; city: string | null; county: string | null }[];
+      };
+      lead_registry_fb_found: {
+        Args: { p_secret: string; p_filing: string; p_url: string | null };
+        Returns: undefined;
+      };
+      lead_registry_fb_release: {
+        Args: { p_secret: string; p_filing: string };
+        Returns: undefined;
+      };
+      lead_registry_fb_claim_pages: {
+        Args: { p_secret: string; p_limit: number };
+        Returns: { filing: string; fb_url: string | null }[];
+      };
+      lead_registry_fb_sent: {
+        Args: { p_secret: string; p_items: Json; p_snapshot: string | null; p_hold: boolean };
+        Returns: undefined;
+      };
+      lead_registry_fb_snapshots: {
+        Args: { p_secret: string };
+        Returns: { snapshot_id: string; sent_at: string }[];
+      };
+      lead_registry_fb_save: {
+        Args: { p_secret: string; p_snapshot: string; p_url: string; p_emails: string[]; p_page: Json; p_error: string | null };
+        Returns: number;
+      };
+      lead_registry_fb_close: {
+        Args: { p_secret: string; p_snapshot: string; p_pages: number; p_failed: boolean };
+        Returns: undefined;
+      };
+      lead_registry_fb_pause: {
+        Args: { p_secret: string; p_reason: string };
+        Returns: undefined;
+      };
       leads_verify_release: {
         Args: { p_id: string; p_secret: string };
         Returns: undefined;

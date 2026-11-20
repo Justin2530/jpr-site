@@ -224,7 +224,7 @@ async function judge(row: Row, serpJson: Record<string, unknown>, site: { site: 
 }
 
 const GENERIC = new Set("llc inc incorporated co corp corporation company ltd the and of pc pllc lp llp limited services service enterprises group pa".split(" "));
-function coreWords(name: string) {
+export function coreWords(name: string) {
   return name.toLowerCase().replace(/&/g, " ").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !GENERIC.has(w));
 }
 // Does any local listing or top result carry most of the business's distinctive words?
