@@ -42,7 +42,11 @@ const NAMES = [
   "discoverclarioncounty", "exploreclarion", "explorejeffersonpa", "explorevenango", "explorepahistory", "visitjohnstownpa",
   "visitsmicksburg", "visitindianacountypa", "visitclearfieldcounty", "visitjeffersonpa", "visitparker", "visittreasurelake",
   "clarioncountyedc", "indianacountyceo", "duboisccci", "duboispachamber", "indianacountychamber", "crchamber", "jrvchamber",
-  "marionchamber", "redbankchamber", "stmaryschamber", "downtownkittanning",
+  "marionchamber", "redbankchamber", "stmaryschamber", "downtownkittanning", "pabusinesscentral", "apollopahistory",
+  // marketplaces, lead lists and brand head offices that came back as a local business's site
+  "hipcamp", "hotelplanner", "hireahelper", "movers", "goloadup", "auctionzip", "carelulu", "seniorsbluebook", "payerprice",
+  "excavationcontractors", "cisleads", "farmtransparency", "ffls", "toyota", "coopertire", "michelinman", "benjaminmoore",
+  "exxonmobilfuels",
 ];
 const DIRECTORY = new RegExp(`(^|\\.)(${NAMES.join("|")})\\.[a-z]{2,}$`, "i");
 

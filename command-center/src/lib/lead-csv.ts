@@ -39,7 +39,8 @@ export function leadCsv(rows: Record<string, unknown>[], cols: readonly string[]
     const dir = isDirectorySite(r.website as string | null);
     const ok = (e: unknown): e is string => typeof e === "string" && !dir && !isDirectoryEmail(e);
     const good = (Array.isArray(r.emails) ? (r.emails as unknown[]) : []).filter(ok);
-    const email = ok(r.email) ? r.email : (good[0] ?? null);
+    // Only the address the research picked as the business's own; the rest can be a web designer's or a supplier's.
+    const email = ok(r.email) ? r.email : null;
     const emails = good.filter((e) => e !== email).join("; ");
     const values = [
       r.name, r.county, r.city, r.maps_address ?? r.address, phone(r.phone), dir ? null : r.website, email, emails, r.employees_est, r.size_guess,
