@@ -65,7 +65,19 @@ export function isDirectorySite(url: string | null | undefined) {
   return DIRECTORY.test(h) || /\.(gov|mil)$|\.pa\.us$|(^|\.)librar/i.test(h);
 }
 
+// Font and theme designers whose addresses ride along in a site's font files and license notes (found on 2+
+// unrelated business sites in the master lead list, 2026-11-20), not the business's own.
+const CREDIT_EMAILS = new Set([
+  "impallari@gmail.com", "amkryukov@gmail.com", "agustinamingote@gmail.com", "milenabbrandao@gmail.com", "anapbm@gmail.com",
+  "jonpinhorn.typedesign@gmail.com", "typesetit@att.net", "ericjonesmyemail@gmail.com", "micah@micahrich.com", "placejoys.com@gmail.com",
+]);
+
+// Mailbox providers: an address there is the business's own, even though Yahoo and Google also run listing sites.
+const MAILBOX = /^(gmail|googlemail|yahoo|ymail|rocketmail|aol|hotmail|outlook|live|msn|icloud|me|mac|sbcglobal|att|comcast|verizon|windstream|atlanticbb|frontier|frontiernet|earthlink|cox|charter|spectrum|centurylink|bellsouth|juno|netzero|embarqmail|ptd|penn|protonmail|proton|gmx|mail)\.(com|net|me)$/i;
+
 export function isDirectoryEmail(email: string) {
-  const domain = email.split("@")[1];
-  return !!domain && isDirectorySite(domain);
+  const e = email.toLowerCase();
+  if (CREDIT_EMAILS.has(e) || /typedesign|typefoundry|type\.foundry|fontfabric|@fonts?\./.test(e)) return true;
+  const domain = e.split("@")[1];
+  return !!domain && !MAILBOX.test(domain) && isDirectorySite(domain);
 }

@@ -60,14 +60,45 @@ function titleMatches(name: string, title: string) {
   return words.filter((w) => t.includes(w)).length >= Math.max(1, Math.ceil(words.length * 0.67));
 }
 
+// Google often hands results as google.com/goto links. Its breadcrumb ("https://www.facebook.com › Page › posts")
+// still names the page; failing that, the goto link itself redirects to the page.
+async function resultPage(o: Record<string, unknown>) {
+  const link = typeof o.link === "string" ? o.link : "";
+  const direct = fbPage(link);
+  if (direct) return direct;
+  const crumb = typeof o.display_link === "string" ? o.display_link : "";
+  const m = /^https?:\/\/(?:www\.|m\.)?facebook\.com\s*›\s*([^\s›]+)/i.exec(crumb);
+  if (m && m[1] !== "...") return fbPage(`https://www.facebook.com/${m[1]}`);
+  if (/^https:\/\/www\.google\.com\/goto\?/.test(link) && !/^https?:\/\//.test(crumb)) {
+    try {
+      const res = await fetch(link, { redirect: "manual", signal: AbortSignal.timeout(8000) });
+      const to = res.headers.get("location");
+      if (to) return fbPage(new URL(to, link).toString());
+    } catch {}
+  }
+  return null;
+}
+
+// A post about the business can sit on someone else's page (the chamber's, a newspaper's), so the page's own
+// address must carry one of the business's words too; a bare profile.php?id= address only counts when the result
+// is the page itself, not a post.
+function pageIsTheirs(name: string, page: string, o: Record<string, unknown>) {
+  const slug = page.replace(/^https:\/\/www\.facebook\.com\/(?:p\/|people\/|pages\/)?/, "").replace(/profile\.php\?id=\d+/, "").replace(/\/\d+$/, "");
+  const s = slug.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (s) return coreWords(name).some((w) => w.length >= 3 && s.includes(w));
+  const where = `${typeof o.link === "string" ? o.link : ""} ${typeof o.display_link === "string" ? o.display_link : ""}`;
+  return !/\/(posts|videos|photos|reel|events)\b|›\s*(posts|videos|photos|reel|events)\b/i.test(where);
+}
+
 async function findPage(key: string, row: { name: string; city: string | null; county: string | null }) {
   const town = row.city ? `${row.city} PA` : `${row.county} County PA`;
   const name = row.name.replace(/,?\s+(llc|inc\.?|incorporated|corp\.?|co\.?|ltd\.?)$/i, "");
   const j = await serp(key, `site:facebook.com ${name} ${town}`);
   const organic = Array.isArray(j.organic) ? (j.organic as Record<string, unknown>[]) : [];
   for (const o of organic.slice(0, 6)) {
-    const page = typeof o.link === "string" ? fbPage(o.link) : null;
-    if (page && typeof o.title === "string" && titleMatches(row.name, o.title)) return page;
+    if (typeof o.title !== "string" || !titleMatches(row.name, o.title)) continue;
+    const page = await resultPage(o);
+    if (page && pageIsTheirs(row.name, page, o)) return page;
   }
   return null;
 }
