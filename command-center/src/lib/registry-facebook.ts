@@ -90,28 +90,32 @@ function pageIsTheirs(name: string, page: string, o: Record<string, unknown>) {
   return !/\/(posts|videos|photos|reel|events)\b|›\s*(posts|videos|photos|reel|events)\b/i.test(where);
 }
 
-export async function findPage(key: string, row: { name: string; city: string | null; county: string | null }, engine: "google" | "bing" = "bing") {
-  const town = row.city ? `${row.city} PA` : `${row.county} County PA`;
-  const name = row.name.replace(/,?\s+(llc|inc\.?|incorporated|corp\.?|co\.?|ltd\.?)$/i, "");
-  const j = await serp(key, `site:facebook.com ${name} ${town}`, false, engine);
-  const organic = Array.isArray(j.organic) ? (j.organic as Record<string, unknown>[]) : [];
-  for (const o of organic.slice(0, 6)) {
-    if (typeof o.title !== "string" || !titleMatches(row.name, o.title)) continue;
-    const page = await resultPage(o);
-    if (page && pageIsTheirs(row.name, page, o)) return page;
-  }
-  return null;
+// Google, not Bing: on 2026-11-20 Bing through Bright Data answered 502 or with unrelated pages (a "Jett's on the Blvd"
+// search came back about a video game), while Google listed the business's page first.
+export async function findPage(key: string, row: { name: string; city: string | null; county: string | null }, engine: "google" | "bing" = "google") {
+  return (await searchPage(key, row, engine)).page;
 }
 
-// For checking the search by hand: the page it picks and the results it read.
-export async function findPageDebug(row: { name: string; city: string | null; county: string | null }, engine: "google" | "bing") {
-  const key = process.env.BRIGHTDATA_API_KEY?.trim() ?? "";
+async function searchPage(key: string, row: { name: string; city: string | null; county: string | null }, engine: "google" | "bing") {
   const town = row.city ? `${row.city} PA` : `${row.county} County PA`;
   const name = row.name.replace(/,?\s+(llc|inc\.?|incorporated|corp\.?|co\.?|ltd\.?)$/i, "");
   const j = await serp(key, `site:facebook.com ${name} ${town}`, false, engine);
   const organic = (Array.isArray(j.organic) ? (j.organic as Record<string, unknown>[]) : []).slice(0, 6);
+  let page: string | null = null;
+  for (const o of organic) {
+    if (typeof o.title !== "string" || !titleMatches(row.name, o.title)) continue;
+    const p = await resultPage(o);
+    if (p && pageIsTheirs(row.name, p, o)) { page = p; break; }
+  }
+  return { page, organic };
+}
+
+// For checking the search by hand: the page it picks and the results it read (one search).
+export async function findPageDebug(row: { name: string; city: string | null; county: string | null }, engine: "google" | "bing") {
+  const key = process.env.BRIGHTDATA_API_KEY?.trim() ?? "";
+  const { page, organic } = await searchPage(key, row, engine);
   return {
-    page: await findPage(key, row, engine),
+    page,
     results: organic.map((o) => ({ title: o.title, link: typeof o.link === "string" ? o.link.slice(0, 120) : o.link, display: o.display_link, match: typeof o.title === "string" && titleMatches(row.name, o.title) })),
   };
 }

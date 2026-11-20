@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   };
   try {
     if (body.sample) return NextResponse.json(await fbSample(body.sample));
-    if (body.find) return NextResponse.json(await findPageDebug({ city: null, county: null, ...body.find }, body.engine ?? "bing"));
+    if (body.find) return NextResponse.json(await findPageDebug({ city: null, county: null, ...body.find }, body.engine ?? "google"));
     return NextResponse.json(await runRegistryFacebook(webhookDb(), automationSecret()!, body));
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "failed" }, { status: 500 });
