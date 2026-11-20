@@ -23,6 +23,25 @@ const NAMES = [
   "mineralanswers", "shalexp", "drillerdb", "scrapmonster", "claimspages", "coalcampusa",
   // news and obituaries
   "legacy", "newspapers", "tribdem", "indianagazette", "thecourierexpress", "theprogressnews", "punxsutawneyspirit", "wjactv",
+  "theclarionnews", "myprogressnews", "latrobebulletinnews", "leadertimes", "mainlinemedianews", "newsbreak", "cbsnews",
+  "worldenergynews", "frepouch",
+  // added before the final Sheet (Nov 20): senior care and health listings
+  "aplaceformom", "mcknightsseniorliving", "elderlifefinancial", "carelistings", "caring", "seniorcareauthority", "ltcnews",
+  "nursinghomes", "whereassistedliving", "findcontinuingcare", "webmd", "psychwebmd", "medifind", "cortico", "deltadental",
+  "rxlocal", "stedi",
+  // booking, food ordering and real estate platforms
+  "zillow", "vagaro", "fresha", "booksy", "grubhub", "ubereats", "toasttab", "singleplatform", "restaurantguru", "restaurantji",
+  "placejoys", "wheree",
+  // other listings, lookups and member directories
+  "localsearch", "centrelocal", "dexknows", "loc8nearme", "cpadirectory", "jewelrystoredirectory", "theweddingvenuesfinder",
+  "visualvisitor", "findtruckservice", "findwaterlab", "finditchesapeake", "experience", "networkofcare", "findhelp",
+  "openplacement", "digitalworksjobs", "golfpass", "apple", "shell", "leadiq", "importgenius", "guidestar", "propublica",
+  "millerwoodtradepub", "lumberheritage", "mpif", "humanservices-countyofindiana",
+  // tourism, chambers, economic development and downtown groups
+  "discoverclarioncounty", "exploreclarion", "explorejeffersonpa", "explorevenango", "explorepahistory", "visitjohnstownpa",
+  "visitsmicksburg", "visitindianacountypa", "visitclearfieldcounty", "visitjeffersonpa", "visitparker", "visittreasurelake",
+  "clarioncountyedc", "indianacountyceo", "duboisccci", "duboispachamber", "indianacountychamber", "crchamber", "jrvchamber",
+  "marionchamber", "redbankchamber", "stmaryschamber", "downtownkittanning",
 ];
 const DIRECTORY = new RegExp(`(^|\\.)(${NAMES.join("|")})\\.[a-z]{2,}$`, "i");
 

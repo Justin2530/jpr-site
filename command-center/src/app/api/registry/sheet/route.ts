@@ -1,21 +1,28 @@
 import { NextResponse } from "next/server";
 import { webhookDb } from "@/app/api/twilio/webhook";
-import { leadCsv } from "@/lib/lead-csv";
+import { leadCsv, SHEET_COLS } from "@/lib/lead-csv";
 
 // Feeds Justin's Google Sheet (=IMPORTDATA of this address) so it stays current while the research runs
-// (2026-11-12). No login: the random key in ?t= is the lock, checked in the database (7 days from when it was made).
+// (2026-11-12). No login: the random key in ?t= is the lock, checked in the database (60 days from when it was made).
+// ?cols=sheet gives only the Sheet's columns; ?start=N&rows=M gives one slice (header only on the first), because
+// IMPORTDATA refuses big files.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const t = url.searchParams.get("t") ?? "";
   const all = url.searchParams.get("all") === "1";
+  const start = Math.max(0, Math.floor(Number(url.searchParams.get("start")) || 0));
+  const max = Math.max(1, Math.floor(Number(url.searchParams.get("rows")) || 1_000_000));
   const db = webhookDb();
   const rows: Record<string, unknown>[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await db.rpc("lead_registry_export", { p_token: t, p_all: all, p_offset: from, p_limit: 1000 });
+  for (let from = start; rows.length < max; ) {
+    const want = Math.min(1000, max - rows.length);
+    const { data, error } = await db.rpc("lead_registry_export", { p_token: t, p_all: all, p_offset: from, p_limit: want });
     if (error) return new NextResponse("link expired or wrong", { status: 403 });
     const batch = (data ?? []) as unknown as Record<string, unknown>[];
     rows.push(...batch);
-    if (batch.length < 1000) break;
+    from += batch.length;
+    if (batch.length < want) break;
   }
-  return new NextResponse(leadCsv(rows), { headers: { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store" } });
+  const csv = leadCsv(rows, url.searchParams.get("cols") === "sheet" ? SHEET_COLS : undefined, start === 0);
+  return new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store" } });
 }
