@@ -17,6 +17,7 @@ const NAMES = [
   // trucking and vehicles
   "truckerpath", "truckmap", "vektortms", "lanefinder", "carriersource", "loadconnect", "brokersnapshot", "motorcarrier",
   "roserocket", "fleetfax", "movecars", "carshipio", "carfax", "cargurus", "pavehicleinspections", "napaonline",
+  "carrierchk", "carriersafetydata", "carrier",
   // health and care
   "healthgrades", "carescout", "care", "healthdataatlas",
   // energy and industry lists
@@ -28,10 +29,10 @@ const NAMES = [
   // added before the final Sheet (Nov 20): senior care and health listings
   "aplaceformom", "mcknightsseniorliving", "elderlifefinancial", "carelistings", "caring", "seniorcareauthority", "ltcnews",
   "nursinghomes", "whereassistedliving", "findcontinuingcare", "webmd", "psychwebmd", "medifind", "cortico", "deltadental",
-  "rxlocal", "stedi",
+  "rxlocal", "stedi", "retirementhomes", "seniorhomes", "carelinx", "daycare", "insiderx",
   // booking, food ordering and real estate platforms
   "zillow", "vagaro", "fresha", "booksy", "grubhub", "ubereats", "toasttab", "singleplatform", "restaurantguru", "restaurantji",
-  "placejoys", "wheree",
+  "placejoys", "wheree", "autotrader", "dealerrater", "eventbrite", "eventective", "golfnow",
   // other listings, lookups and member directories
   "localsearch", "centrelocal", "dexknows", "loc8nearme", "cpadirectory", "jewelrystoredirectory", "theweddingvenuesfinder",
   "visualvisitor", "findtruckservice", "findwaterlab", "finditchesapeake", "experience", "networkofcare", "findhelp",
