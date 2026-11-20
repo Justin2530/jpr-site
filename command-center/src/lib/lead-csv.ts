@@ -21,6 +21,13 @@ function cell(v: unknown) {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+// US numbers written one way, "(814) 938-1234", so they read alike and a sheet doesn't turn bare digits into a number.
+function phone(v: unknown) {
+  if (typeof v !== "string") return v;
+  const m = /^1?(\d{3})(\d{3})(\d{4})$/.exec(v.replace(/\D/g, ""));
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : v;
+}
+
 export function leadCsv(rows: Record<string, unknown>[], cols: readonly string[] = COLS, header = true) {
   const pick = cols.map((c) => COLS.indexOf(c));
   const lines = header ? [cols.join(",")] : [];
@@ -35,7 +42,7 @@ export function leadCsv(rows: Record<string, unknown>[], cols: readonly string[]
     const email = ok(r.email) ? r.email : (good[0] ?? null);
     const emails = good.filter((e) => e !== email).join("; ");
     const values = [
-      r.name, r.county, r.city, r.maps_address ?? r.address, r.phone, dir ? null : r.website, email, emails, r.employees_est, r.size_guess,
+      r.name, r.county, r.city, r.maps_address ?? r.address, phone(r.phone), dir ? null : r.website, email, emails, r.employees_est, r.size_guess,
       x.what_they_do, r.category, r.contact, r.contact_title, people, x.hiring === true ? "Yes" : x.hiring === false ? "No" : "",
       x.careers_url, x.facebook, r.rating, r.reviews, r.ppp_jobs, r.entity_type, r.registered_on, x.confidence, x.evidence, r.filing,
     ];
