@@ -1,21 +1,24 @@
 import { NextResponse } from "next/server";
 import { webhookDb } from "@/app/api/twilio/webhook";
-import { leadCsv, SHEET_COLS } from "@/lib/lead-csv";
+import { leadCsv, SHEET_COLS, sheetLines } from "@/lib/lead-csv";
 
 // Feeds Justin's Google Sheet (=IMPORTDATA of this address) so it stays current while the research runs
 // (2026-11-12). No login: the random key in ?t= is the lock, checked in the database (60 days from when it was made).
-// ?cols=sheet gives only the Sheet's columns; ?start=N&rows=M gives one slice (header only on the first), because
-// IMPORTDATA refuses big files.
+// ?cols=sheet gives the Sheet's rows (one per company and place, duplicates folded in); ?start=N&rows=M gives one slice
+// (header only on the first), because IMPORTDATA refuses big files.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const t = url.searchParams.get("t") ?? "";
   const all = url.searchParams.get("all") === "1";
+  const sheet = url.searchParams.get("cols") === "sheet";
   const start = Math.max(0, Math.floor(Number(url.searchParams.get("start")) || 0));
   const max = Math.max(1, Math.floor(Number(url.searchParams.get("rows")) || 1_000_000));
   const db = webhookDb();
   const rows: Record<string, unknown>[] = [];
-  for (let from = start; rows.length < max; ) {
-    const want = Math.min(1000, max - rows.length);
+  // The Sheet's rows merge businesses from anywhere in the list, so they're read whole and sliced after merging.
+  const [from0, want0] = sheet ? [0, 1_000_000] : [start, max];
+  for (let from = from0; rows.length < want0; ) {
+    const want = Math.min(1000, want0 - rows.length);
     const { data, error } = await db.rpc("lead_registry_export", { p_token: t, p_all: all, p_offset: from, p_limit: want });
     if (error) return new NextResponse("link expired or wrong", { status: 403 });
     const batch = (data ?? []) as unknown as Record<string, unknown>[];
@@ -23,6 +26,8 @@ export async function GET(request: Request) {
     from += batch.length;
     if (batch.length < want) break;
   }
-  const csv = leadCsv(rows, url.searchParams.get("cols") === "sheet" ? SHEET_COLS : undefined, start === 0);
+  const csv = sheet
+    ? [...(start === 0 ? [SHEET_COLS.join(",")] : []), ...sheetLines(rows).slice(start, start + max)].join("\r\n")
+    : leadCsv(rows, undefined, start === 0);
   return new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store" } });
 }
