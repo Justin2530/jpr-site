@@ -16,10 +16,52 @@ export const COLS = [
 // (2026-11-20: "i just dont want any duplicates as far as compnaies/locations"): a business marked same_location_as
 // another folds into that row and is listed under "Also at this location". "Filing #" is the kept row's registry
 // number, hidden in the Sheet, so a later refresh can find the row again.
+// "Key people" (2026-11-20) holds the top decision maker found by Hunter; the Sheet gives the cell a dropdown of the rest,
+// and the hidden "All key people" keeps every one so the Sheet's search and filter still find them.
 export const SHEET_COLS = [
-  "Business", "County", "City", "Address", "Phone", "Website", "Email", "Other emails", "Est. employees", "Registry contact",
-  "Registry title", "People on website", "Hiring", "What they do", "Also at this location", "Filing #",
+  "Business", "County", "City", "Address", "Phone", "Website", "Email", "Other emails", "Key people", "Est. employees",
+  "Registry contact", "Registry title", "People on website", "Hiring", "What they do", "Also at this location",
+  "All key people", "Filing #",
 ];
+
+type Hunter = { email: string; type?: string | null; name?: string | null; title?: string | null; seniority?: string | null };
+
+// Only people who hire or decide (Justin, 2026-11-20: "only people we actually want"): owners, presidents and chiefs,
+// GMs, plant and operations managers, HR and recruiting, office managers, controllers. Lower rank = more senior.
+const ROLES: [RegExp, number][] = [
+  [/\b(owner|founder|co-founder|proprietor|principal|partner)\b/i, 0],
+  [/\b(?<!vice[ -])(president|ceo|chief executive|chairman)\b/i, 0],
+  [/\b(chief|coo|cfo|cao)\b|\bvice president\b|\bvp\b/i, 1],
+  [/\b(general manager|gm|managing director|executive director|administrator|superintendent)\b/i, 1],
+  [/\b(human resources|hr|recruit|talent|people|personnel|staffing)\b/i, 2],
+  [/\b(plant|operations|production|manufacturing|site|branch|facility|store|location)\b.*\b(manager|director|head|lead)\b|\b(director|manager|head)\b.*\b(operations|production|plant)\b/i, 2],
+  [/\b(office manager|business manager|practice manager|controller|comptroller)\b/i, 3],
+];
+const NOT_WANTED = /\b(assistant to|intern|student|engineer|developer|designer|technician|representative|rep|associate|specialist|coordinator|analyst|hygienist|nurse|driver|operator|clerk|cashier)\b/i;
+
+function rank(h: Hunter) {
+  const t = h.title ?? "";
+  if (!h.name || !t || h.type === "generic") return null;
+  for (const [re, r] of ROLES) if (re.test(t) && !(r > 0 && NOT_WANTED.test(t) && !/\b(manager|director|head)\b/i.test(t))) return r;
+  return null;
+}
+
+// Up to 4 decision makers as "Name, Title, email", most senior first.
+export function keyPeople(list: unknown): string[] {
+  const hs = (Array.isArray(list) ? (list as Hunter[]) : []).filter((h) => h && typeof h.email === "string");
+  const seen = new Set<string>();
+  return hs
+    .map((h) => ({ h, r: rank(h) }))
+    .filter((x): x is { h: Hunter; r: number } => x.r !== null)
+    .sort((a, b) => a.r - b.r)
+    .filter(({ h }) => !seen.has(h.email.toLowerCase()) && !!seen.add(h.email.toLowerCase()))
+    .slice(0, 4)
+    .map(({ h }) => `${h.name}, ${h.title}, ${h.email}`);
+}
+
+// Hunter's role addresses (info@, sales@) join "Other emails"; other staff addresses stay out.
+const hunterGeneric = (list: unknown) =>
+  (Array.isArray(list) ? (list as Hunter[]) : []).filter((h) => h && h.type === "generic" && typeof h.email === "string").map((h) => h.email);
 
 function cell(v: unknown) {
   if (v === null || v === undefined) return "";
@@ -46,7 +88,10 @@ function values(r: Row): Record<string, unknown> {
   // Only the address the research picked as the business's own; the rest can be a web designer's or a supplier's.
   // Emails off the business's Facebook page (fb_emails, lead_registry_fb) are its own whatever their domain.
   const fb = (Array.isArray(r.fb_emails) ? (r.fb_emails as unknown[]) : []).filter((e): e is string => typeof e === "string" && !isDirectoryEmail(e));
-  const email = ok(r.email) ? r.email : pickPrimary(fb, null, (r.contact as string | null) ?? null);
+  // No email from the research or Facebook: Hunter's role address (info@), else its top decision maker.
+  const email = ok(r.email) ? r.email
+    : pickPrimary(fb, null, (r.contact as string | null) ?? null)
+      ?? (isDirectorySite(r.website as string | null) ? null : hunterGeneric(r.hunter)[0] ?? keyPeople(r.hunter)[0]?.split(", ").pop() ?? null);
   let domain: string | null = null;
   try {
     const w = r.website && !dir ? String(r.website) : null;
@@ -57,7 +102,9 @@ function values(r: Row): Record<string, unknown> {
     const d = e.split("@")[1]?.toLowerCase() ?? "";
     return FREE_MAIL.test(d) || (!!domain && (d === domain || d.endsWith(`.${domain}`) || domain.endsWith(`.${d}`)));
   };
-  const emails = [...new Set([...good.filter(own), ...fb])].filter((e) => e !== email).join("; ");
+  const hg = dir ? [] : hunterGeneric(r.hunter);
+  const emails = [...new Set([...good.filter(own), ...fb, ...hg].map((e) => e.toLowerCase()))].filter((e) => e !== String(email ?? "").toLowerCase()).join("; ");
+  const kp = dir ? [] : keyPeople(r.hunter);
   return {
     Business: r.name, County: r.county, City: r.city, Address: r.maps_address ?? r.address, Phone: phone(r.phone),
     Website: dir ? null : r.website, Email: email, "Other emails": emails, "Est. employees": r.employees_est, Size: r.size_guess,
@@ -65,6 +112,7 @@ function values(r: Row): Record<string, unknown> {
     "People on website": people, Hiring: x.hiring === true ? "Yes" : x.hiring === false ? "No" : "", "Careers page": x.careers_url,
     Facebook: x.facebook, "Google rating": r.rating, Reviews: r.reviews, "PPP jobs": r.ppp_jobs, "Entity type": r.entity_type,
     Registered: r.registered_on, Confidence: x.confidence, Why: x.evidence, "Filing #": r.filing,
+    "Key people": kp[0] ?? null, "All key people": kp.join(" | "),
   };
 }
 
@@ -122,6 +170,9 @@ export function sheetLines(rows: Row[]) {
       const people = [...new Map(all.flatMap((x) => split(x["People on website"])).map((p) => [p.toLowerCase(), p] as const)).values()];
       const titled = new Set(people.filter((p) => p.includes(" (")).map((p) => p.slice(0, p.indexOf(" (")).toLowerCase()));
       v["People on website"] = people.filter((p) => p.includes(" (") || !titled.has(p.toLowerCase())).join("; ");
+      const kp = [...new Set(all.flatMap((x) => (typeof x["All key people"] === "string" && x["All key people"] ? x["All key people"].split(" | ") : [])))].slice(0, 4);
+      v["Key people"] = kp[0] ?? null;
+      v["All key people"] = kp.join(" | ");
       v.Hiring = all.some((x) => x.Hiring === "Yes") ? "Yes" : all.some((x) => x.Hiring === "No") ? "No" : "";
       v["Also at this location"] = others.map((o) => {
         const ov = values(o);
