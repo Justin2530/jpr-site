@@ -60,9 +60,10 @@ export function keyPeople(list: unknown, employees?: unknown): string[] {
   const order = (r: number) => (big ? ({ 2: 0, 2.5: 1, 1: 2, 0: 3 } as Record<number, number>)[r] ?? 4 : r);
   const seen = new Set<string>();
   return hs
-    .map((h) => ({ h, r: rank(h) }))
+    // Decision makers first; everyone else Hunter named follows (Justin 2026-11-21 wants every email we paid for).
+    .map((h) => ({ h, r: rank(h) ?? (h.name && h.type !== "generic" ? 9 : null) }))
     .filter((x): x is { h: Hunter; r: number } => x.r !== null)
-    .sort((a, b) => order(a.r) - order(b.r))
+    .sort((a, b) => (a.r === 9 ? 9 : order(a.r)) - (b.r === 9 ? 9 : order(b.r)))
     .filter(({ h }) => !seen.has(h.email.toLowerCase()) && !!seen.add(h.email.toLowerCase()))
     .slice(0, KEY_MAX)
     .map(({ h }) => `${h.name}, ${h.title}, ${h.email}`);
@@ -85,9 +86,11 @@ export function domainFits(name: unknown, domain: string | null) {
   return false;
 }
 
-// Hunter's role addresses (info@, sales@) join "Other emails"; other staff addresses stay out.
+// Hunter's role addresses (info@, sales@) lead "Email" when nothing else does.
 const hunterGeneric = (list: unknown) =>
   (Array.isArray(list) ? (list as Hunter[]) : []).filter((h) => h && h.type === "generic" && typeof h.email === "string").map((h) => h.email);
+const hunterAll = (list: unknown) =>
+  (Array.isArray(list) ? (list as Hunter[]) : []).filter((h) => h && typeof h.email === "string").map((h) => h.email);
 
 function cell(v: unknown) {
   if (v === null || v === undefined) return "";
@@ -128,9 +131,11 @@ function values(r: Row): Record<string, unknown> {
     const d = e.split("@")[1]?.toLowerCase() ?? "";
     return FREE_MAIL.test(d) || (!!domain && (d === domain || d.endsWith(`.${domain}`) || domain.endsWith(`.${d}`)));
   };
-  const hg = hunterGeneric(hl);
-  const emails = [...new Set([...good.filter(own), ...fb, ...hg].map((e) => e.toLowerCase()))].filter((e) => e !== String(email ?? "").toLowerCase()).join("; ");
+  // Every Hunter address not already in Key people goes in "Other emails", so nothing paid for is dropped.
   const kp = keyPeople(hl, r.employees_est);
+  const inKey = new Set(kp.map((p) => p.split(", ").pop()!.toLowerCase()));
+  const hg = hunterAll(hl).filter((e) => !inKey.has(e.toLowerCase()));
+  const emails = [...new Set([...good.filter(own), ...fb, ...hg].map((e) => e.toLowerCase()))].filter((e) => e !== String(email ?? "").toLowerCase()).join("; ");
   return {
     Business: r.name, County: r.county, City: r.city, Address: r.maps_address ?? r.address, Phone: phone(r.phone),
     Website: dir ? null : r.website, Email: email, "Other emails": emails, "Est. employees": r.employees_est, Size: r.size_guess,
