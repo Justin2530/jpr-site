@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/database.types";
-import { emailsIn } from "@/lib/leads";
+import { emailsIn, FREE_MAIL } from "@/lib/leads";
 import { isDirectoryEmail } from "@/lib/directory-sites";
 import { domainFits } from "@/lib/lead-csv";
 import { serp, SerpHold } from "@/lib/registry-research";
@@ -13,6 +13,10 @@ import { fbPage, pageIsTheirs, resultPage, titleMatches } from "@/lib/registry-f
 
 type DB = SupabaseClient<Database>;
 const HOLD = [401, 402, 403, 407, 429];
+// People-search sites list someone's personal address under a name that can match a business ("Jeremy, Inc.").
+const PEOPLE_SITES = /(whitepages|spokeo|fastpeoplesearch|truepeoplesearch|beenverified|radaris|zabasearch|peoplefinders?|mylife|intelius|nuwber|clustrmaps|usphonebook|peoplelooker|instantcheckmate|thatsthem|addresses|411|searchpeoplefree|familytreenow)\./i;
+// Local internet providers' mailboxes, besides the national ones in FREE_MAIL.
+const LOCAL_MAIL = /^(zoominternet|alltel|pa|nb|usachoice|jcol|kitty|penn|ptd|yourinter|cvzoom|comcast|verizon|atlanticbb|windstream)\.net$/i;
 
 const hostOf = (u: string | null) => {
   if (!u) return null;
@@ -47,7 +51,9 @@ function pickEmails(row: Row, j: Record<string, unknown>) {
       if (isDirectoryEmail(e) || out.has(e)) continue;
       const d = e.split("@")[1];
       const own = (site && (d === site || site.endsWith(`.${d}`) || d.endsWith(`.${site}`))) || domainFits(row.name, d);
-      if (own || titled) out.set(e, where);
+      // In a result titled with the business's name, a mailbox address (gmail, yahoo, the local provider) counts too;
+      // another company's domain there is usually a same-name business elsewhere.
+      if (own || (titled && (FREE_MAIL.test(d) || LOCAL_MAIL.test(d)))) out.set(e, where);
     }
   };
   const knowledge = j.knowledge as Record<string, unknown> | undefined;
@@ -57,6 +63,8 @@ function pickEmails(row: Row, j: Record<string, unknown>) {
   }
   const organic = Array.isArray(j.organic) ? (j.organic as Record<string, unknown>[]) : [];
   for (const o of organic.slice(0, 10)) {
+    const link = `${typeof o.link === "string" ? o.link : ""} ${typeof o.display_link === "string" ? o.display_link : ""}`;
+    if (PEOPLE_SITES.test(link)) continue;
     const title = typeof o.title === "string" ? o.title : "";
     consider(o, titleMatches(row.name, title), typeof o.link === "string" ? o.link.slice(0, 150) : "result");
   }
