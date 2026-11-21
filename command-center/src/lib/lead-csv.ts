@@ -16,12 +16,12 @@ export const COLS = [
 // (2026-11-20: "i just dont want any duplicates as far as compnaies/locations"): a business marked same_location_as
 // another folds into that row and is listed under "Also at this location". "Filing #" is the kept row's registry
 // number, hidden in the Sheet, so a later refresh can find the row again.
-// "Key people" (2026-11-20) holds the top decision maker found by Hunter; the Sheet gives the cell a dropdown of the rest,
-// and the hidden "All key people" keeps every one so the Sheet's search and filter still find them.
+// "Key people" (2026-11-20) holds the top decision maker found by Hunter; the Sheet gives the cell a dropdown listing the
+// hidden "Key person 1-4" cells of its row, which also keep every one findable by the Sheet's search.
 export const SHEET_COLS = [
   "Business", "County", "City", "Address", "Phone", "Website", "Email", "Other emails", "Key people", "Est. employees",
   "Registry contact", "Registry title", "People on website", "Hiring", "What they do", "Also at this location",
-  "All key people", "Filing #",
+  "Key person 1", "Key person 2", "Key person 3", "Key person 4", "Filing #",
 ];
 
 type Hunter = { email: string; type?: string | null; name?: string | null; title?: string | null; seniority?: string | null };
@@ -134,6 +134,7 @@ function values(r: Row): Record<string, unknown> {
     Facebook: x.facebook, "Google rating": r.rating, Reviews: r.reviews, "PPP jobs": r.ppp_jobs, "Entity type": r.entity_type,
     Registered: r.registered_on, Confidence: x.confidence, Why: x.evidence, "Filing #": r.filing,
     "Key people": kp[0] ?? null, "All key people": kp.join(" | "),
+    ...Object.fromEntries([0, 1, 2, 3].map((i) => [`Key person ${i + 1}`, kp[i] ?? null])),
   };
 }
 
@@ -194,6 +195,7 @@ export function sheetLines(rows: Row[]) {
       const kp = [...new Set(all.flatMap((x) => (typeof x["All key people"] === "string" && x["All key people"] ? x["All key people"].split(" | ") : [])))].slice(0, 4);
       v["Key people"] = kp[0] ?? null;
       v["All key people"] = kp.join(" | ");
+      for (let i = 0; i < 4; i++) v[`Key person ${i + 1}`] = kp[i] ?? null;
       v.Hiring = all.some((x) => x.Hiring === "Yes") ? "Yes" : all.some((x) => x.Hiring === "No") ? "No" : "";
       v["Also at this location"] = others.map((o) => {
         const ov = values(o);
