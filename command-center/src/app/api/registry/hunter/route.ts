@@ -15,8 +15,11 @@ type Email = { value: string; type: string; confidence: number; first_name: stri
 
 const TICK = 120;
 
-async function search(domain: string) {
-  const d = await hunter("domain-search", { domain, limit: "10" });
+// A queue key "acme.com#hr" searches one department (hr, operations, management...): a domain search returns at most
+// 10 people, so big companies get extra searches aimed at the people Justin wants there (2026-11-21).
+async function search(key: string) {
+  const [domain, department] = key.split("#");
+  const d = await hunter("domain-search", { domain, limit: "10", ...(department ? { department } : {}) });
   const emails = ((d.emails ?? []) as Email[]).map((e) => ({
     email: e.value, type: e.type, confidence: e.confidence,
     name: [e.first_name, e.last_name].filter(Boolean).join(" ") || null, title: e.position, seniority: e.seniority,

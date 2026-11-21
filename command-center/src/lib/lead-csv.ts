@@ -17,11 +17,11 @@ export const COLS = [
 // another folds into that row and is listed under "Also at this location". "Filing #" is the kept row's registry
 // number, hidden in the Sheet, so a later refresh can find the row again.
 // "Key people" (2026-11-20) holds the top decision maker found by Hunter; the Sheet gives the cell a dropdown listing the
-// hidden "Key person 1-4" cells of its row, which also keep every one findable by the Sheet's search.
+// hidden "Key person 1-10" cells of its row, which also keep every one findable by the Sheet's search.
 export const SHEET_COLS = [
   "Business", "County", "City", "Address", "Phone", "Website", "Email", "Other emails", "Key people", "Est. employees",
   "Registry contact", "Registry title", "People on website", "Hiring", "What they do", "Also at this location",
-  "Key person 1", "Key person 2", "Key person 3", "Key person 4", "Filing #",
+  ...Array.from({ length: 10 }, (_, i) => `Key person ${i + 1}`), "Filing #",
 ];
 
 type Hunter = { email: string; type?: string | null; name?: string | null; title?: string | null; seniority?: string | null };
@@ -34,13 +34,13 @@ const ROLES: [RegExp, number][] = [
   [/\b(chief|coo|cfo|cao)\b|\bvice president\b|\bvp\b/i, 1],
   [/\b(general manager|gm|managing director|executive director|administrator|superintendent)\b/i, 1],
   [/\b(human resources|hr|recruit|talent|people|personnel|staffing)\b/i, 2],
-  [/\b(plant|operations|production|manufacturing|site|branch|facility|store|location)\b.*\b(manager|director|head|lead)\b|\b(director|manager|head)\b.*\b(operations|production|plant)\b/i, 2],
+  [/\b(plant|operations|production|manufacturing|site|branch|facility|store|location)\b.*\b(manager|director|head|lead)\b|\b(director|manager|head)\b.*\b(operations|production|plant)\b/i, 2.5],
   [/\b(office manager|business manager|practice manager|controller|comptroller)\b/i, 3],
 ];
 const NOT_WANTED = /\b(assistant to|intern|student|engineer|developer|designer|technician|representative|rep|associate|specialist|coordinator|analyst|hygienist|nurse|driver|operator|clerk|cashier)\b/i;
 
 // Leaders of departments that don't hire for him (IT, communications, marketing, sales, banking): left out unless owner or CEO.
-const OTHER_DEPT = /\b(information|it|technology|software|digital|communications?|public (affairs|relations)|marketing|sales|business development|banking|banker|lending|engineering|product|customer|investor|legal|counsel|security|clinical|medical|nursing)\b/i;
+const OTHER_DEPT = /\b(information|it|technology|software|digital|communications?|public (affairs|relations)|marketing|sales|business development|banking|banker|lending|engineering|product|customer|investor|legal|counsel|security|clinical|medical|nursing|government|regulatory|intellectual|data|strategy|quality|surgical|research)\b/i;
 
 function rank(h: Hunter) {
   const t = h.title ?? "";
@@ -50,16 +50,21 @@ function rank(h: Hunter) {
   return null;
 }
 
-// Up to 4 decision makers as "Name, Title, email", most senior first.
-export function keyPeople(list: unknown): string[] {
+export const KEY_MAX = 10;
+
+// Up to KEY_MAX decision makers as "Name, Title, email", most senior first.
+// At a company of 50+ (Justin 2026-11-11), HR and recruiting come first, then plant and operations managers, then the top.
+export function keyPeople(list: unknown, employees?: unknown): string[] {
   const hs = (Array.isArray(list) ? (list as Hunter[]) : []).filter((h) => h && typeof h.email === "string");
+  const big = Number(employees) >= 50;
+  const order = (r: number) => (big ? ({ 2: 0, 2.5: 1, 1: 2, 0: 3 } as Record<number, number>)[r] ?? 4 : r);
   const seen = new Set<string>();
   return hs
     .map((h) => ({ h, r: rank(h) }))
     .filter((x): x is { h: Hunter; r: number } => x.r !== null)
-    .sort((a, b) => a.r - b.r)
+    .sort((a, b) => order(a.r) - order(b.r))
     .filter(({ h }) => !seen.has(h.email.toLowerCase()) && !!seen.add(h.email.toLowerCase()))
-    .slice(0, 4)
+    .slice(0, KEY_MAX)
     .map(({ h }) => `${h.name}, ${h.title}, ${h.email}`);
 }
 
@@ -117,7 +122,7 @@ function values(r: Row): Record<string, unknown> {
   const hl = domainFits(r.name, domain) ? r.hunter : [];
   // No email from the research or Facebook: Hunter's role address (info@), else its top decision maker.
   const email = ok(r.email) ? r.email
-    : pickPrimary(fb, null, (r.contact as string | null) ?? null) ?? hunterGeneric(hl)[0] ?? keyPeople(hl)[0]?.split(", ").pop() ?? null;
+    : pickPrimary(fb, null, (r.contact as string | null) ?? null) ?? hunterGeneric(hl)[0] ?? keyPeople(hl, r.employees_est)[0]?.split(", ").pop() ?? null;
   // Other emails: the rest of the business's own addresses (its domain, or free mail like yahoo), then Facebook's.
   const own = (e: string) => {
     const d = e.split("@")[1]?.toLowerCase() ?? "";
@@ -125,7 +130,7 @@ function values(r: Row): Record<string, unknown> {
   };
   const hg = hunterGeneric(hl);
   const emails = [...new Set([...good.filter(own), ...fb, ...hg].map((e) => e.toLowerCase()))].filter((e) => e !== String(email ?? "").toLowerCase()).join("; ");
-  const kp = keyPeople(hl);
+  const kp = keyPeople(hl, r.employees_est);
   return {
     Business: r.name, County: r.county, City: r.city, Address: r.maps_address ?? r.address, Phone: phone(r.phone),
     Website: dir ? null : r.website, Email: email, "Other emails": emails, "Est. employees": r.employees_est, Size: r.size_guess,
@@ -134,7 +139,7 @@ function values(r: Row): Record<string, unknown> {
     Facebook: x.facebook, "Google rating": r.rating, Reviews: r.reviews, "PPP jobs": r.ppp_jobs, "Entity type": r.entity_type,
     Registered: r.registered_on, Confidence: x.confidence, Why: x.evidence, "Filing #": r.filing,
     "Key people": kp[0] ?? null, "All key people": kp.join(" | "),
-    ...Object.fromEntries([0, 1, 2, 3].map((i) => [`Key person ${i + 1}`, kp[i] ?? null])),
+    ...Object.fromEntries(Array.from({ length: KEY_MAX }, (_, i) => [`Key person ${i + 1}`, kp[i] ?? null])),
   };
 }
 
@@ -192,10 +197,10 @@ export function sheetLines(rows: Row[]) {
       const people = [...new Map(all.flatMap((x) => split(x["People on website"])).map((p) => [p.toLowerCase(), p] as const)).values()];
       const titled = new Set(people.filter((p) => p.includes(" (")).map((p) => p.slice(0, p.indexOf(" (")).toLowerCase()));
       v["People on website"] = people.filter((p) => p.includes(" (") || !titled.has(p.toLowerCase())).join("; ");
-      const kp = [...new Set(all.flatMap((x) => (typeof x["All key people"] === "string" && x["All key people"] ? x["All key people"].split(" | ") : [])))].slice(0, 4);
+      const kp = [...new Set(all.flatMap((x) => (typeof x["All key people"] === "string" && x["All key people"] ? x["All key people"].split(" | ") : [])))].slice(0, KEY_MAX);
       v["Key people"] = kp[0] ?? null;
       v["All key people"] = kp.join(" | ");
-      for (let i = 0; i < 4; i++) v[`Key person ${i + 1}`] = kp[i] ?? null;
+      for (let i = 0; i < KEY_MAX; i++) v[`Key person ${i + 1}`] = kp[i] ?? null;
       v.Hiring = all.some((x) => x.Hiring === "Yes") ? "Yes" : all.some((x) => x.Hiring === "No") ? "No" : "";
       v["Also at this location"] = others.map((o) => {
         const ov = values(o);
