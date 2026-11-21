@@ -2163,6 +2163,14 @@ export type Database = {
         Args: { p_secret: string; p_filing: string; p_url: string | null };
         Returns: undefined;
       };
+      lead_registry_hunter_claim: {
+        Args: { p_secret: string; p_limit: number };
+        Returns: { domain: string }[];
+      };
+      lead_registry_hunter_save: {
+        Args: { p_secret: string; p_domain: string; p_status: string; p_emails: Json; p_organization: string | null; p_pattern: string | null; p_error: string | null };
+        Returns: undefined;
+      };
       lead_registry_fb_release: {
         Args: { p_secret: string; p_filing: string };
         Returns: undefined;
