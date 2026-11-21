@@ -53,7 +53,7 @@ export function fbPage(link: string): string | null {
 }
 
 // Does a result title carry most of the business's distinctive words?
-function titleMatches(name: string, title: string) {
+export function titleMatches(name: string, title: string) {
   const words = coreWords(name);
   if (!words.length) return false;
   const t = title.toLowerCase().replace(/&/g, " ").replace(/[^a-z0-9 ]/g, " ");
@@ -62,7 +62,7 @@ function titleMatches(name: string, title: string) {
 
 // Google often hands results as google.com/goto links. Its breadcrumb ("https://www.facebook.com › Page › posts")
 // still names the page; failing that, the goto link itself redirects to the page.
-async function resultPage(o: Record<string, unknown>) {
+export async function resultPage(o: Record<string, unknown>) {
   const link = typeof o.link === "string" ? o.link : "";
   const direct = fbPage(link);
   if (direct) return direct;
@@ -82,7 +82,7 @@ async function resultPage(o: Record<string, unknown>) {
 // A post about the business can sit on someone else's page (the chamber's, a newspaper's), so the page's own
 // address must carry one of the business's words too; a bare profile.php?id= address only counts when the result
 // is the page itself, not a post.
-function pageIsTheirs(name: string, page: string, o: Record<string, unknown>) {
+export function pageIsTheirs(name: string, page: string, o: Record<string, unknown>) {
   const slug = page.replace(/^https:\/\/www\.facebook\.com\/(?:p\/|people\/|pages\/)?/, "").replace(/profile\.php\?id=\d+/, "").replace(/\/\d+$/, "");
   const s = slug.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (s) return coreWords(name).some((w) => w.length >= 3 && s.includes(w));

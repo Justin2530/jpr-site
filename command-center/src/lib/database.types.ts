@@ -2163,6 +2163,18 @@ export type Database = {
         Args: { p_secret: string; p_filing: string; p_url: string | null };
         Returns: undefined;
       };
+      lead_registry_esearch_claim: {
+        Args: { p_secret: string; p_limit: number };
+        Returns: { filing: string; name: string; city: string | null; county: string | null; website: string | null; need_fb: boolean }[];
+      };
+      lead_registry_esearch_save: {
+        Args: { p_secret: string; p_filing: string; p_status: string; p_emails: string[]; p_fb_url: string | null; p_sources: Json; p_error: string | null; p_searches: number };
+        Returns: undefined;
+      };
+      lead_registry_esearch_release: {
+        Args: { p_secret: string; p_filing: string };
+        Returns: undefined;
+      };
       lead_registry_hunter_claim: {
         Args: { p_secret: string; p_limit: number };
         Returns: { domain: string }[];
