@@ -39,9 +39,13 @@ const ROLES: [RegExp, number][] = [
 ];
 const NOT_WANTED = /\b(assistant to|intern|student|engineer|developer|designer|technician|representative|rep|associate|specialist|coordinator|analyst|hygienist|nurse|driver|operator|clerk|cashier)\b/i;
 
+// Leaders of departments that don't hire for him (IT, communications, marketing, sales, banking): left out unless owner or CEO.
+const OTHER_DEPT = /\b(information|it|technology|software|digital|communications?|public (affairs|relations)|marketing|sales|business development|banking|banker|lending|engineering|product|customer|investor|legal|counsel|security|clinical|medical|nursing)\b/i;
+
 function rank(h: Hunter) {
   const t = h.title ?? "";
   if (!h.name || !t || h.type === "generic") return null;
+  if (OTHER_DEPT.test(t) && !/\b(owner|founder|ceo|chief executive)\b/i.test(t)) return null;
   for (const [re, r] of ROLES) if (re.test(t) && !(r > 0 && NOT_WANTED.test(t) && !/\b(manager|director|head)\b/i.test(t))) return r;
   return null;
 }
@@ -57,6 +61,23 @@ export function keyPeople(list: unknown): string[] {
     .filter(({ h }) => !seen.has(h.email.toLowerCase()) && !!seen.add(h.email.toLowerCase()))
     .slice(0, 4)
     .map(({ h }) => `${h.name}, ${h.title}, ${h.email}`);
+}
+
+// Hunter reads the website on file, which can be a parent company's or a wrong match (a bar listed with untappd.com):
+// its people count only when the domain carries one of the business's words or its initials (S & T Bancorp, stbank.com).
+const FILLER = new Set(["inc", "llc", "ltd", "corp", "corporation", "company", "co", "the", "and", "of", "limited", "liability", "associates", "services", "service", "group", "enterprises", "pa", "dba"]);
+export function domainFits(name: unknown, domain: string | null) {
+  if (typeof name !== "string" || !domain) return false;
+  const d = domain.split(".").slice(0, -1).join("").replace(/[^a-z0-9]/g, "");
+  const words = name.toLowerCase().replace(/&/g, " ").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w && !FILLER.has(w));
+  if (words.some((w) => (w.length >= 3 && d.includes(w)) || (w.length >= 5 && d.includes(w.slice(0, 4))))) return true;
+  // Initials (L & R Decorating, lrinstallations.com) or initials joined by "and" (J & J Motors, jandjauto...).
+  const initials = words.map((w) => w[0]);
+  for (let n = initials.length; n >= 2; n--) {
+    const ini = initials.slice(0, n);
+    if (d.startsWith(ini.join("")) || d.startsWith(ini.join("and"))) return true;
+  }
+  return false;
 }
 
 // Hunter's role addresses (info@, sales@) join "Other emails"; other staff addresses stay out.
@@ -88,23 +109,23 @@ function values(r: Row): Record<string, unknown> {
   // Only the address the research picked as the business's own; the rest can be a web designer's or a supplier's.
   // Emails off the business's Facebook page (fb_emails, lead_registry_fb) are its own whatever their domain.
   const fb = (Array.isArray(r.fb_emails) ? (r.fb_emails as unknown[]) : []).filter((e): e is string => typeof e === "string" && !isDirectoryEmail(e));
-  // No email from the research or Facebook: Hunter's role address (info@), else its top decision maker.
-  const email = ok(r.email) ? r.email
-    : pickPrimary(fb, null, (r.contact as string | null) ?? null)
-      ?? (isDirectorySite(r.website as string | null) ? null : hunterGeneric(r.hunter)[0] ?? keyPeople(r.hunter)[0]?.split(", ").pop() ?? null);
   let domain: string | null = null;
   try {
     const w = r.website && !dir ? String(r.website) : null;
     domain = w ? new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).hostname.replace(/^www\./, "").toLowerCase() : null;
   } catch {}
+  const hl = domainFits(r.name, domain) ? r.hunter : [];
+  // No email from the research or Facebook: Hunter's role address (info@), else its top decision maker.
+  const email = ok(r.email) ? r.email
+    : pickPrimary(fb, null, (r.contact as string | null) ?? null) ?? hunterGeneric(hl)[0] ?? keyPeople(hl)[0]?.split(", ").pop() ?? null;
   // Other emails: the rest of the business's own addresses (its domain, or free mail like yahoo), then Facebook's.
   const own = (e: string) => {
     const d = e.split("@")[1]?.toLowerCase() ?? "";
     return FREE_MAIL.test(d) || (!!domain && (d === domain || d.endsWith(`.${domain}`) || domain.endsWith(`.${d}`)));
   };
-  const hg = dir ? [] : hunterGeneric(r.hunter);
+  const hg = hunterGeneric(hl);
   const emails = [...new Set([...good.filter(own), ...fb, ...hg].map((e) => e.toLowerCase()))].filter((e) => e !== String(email ?? "").toLowerCase()).join("; ");
-  const kp = dir ? [] : keyPeople(r.hunter);
+  const kp = keyPeople(hl);
   return {
     Business: r.name, County: r.county, City: r.city, Address: r.maps_address ?? r.address, Phone: phone(r.phone),
     Website: dir ? null : r.website, Email: email, "Other emails": emails, "Est. employees": r.employees_est, Size: r.size_guess,
